@@ -4,7 +4,7 @@
 **Branch:** `next`
 **Deploy:** build `lingarr-next` from `next`
 **Official reference (import only):** https://github.com/lingarr-translate/lingarr  
-**Lingarr Next fork:** https://github.com/apoapostolov/lingarr
+**Lingarr Next:** https://github.com/apoapostolov/lingarr-next
 **Agent guide:** [`AGENTS.md`](../AGENTS.md) — keep this proposal and AGENTS.md updated together
 
 ## Goals

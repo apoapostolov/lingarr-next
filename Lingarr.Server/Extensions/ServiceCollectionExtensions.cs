@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
                 License = new OpenApiLicense
                 {
                     Name = "GNU Affero General Public License v3.0",
-                    Url = new Uri("https://github.com/apoapostolov/lingarr/blob/bedroom/LICENSE")
+                    Url = new Uri("https://github.com/apoapostolov/lingarr-next/blob/next/LICENSE")
                 }
             });
             

@@ -6,7 +6,7 @@ namespace Lingarr.Server.Interfaces.Services;
 public interface ILingarrApiService
 {
     /// <summary>
-    /// Gets the latest semantic release or tag from apoapostolov/lingarr.
+    /// Gets the latest semantic release or tag from apoapostolov/lingarr-next.
     /// </summary>
     /// <returns>Version string or null if unavailable</returns>
     Task<string?> GetLatestVersion();

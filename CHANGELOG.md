@@ -23,6 +23,7 @@ new, and it skips a title that already has its languages.
   input and output tokens. Subscription and OAuth providers do not.
 - The README and the app header use a transparent mark. The navy tile fills
   the image.
+- The public repository is apoapostolov/lingarr-next.
 
 ## [1.1.2] - 2026-10-04 — Library
 
@@ -314,14 +315,14 @@ maintained by Apostol Apostolov.
 
 - Reset the fork's public release history to the independent `1.0.0` baseline.
 - Moved the supported public image to
-  `ghcr.io/apoapostolov/lingarr:1.0.0`.
+  `ghcr.io/apoapostolov/lingarr-next:1.0.0`.
 - Database migrations through the LLM-usage and Dashboard-language additions are
   applied automatically at startup.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
-[1.1.3]: https://github.com/apoapostolov/lingarr/releases/tag/1.1.3
-[1.1.2]: https://github.com/apoapostolov/lingarr/releases/tag/1.1.2
-[1.1.1]: https://github.com/apoapostolov/lingarr/releases/tag/1.1.1
-[1.1.0]: https://github.com/apoapostolov/lingarr/releases/tag/1.1.0
-[1.0.0]: https://github.com/apoapostolov/lingarr/releases/tag/1.0.0
+[1.1.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3
+[1.1.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.2
+[1.1.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.1
+[1.1.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.0
+[1.0.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.0.0

@@ -1,6 +1,6 @@
 # Lingarr Next architecture
 
-This document describes the **apoapostolov/lingarr** fork as deployed on Bedroom (`lingarr-next` image). Upstream conceptual design is the same; Bedroom-specific behaviour is called out explicitly.
+This document describes **apoapostolov/lingarr-next** as deployed on Bedroom (`lingarr-next` image). Upstream conceptual design is the same; Bedroom-specific behaviour is called out explicitly.
 
 ## 1. What Lingarr Next is
 
@@ -229,7 +229,7 @@ Schedules come from settings; changes fire `SettingChangedListener`.
 
 The Bedroom fork does not include anonymous usage telemetry or its former scheduled submission job.
 The separate version check reads public release/tag metadata from GitHub repository
-`apoapostolov/lingarr`; it does not contact the upstream Lingarr API.
+`apoapostolov/lingarr-next`; it does not contact the upstream Lingarr API.
 
 ## 9. Auth
 

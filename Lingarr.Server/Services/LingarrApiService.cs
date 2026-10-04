@@ -7,7 +7,7 @@ namespace Lingarr.Server.Services;
 public class LingarrApiService : ILingarrApiService
 {
     private const string ForkOwner = "apoapostolov";
-    private const string ForkRepository = "lingarr";
+    private const string ForkRepository = "lingarr-next";
     private const string GitHubApiVersion = "2022-11-28";
     private const string CacheKeyLatestVersion = "ForkRepository_LatestVersion";
 
@@ -58,7 +58,7 @@ public class LingarrApiService : ILingarrApiService
             _cache.Set(CacheKeyLatestVersion, latestVersion, cacheOptions);
 
             _logger.LogInformation(
-                "Retrieved latest fork version {Version} from {Owner}/{Repository}",
+                "Retrieved latest version {Version} from {Owner}/{Repository}",
                 latestVersion,
                 ForkOwner,
                 ForkRepository);
@@ -68,7 +68,7 @@ public class LingarrApiService : ILingarrApiService
         {
             _logger.LogError(
                 ex,
-                "Failed to fetch the latest version from fork repository {Owner}/{Repository}",
+                "Failed to fetch the latest version from {Owner}/{Repository}",
                 ForkOwner,
                 ForkRepository);
             return null;

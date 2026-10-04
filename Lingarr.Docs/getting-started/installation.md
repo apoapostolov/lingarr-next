@@ -18,7 +18,7 @@ Lingarr Next Docker images are available from multiple registries:
 
 | Registry | Image |
 |----------|-------|
-| GitHub Container Registry | `ghcr.io/apoapostolov/lingarr:latest` |
+| GitHub Container Registry | `ghcr.io/apoapostolov/lingarr-next:latest` |
 
 ## Docker Compose
 
@@ -27,7 +27,7 @@ By default, Lingarr Next uses `MySQL`; `PostgreSQL` and `SQLite` are also suppor
 ```yaml
 services:
   lingarr:
-    image: ghcr.io/apoapostolov/lingarr:latest
+    image: ghcr.io/apoapostolov/lingarr-next:latest
     container_name: lingarr
     restart: unless-stopped
     environment:
@@ -110,7 +110,7 @@ docker run -d \
   -v /path/to/media/tv:/tv \
   -v /path/to/config:/app/config \
   --network lingarr \
-  ghcr.io/apoapostolov/lingarr:latest
+  ghcr.io/apoapostolov/lingarr-next:latest
 ```
 
 ## Running as non-root

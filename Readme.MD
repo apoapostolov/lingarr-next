@@ -6,9 +6,9 @@
 
 Translate the subtitles you already have. Keep the drive quiet.
 
-[![Version](https://img.shields.io/github/v/release/apoapostolov/lingarr?label=release)](https://github.com/apoapostolov/lingarr/releases)
-[![Container](https://img.shields.io/badge/container-ghcr.io%2Fapoapostolov%2Flingarr-2496ED?logo=docker&logoColor=white)](https://github.com/apoapostolov/lingarr/pkgs/container/lingarr)
-[![CI](https://github.com/apoapostolov/lingarr/actions/workflows/ci.yml/badge.svg?branch=next)](https://github.com/apoapostolov/lingarr/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/release/apoapostolov/lingarr-next?label=release)](https://github.com/apoapostolov/lingarr-next/releases)
+[![Container](https://img.shields.io/badge/container-ghcr.io%2Fapoapostolov%2Flingarr--next-2496ED?logo=docker&logoColor=white)](https://github.com/apoapostolov/lingarr-next/pkgs/container/lingarr-next)
+[![CI](https://github.com/apoapostolov/lingarr-next/actions/workflows/ci.yml/badge.svg?branch=next)](https://github.com/apoapostolov/lingarr-next/actions/workflows/ci.yml)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 
@@ -29,14 +29,14 @@ You run it yourself. There is no hosted translation service. Connect your own
 libraries and your own providers: free web translators, DeepL, or a local or
 hosted model.
 
-Lingarr Next is a fork of
-[Lingarr](https://github.com/lingarr-translate/lingarr), maintained by Apostol
-Apostolov. AI-assisted changes are welcome. Each one is still reviewed and
-tested before it ships.
+Lingarr Next started from
+[Lingarr](https://github.com/lingarr-translate/lingarr) and is now its own
+project, maintained by Apostol Apostolov. AI-assisted changes are welcome.
+Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.1.3](https://github.com/apoapostolov/lingarr/releases/tag/1.1.3).
+Current release: [1.1.3](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
 
 ### 1.1.3 — Imports (2026-10-04)
@@ -215,7 +215,7 @@ container:
 ```yaml
 services:
   lingarr:
-    image: ghcr.io/apoapostolov/lingarr:latest
+    image: ghcr.io/apoapostolov/lingarr-next:latest
     container_name: lingarr
     restart: unless-stopped
     ports:
@@ -257,7 +257,7 @@ Before changing from upstream Lingarr or an older fork build:
 1. Back up `/app/config` and your application database.
 2. Review [CHANGELOG.md](CHANGELOG.md), especially migrations and provider
    configuration.
-3. Change the image to `ghcr.io/apoapostolov/lingarr:latest`.
+3. Change the image to `ghcr.io/apoapostolov/lingarr-next:latest`.
 4. Start the container and allow the automatic database migrations to finish.
 5. Confirm the translation chain, paths, prompt profiles, and provider health
    before starting a large automated run.

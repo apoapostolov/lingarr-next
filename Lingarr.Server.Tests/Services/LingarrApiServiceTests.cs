@@ -22,7 +22,7 @@ public class LingarrApiServiceTests
         var handler = new RecordingHandler(request =>
         {
             Assert.Equal(
-                "https://api.github.com/repos/apoapostolov/lingarr/releases/latest",
+                "https://api.github.com/repos/apoapostolov/lingarr-next/releases/latest",
                 request.RequestUri?.ToString());
             Assert.Contains("application/vnd.github+json", request.Headers.Accept.Select(value => value.MediaType));
             Assert.Equal("2022-11-28", request.Headers.GetValues("X-GitHub-Api-Version").Single());
@@ -47,7 +47,7 @@ public class LingarrApiServiceTests
             }
 
             Assert.Equal(
-                "https://api.github.com/repos/apoapostolov/lingarr/tags?per_page=100",
+                "https://api.github.com/repos/apoapostolov/lingarr-next/tags?per_page=100",
                 request.RequestUri?.ToString());
             return Json(
                 HttpStatusCode.OK,

@@ -1,14 +1,14 @@
-# AGENTS.md — Lingarr Next fork
+# AGENTS.md — Lingarr Next
 
-Guidance for humans and coding agents working in **this** repo (`apoapostolov/lingarr`), not upstream.
+Guidance for humans and coding agents working in **this** repo (`apoapostolov/lingarr-next`), not upstream.
 
 ## Source of truth
 
 | Role | Location |
 |------|----------|
-| **Deploy / Docker image** | This fork only → image `lingarr-next:*` |
+| **Deploy / Docker image** | This repository only → image `lingarr-next:*` |
 | **Official upstream (import only)** | https://github.com/lingarr-translate/lingarr |
-| **Local clone** | `/mnt/c/git-ext/lingarr` |
+| **Local clone** | `/mnt/c/git-public/lingarr` |
 | **Ops skill** | Hermes `lingarr-local` (`references/bedroom-fork-build.md`) |
 | **Product proposals** | `docs/` (keep in sync when behaviour changes) |
 | **Current development plan** | `DEVELOPMENT_PLAN.md` (execution state, not product rationale) |
