@@ -2,12 +2,12 @@ name: Docs
 
 on:
   push:
-    branches: [ next ]
+    branches: [ main ]
     paths:
       - 'Lingarr.Docs/**'
       - '.github/workflows/docs.yml'
   pull_request:
-    branches: [ next ]
+    branches: [ main ]
     paths:
       - 'Lingarr.Docs/**'
       - '.github/workflows/docs.yml'

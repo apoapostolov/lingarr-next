@@ -1,13 +1,18 @@
 # AGENTS.md — Lingarr Next
 
-Guidance for humans and coding agents working in **this** repo (`apoapostolov/lingarr-next`), not upstream.
+Guidance for humans and coding agents working in **this** repo
+(`apoapostolov/lingarr-next`). It is no longer a GitHub fork. Treat it as a
+managed fork of [Lingarr](https://github.com/lingarr-translate/lingarr):
+cherry-pick and diff against that upstream, and ship only on this repository.
 
 ## Source of truth
 
 | Role | Location |
 |------|----------|
 | **Deploy / Docker image** | This repository only → image `lingarr-next:*` |
-| **Official upstream (import only)** | https://github.com/lingarr-translate/lingarr |
+| **Official upstream (import only)** | https://github.com/lingarr-translate/lingarr (`upstream`, branch `main`) |
+| **Upstream snapshot** | Commit `5eadc933` (#502). It is not the tip of `main`. |
+| **Active line** | `main` only. Do not recreate `next`. |
 | **Local clone** | `/mnt/c/git-public/lingarr` |
 | **Ops skill** | Hermes `lingarr-local` (`references/bedroom-fork-build.md`) |
 | **Product proposals** | `docs/` (keep in sync when behaviour changes) |
@@ -68,7 +73,7 @@ When you change product behaviour covered by a proposal, **update that doc in th
 - Same provider may appear twice with different models.
 - Chain row `model` overrides global `*_model` via `IModelOverridable` / `ResolveModel`.
 
-## Providers added on this fork
+## Providers added in Lingarr Next
 
 | Id | Notes |
 |----|--------|
@@ -103,20 +108,95 @@ Or: `bash ~/.hermes/skills/devops/lingarr-local/scripts/build-bedroom-image.sh`
 
 After recreate: re-check `SERVICE_TYPE` / plain vs JSON and that settings rows exist for new keys (Lingarr `SetSetting` does not create missing keys).
 
-## Importing upstream
+## Managed upstream
 
-```bash
-bash ~/.hermes/skills/devops/lingarr-local/scripts/sync-upstream-into-fork.sh
-# review conflicts, then rebuild image
+This repository is not a fork on GitHub. The archived remote `fork`
+(`apoapostolov/lingarr`) is old history. Do not push to it, and do not
+cherry-pick from it. Upstream work comes only from `upstream`:
+
+```text
+https://github.com/lingarr-translate/lingarr
 ```
 
-Do not auto-deploy after merge without a smoke check.
+`gh` with no `-R` is the wrong repository. Upstream PRs and commits use
+`-R lingarr-translate/lingarr`. This repo's Actions and releases use
+`-R apoapostolov/lingarr-next`.
 
-**Hard rule: ingest, do not paste.** Upstream is a backend/behavior catalog.
-When a feature is worth having, port the server contract into Next and design
-the UI in Lingarr Next's own language. Never drop upstream Vue pages, icons,
-or settings chrome in wholesale. Do not add rules that forbid future providers
-or capabilities just because Next already has a lot of them.
+`main` is the only long-lived branch, and it is the product line. Do not
+recreate `next`. Do not merge `upstream/main` into `main`. The old upstream
+snapshot is commit `5eadc933` (#502). It is not an ancestor of `main`. Next was
+not replayed onto that snapshot, because the two histories conflict. New
+upstream work still lands as one reviewed cherry-pick or hand port.
+
+### What arrived since the snapshot
+
+```bash
+git fetch upstream
+git log --reverse --oneline main..upstream/main
+gh pr list -R lingarr-translate/lingarr --state merged --base main --limit 30
+```
+
+`main..upstream/main` is the candidate list. It still contains commits that
+were already ported or deliberately skipped. Before proposing a cherry-pick,
+search `DEVELOPMENT_PLAN.md` and `git log main --grep '#<N>'` for that PR.
+Do not pick it again when it is already recorded.
+
+Already ported onto `main`: #527, #529, #550 (behavior port, not a clean
+pick), #551, #552.
+
+Still skipped: telemetry #510, date handling #514, translated context #530,
+Dependabot trains, and the remaining 1.3.0 majors (Pinia 4, Node 26 types,
+Tailwind range, oxlint/oxfmt).
+
+### Diff one new commit against current main
+
+`git diff main upstream/main` is the whole divergence, not the patch to apply.
+Judge one upstream commit, `<sha>`, against the current product commit
+(`git rev-parse main`):
+
+```bash
+git show --stat <sha>
+if tree=$(git merge-tree --write-tree --merge-base=<sha>^ main <sha>); then
+  git diff --stat main "$tree"
+else
+  echo "conflict"
+fi
+```
+
+`merge-tree` replays that one commit onto current `main`. Check its exit
+status before reading the diff. On conflict, the command prints the conflict
+and the `if` body does not run.
+
+- Exit 0 and an empty diff: `main` already has the result. Skip it.
+- Exit 0 and a non-empty diff: that stat is the change `main` would gain.
+  Read it before taking the commit.
+- Non-zero exit: the commit conflicts with `main`. Read the conflict output.
+  Port the behavior by hand, or skip it. Do not merge the branch to force it
+  through.
+
+For a merged PR, inspect it before choosing commits:
+
+```bash
+gh pr view <N> -R lingarr-translate/lingarr \
+  --json title,mergeCommit,mergedAt,baseRefName,commits
+gh pr diff <N> -R lingarr-translate/lingarr
+```
+
+Cherry-pick onto a branch cut from `main`. Use
+`git cherry-pick -x <sha>` for a normal commit so the upstream SHA stays in
+the message. Use `git cherry-pick -x -m 1 <merge-sha>` only when the PR commit
+has more than one parent. Do not push upstream tags or version numbers onto
+this repo. Next keeps its own version line.
+
+**Hard rule: ingest, do not paste.** Upstream is a backend and behavior
+catalog. When a change is worth having, port the server contract into Next and
+keep the UI in Lingarr Next's own language. Never drop upstream Vue pages,
+icons, or settings chrome in wholesale. Skip telemetry, a dependency major
+Next has not adopted, and a weaker copy of a feature Next already has. Do not
+add rules that forbid future providers or capabilities just because Next
+already has a lot of them.
+
+Do not deploy a cherry-pick until its tests have been run.
 
 ## Code style notes
 
@@ -134,12 +214,13 @@ or capabilities just because Next already has a lot of them.
 
 ## Release and branch hygiene
 
-- `main` and `next` are protected release lines; do not rewrite either.
+- `main` is the only long-lived branch. Do not recreate `next`.
 - Treat old feature branches as disposable only after checking ancestry,
   patch-equivalence, open pull requests, and whether they contain unique
   unported behavior.
 - Lingarr Next uses its own version line and tags; upstream tags and branches
-  are reference material, not release targets.
+  are reference material, not release targets. Compare new upstream commits
+  with the procedure in **Managed upstream**.
 - A release commit must include the changelog, version metadata, migration
   notes, and validation result. Pushes and remote branch deletion require an
   explicit user request.
