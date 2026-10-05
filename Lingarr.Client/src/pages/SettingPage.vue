@@ -35,12 +35,8 @@
             </nav>
         </aside>
 
-        <main class="flex">
-            <router-view v-slot="{ Component }">
-                <transition name="fade" mode="out-in">
-                    <component :is="Component" />
-                </transition>
-            </router-view>
+        <main class="flex min-w-0 flex-1">
+            <router-view />
         </main>
     </div>
 </template>

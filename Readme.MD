@@ -19,7 +19,7 @@ Translate the subtitles you already have. Keep the drive quiet.
 Lingarr Next is a self-hosted subtitle manager for movies and TV. It watches
 Sonarr, Radarr, and Plex for new files, translates a subtitle that is already
 on disk, and can hand the result back to Plex as the selected track. The
-current release is **1.1.4**.
+current release is **1.1.5**.
 
 <p align="center">
   <img src="docs/images/hero.jpg" alt="A dim home theater with a film on the screen and a laptop showing a dark teal dashboard" width="100%" />
@@ -36,8 +36,19 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.1.4](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4).
+Current release: [1.1.5](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.1.5 — All The Subs (2026-10-05)
+
+- An English picture or caption track inside a video can become a text
+  subtitle. Picture conversion waits 72 hours and is the last resort.
+- Bazarr can supply a missing source subtitle. The switch starts off. A miss
+  is tried again for up to 7 days. A downloaded subtitle can replace one
+  Lingarr made by OCR.
+- Jellyfin and Emby can queue a new movie or episode.
+- System logs open on the newest lines, load older lines as you scroll up,
+  and give a next step for a warning or an error.
 
 ### 1.1.4 — Resume and Classify (2026-10-05)
 

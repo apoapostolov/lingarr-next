@@ -205,8 +205,17 @@ export interface IStatisticsService {
     resetStatistics(): Promise<void>
 }
 
+export interface ILogQuery {
+    limit?: number
+    before?: number
+    after?: number
+    minLevel?: string
+}
+
 export interface ILogsService {
-    getStream(): EventSource
+    getPage<T>(query?: ILogQuery): Promise<T>
+    clear(): Promise<void>
+    getStream(after: number, minLevel?: string): EventSource
 }
 
 export interface IRequestTemplateService {

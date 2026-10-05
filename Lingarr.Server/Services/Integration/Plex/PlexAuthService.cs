@@ -251,7 +251,7 @@ public sealed class PlexAuthService : IPlexAuthService
             return new PlexTestResponse
             {
                 Ok = false,
-                Message = "Plex address and token are required."
+                Message = "Enter the Plex address and token."
             };
         }
 
@@ -263,7 +263,7 @@ public sealed class PlexAuthService : IPlexAuthService
         return new PlexTestResponse
         {
             Ok = probe.Ok,
-            Message = probe.Ok ? "Test successful." : probe.Error
+            Message = probe.Ok ? "Plex connection succeeded." : probe.Error
         };
     }
 

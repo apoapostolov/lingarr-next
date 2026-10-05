@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Lingarr.Contracts.Models;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
+using Lingarr.Core.Enum;
+using Lingarr.Core.Interfaces;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -68,12 +72,27 @@ public abstract class MediaSubtitleProcessorTestBase : IDisposable
                 };
             });
 
+        var bazarr = new Mock<IBazarrService>();
+        bazarr
+            .Setup(service => service.TryEnsureSource(
+                It.IsAny<IMedia>(),
+                It.IsAny<MediaType>(),
+                It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
         Processor = new Lingarr.Server.Services.MediaSubtitleProcessor(
             TranslationRequestServiceMock.Object,
             LoggerMock.Object,
             SettingServiceMock.Object,
             SubtitleServiceMock.Object,
-            DbContext);
+            DbContext,
+            bazarr.Object,
+            new Mock<IBackgroundJobClient>().Object);
+
+        SettingServiceMock
+            .Setup(s => s.GetSettings(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new Dictionary<string, string>());
     }
 
     protected async Task<Movie> CreateTestMovie(string fileName = "test.movie")

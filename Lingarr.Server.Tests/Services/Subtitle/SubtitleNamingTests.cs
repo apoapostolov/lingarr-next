@@ -17,6 +17,16 @@ public class SubtitleNamingTests
     }
 
     [Fact]
+    public void BuildDestinationFileName_TagsOcrSubtitles()
+    {
+        Assert.Equal(
+            "Movie.en.ocr.srt",
+            SubtitleNaming.BuildDestinationFileName("Movie", "en", SubtitleCaption.Ocr, ".srt"));
+        Assert.Equal(SubtitleCaption.Ocr, SubtitleNaming.ParseSidecar("Movie.en.ocr.srt").Caption);
+        Assert.Equal("en", SubtitleNaming.ParseSidecar("Movie.en.ocr.srt").Language);
+    }
+
+    [Fact]
     public void ExtractEpisodeKey_ReturnsSingleEpisode()
     {
         Assert.Equal("S02E03", SubtitleNaming.ExtractEpisodeKey("Show - S02E03 - Title WEBDL-1080p"));

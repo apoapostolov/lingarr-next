@@ -189,6 +189,12 @@ public class SubtitleMaintenanceJob
     {
         var extracted = 0;
         var ioErrors = 0;
+        var picturePolicy = NonTextSubtitlePolicy.From(
+            await _settings.GetSettings(NonTextSubtitlePolicy.Keys));
+        if (picturePolicy.LastResort)
+        {
+            picturePolicy = picturePolicy.TextOnly();
+        }
         var movies = await _dbContext.Movies.AsTracking().ToListAsync(cancellationToken);
         var episodes = await _dbContext.Episodes.AsTracking().ToListAsync(cancellationToken);
 
@@ -221,45 +227,19 @@ public class SubtitleMaintenanceJob
 
             try
             {
-                var probe = await RunProcessAsync(
-                    EmbeddedSubtitleExtractor.BuildProbeCommand(videoPath),
-                    TimeSpan.FromSeconds(45),
-                    cancellationToken);
-                if (probe.ExitCode != 0)
+                if (!await EmbeddedSubtitleExtractor.TryExtractEnglish(
+                        directory,
+                        fileName,
+                        cancellationToken,
+                        picturePolicy))
                 {
-                    continue;
-                }
-
-                var streams = EmbeddedSubtitleExtractor.ParseProbeJson(probe.StandardOutput);
-                var plan = EmbeddedSubtitleExtractor.SelectEnglishTextTrack(streams, fileName);
-                if (plan == null)
-                {
-                    continue;
-                }
-
-                var destination = Path.Combine(directory, plan.DestinationFileName);
-                if (File.Exists(destination))
-                {
-                    continue;
-                }
-
-                var extract = await RunProcessAsync(
-                    EmbeddedSubtitleExtractor.BuildExtractCommand(videoPath, plan.StreamIndex, destination),
-                    TimeSpan.FromMinutes(2),
-                    cancellationToken);
-                if (extract.ExitCode != 0 || !File.Exists(destination))
-                {
-                    _logger.LogWarning(
-                        "ffmpeg extract failed for {Video}: {Error}",
-                        videoPath,
-                        extract.StandardError);
                     continue;
                 }
 
                 media.MediaHash = string.Empty;
                 touchedFolders.Add(directory);
                 extracted++;
-                _logger.LogInformation("Extracted English subtitle from {Video} -> {Destination}", videoPath, destination);
+                _logger.LogInformation("Extracted an English subtitle for {File}", fileName);
             }
             catch (IOException exception)
             {

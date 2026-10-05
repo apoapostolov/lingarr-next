@@ -18,6 +18,14 @@ public static class SettingKeys
         public const string SonarrDefaultInclude = "sonarr_default_include";
         public const string RadarrSettingsCompleted = "radarr_settings_completed";
         public const string SonarrSettingsCompleted = "sonarr_settings_completed";
+        public const string BazarrEnabled = "bazarr_enabled";
+        public const string BazarrUrl = "bazarr_url";
+        public const string BazarrApiKey = "bazarr_api_key";
+        public const string BazarrMinimumScore = "bazarr_minimum_score";
+        public const string BazarrExtractFirst = "bazarr_extract_first";
+        public const string BazarrRetryHours = "bazarr_retry_hours";
+        public const string BazarrRetryTimeoutHours = "bazarr_retry_timeout_hours";
+        public const string BazarrReplaceOcr = "bazarr_replace_ocr";
     }
 
     public static class Translation
@@ -226,6 +234,25 @@ public static class SettingKeys
         public const string PlexTranslateEpisodesOnLibraryNew = "plex_translate_episodes_on_library_new";
         public const string JellyfinUrl = "jellyfin_url";
         public const string JellyfinToken = "jellyfin_token";
+    }
+
+    public static class Subtitle
+    {
+        public const string PictureOcrEnabled = "picture_ocr_enabled";
+        public const string CaptionExtractEnabled = "caption_extract_enabled";
+        public const string PgsEnabled = "nontext_pgs_enabled";
+        public const string VobSubEnabled = "nontext_vobsub_enabled";
+        public const string DvbEnabled = "nontext_dvb_enabled";
+        public const string XsubEnabled = "nontext_xsub_enabled";
+        public const string Eia608Enabled = "nontext_eia608_enabled";
+        public const string Eia708Enabled = "nontext_eia708_enabled";
+        public const string TeletextEnabled = "nontext_teletext_enabled";
+        /// <summary>When true, picture and caption conversion waits until other subtitle sources have been tried.</summary>
+        public const string ConvertLastResort = "picture_convert_last_resort";
+        /// <summary>Hours after the file is found before a last-resort conversion may run.</summary>
+        public const string ConvertWaitHours = "picture_convert_wait_hours";
+        public const string ScanStatus = "picture_scan_status";
+        public const string ScanSummary = "picture_scan_summary";
     }
 
     public static class SubtitleValidation

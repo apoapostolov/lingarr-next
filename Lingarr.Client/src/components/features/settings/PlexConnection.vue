@@ -348,12 +348,12 @@ async function testConnection() {
     try {
         const result = await services.plex.test()
         if (result.ok) {
-            notice.value = result.message || 'Test successful.'
+            notice.value = result.message || 'Plex connection succeeded.'
         } else {
-            error.value = result.message || 'Plex did not answer.'
+            error.value = result.message || 'Plex connection failed.'
         }
     } catch (response: any) {
-        error.value = detail(response, 'Lingarr could not test Plex.')
+        error.value = detail(response, 'Plex connection failed.')
     } finally {
         busy.value = false
     }

@@ -8,7 +8,8 @@ public enum SubtitleCaption
     Sdh,
     Hi,
     Forced,
-    Cc
+    Cc,
+    Ocr
 }
 
 public sealed record ParsedSubtitleName(
@@ -33,7 +34,7 @@ public static class SubtitleNaming
 
     private static readonly HashSet<string> CaptionTokens = new(StringComparer.OrdinalIgnoreCase)
     {
-        "sdh", "cc", "forced", "hi"
+        "sdh", "cc", "forced", "hi", "ocr"
     };
 
     private static readonly Dictionary<string, string> LanguageAliases = new(StringComparer.OrdinalIgnoreCase)
@@ -296,6 +297,7 @@ public static class SubtitleNaming
             "hi" => SubtitleCaption.Hi,
             "forced" => SubtitleCaption.Forced,
             "cc" => SubtitleCaption.Cc,
+            "ocr" => SubtitleCaption.Ocr,
             _ => SubtitleCaption.None
         };
         return caption != SubtitleCaption.None && CaptionTokens.Contains(part);
@@ -307,8 +309,49 @@ public static class SubtitleNaming
         SubtitleCaption.Hi => "hi",
         SubtitleCaption.Forced => "forced",
         SubtitleCaption.Cc => "cc",
+        SubtitleCaption.Ocr => "ocr",
         _ => ""
     };
+
+    public static bool IsOcr(string? caption) =>
+        string.Equals(caption, "ocr", StringComparison.OrdinalIgnoreCase);
+
+    public static int RemoveOcrSidecars(string directory, string mediaFileName)
+    {
+        if (string.IsNullOrWhiteSpace(directory)
+            || string.IsNullOrWhiteSpace(mediaFileName)
+            || !Directory.Exists(directory))
+        {
+            return 0;
+        }
+
+        var removed = 0;
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(directory))
+            {
+                var name = Path.GetFileName(path);
+                if (!name.StartsWith(mediaFileName + ".", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (ParseSidecar(name).Caption != SubtitleCaption.Ocr)
+                {
+                    continue;
+                }
+
+                File.Delete(path);
+                removed++;
+            }
+        }
+        catch (IOException)
+        {
+            return removed;
+        }
+
+        return removed;
+    }
 
     private static int? ExtractYear(string name)
     {

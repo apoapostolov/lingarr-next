@@ -154,17 +154,16 @@ public sealed class PlexClient : IPlexClient
                 false,
                 (int)response.StatusCode,
                 response.StatusCode == System.Net.HttpStatusCode.Unauthorized
-                    ? "Plex rejected the token."
-                    : $"Plex answered {(int)response.StatusCode}.");
+                    ? "Plex connection failed. The token was rejected."
+                    : $"Plex connection failed. The server returned HTTP {(int)response.StatusCode}.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new PlexProbe(false, null, "Plex did not answer.");
+            return new PlexProbe(false, null, "Plex connection failed.");
         }
-        catch (HttpRequestException exception)
+        catch (HttpRequestException)
         {
-            var detail = exception.InnerException?.Message ?? exception.Message;
-            return new PlexProbe(false, null, $"Lingarr could not open {url.TrimEnd('/')}. {detail}");
+            return new PlexProbe(false, null, "Plex connection failed. The server could not be reached.");
         }
     }
 

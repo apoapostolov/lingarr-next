@@ -106,8 +106,9 @@
     <CardComponent title="Library housekeeping">
         <template #description>
             When library disk scan is on, this job renames sidecar files and
-            can extract one English text track from videos that have no English
-            sidecar. It stays idle while the scan is paused.
+            can extract an English subtitle from videos that have no English
+            sidecar. Picture and caption tracks follow the switches on the
+            Subtitles page. It stays idle while the scan is paused.
         </template>
         <template #content>
             <div class="flex flex-col space-y-4">

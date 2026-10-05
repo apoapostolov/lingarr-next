@@ -8,8 +8,11 @@
             role="switch"
             :aria-checked="isActive"
             :aria-label="ariaLabel || label || 'Toggle setting'"
+            :aria-disabled="disabled"
+            :disabled="disabled"
             :class="[
-                'border-accent relative inline-flex shrink-0 cursor-pointer items-center border transition-colors duration-200 ease-in-out',
+                'border-accent relative inline-flex shrink-0 items-center border transition-colors duration-200 ease-in-out',
+                disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                 isActive ? 'bg-accent/30' : '',
                 size === 'small'
                     ? 'h-[1.17rem] w-[2.08rem] rounded-sm p-0.5'
@@ -39,12 +42,14 @@ const {
     label,
     ariaLabel,
     modelValue = 'false',
-    size = 'default'
+    size = 'default',
+    disabled = false
 } = defineProps<{
     label?: string
     ariaLabel?: string
     modelValue?: string | boolean
     size?: 'default' | 'small'
+    disabled?: boolean
 }>()
 
 const isActive = computed(() => {
@@ -57,6 +62,9 @@ const emit = defineEmits<{
 }>()
 
 const toggle = () => {
+    if (disabled) {
+        return
+    }
     const current = modelValue.toString() === 'true'
     const newValue = current ? false : true
     emit('update:modelValue', typeof modelValue === 'boolean' ? newValue : String(newValue))

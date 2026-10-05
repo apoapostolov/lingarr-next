@@ -136,11 +136,11 @@ public class WebhookJob
         {
             if (string.Equals(payload.Kind, "episode", StringComparison.OrdinalIgnoreCase))
             {
-                await TranslateAddedEpisode(payload);
+                await TranslateAddedEpisode(payload, SettingKeys.MediaServers.PlexTranslateEpisodesOnLibraryNew, "Plex");
             }
             else
             {
-                await TranslateAddedMovie(payload);
+                await TranslateAddedMovie(payload, SettingKeys.MediaServers.PlexTranslateMoviesOnLibraryNew, "Plex");
             }
         }
         catch (Exception ex)
@@ -151,14 +151,68 @@ public class WebhookJob
         }
     }
 
-    private async Task TranslateAddedMovie(PlexAddedMovie payload)
+    [DisableConcurrentExecution(timeoutInSeconds: 2 * 60)]
+    [AutomaticRetry(Attempts = 3)]
+    [Queue("webhook")]
+    public async Task ProcessJellyfinWebhook(PlexAddedMovie payload)
     {
-        var enabled = await _settings.GetSetting(SettingKeys.MediaServers.PlexTranslateMoviesOnLibraryNew);
-        if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+        if (payload == null)
         {
-            _logger.LogInformation(
-                "Plex added {Title}, and translation for new movies is turned off.",
-                payload.Title);
+            return;
+        }
+
+        try
+        {
+            if (string.Equals(payload.Kind, "episode", StringComparison.OrdinalIgnoreCase))
+            {
+                await TranslateAddedEpisode(payload, null, "Jellyfin");
+            }
+            else
+            {
+                await TranslateAddedMovie(payload, null, "Jellyfin");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing Jellyfin webhook for {Title} ({ItemId})",
+                payload.Title, payload.RatingKey);
+            throw;
+        }
+    }
+
+    [DisableConcurrentExecution(timeoutInSeconds: 2 * 60)]
+    [AutomaticRetry(Attempts = 3)]
+    [Queue("webhook")]
+    public async Task ProcessEmbyWebhook(PlexAddedMovie payload)
+    {
+        if (payload == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (string.Equals(payload.Kind, "episode", StringComparison.OrdinalIgnoreCase))
+            {
+                await TranslateAddedEpisode(payload, null, "Emby");
+            }
+            else
+            {
+                await TranslateAddedMovie(payload, null, "Emby");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing Emby webhook for {Title} ({ItemId})",
+                payload.Title, payload.RatingKey);
+            throw;
+        }
+    }
+
+    private async Task TranslateAddedMovie(PlexAddedMovie payload, string? settingKey, string source)
+    {
+        if (!await LibraryNewEnabled(settingKey, source, payload.Title, "movies"))
+        {
             return;
         }
 
@@ -171,7 +225,8 @@ public class WebhookJob
         if (tags.Count == 0)
         {
             _logger.LogInformation(
-                "Plex added {Title} ({RatingKey}) without a tmdb, imdb, or tvdb id. Lingarr left it alone.",
+                "{Source} added {Title} ({ItemId}) without a tmdb, imdb, or tvdb id. Lingarr left it alone.",
+                source,
                 payload.Title,
                 payload.RatingKey);
             return;
@@ -190,7 +245,8 @@ public class WebhookJob
         if (movieIds.Count == 0)
         {
             _logger.LogInformation(
-                "Plex added {Title}, and Lingarr has no movie tagged {Tags}.",
+                "{Source} added {Title}, and Lingarr has no movie tagged {Tags}.",
+                source,
                 payload.Title,
                 string.Join(", ", tags));
             return;
@@ -208,14 +264,16 @@ public class WebhookJob
             if (created)
             {
                 _logger.LogInformation(
-                    "Plex added {Title}. Lingarr queued a translation for movie {MovieId}.",
+                    "{Source} added {Title}. Lingarr queued a translation for movie {MovieId}.",
+                    source,
                     movie.Title,
                     movie.Id);
             }
             else
             {
                 _logger.LogInformation(
-                    "Plex added {Title}. Movie {MovieId} was not queued. The source subtitle is missing, the target subtitle is already there, or a request already exists.",
+                    "{Source} added {Title}. Movie {MovieId} was not queued. The source subtitle is missing, the target subtitle is already there, or a request already exists.",
+                    source,
                     movie.Title,
                     movie.Id);
             }
@@ -296,14 +354,10 @@ public class WebhookJob
         return 0;
     }
 
-    private async Task TranslateAddedEpisode(PlexAddedMovie payload)
+    private async Task TranslateAddedEpisode(PlexAddedMovie payload, string? settingKey, string source)
     {
-        var enabled = await _settings.GetSetting(SettingKeys.MediaServers.PlexTranslateEpisodesOnLibraryNew);
-        if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+        if (!await LibraryNewEnabled(settingKey, source, payload.Title, "episodes"))
         {
-            _logger.LogInformation(
-                "Plex added {Title}, and translation for new episodes is turned off.",
-                payload.Title);
             return;
         }
 
@@ -311,7 +365,8 @@ public class WebhookJob
         if (payload.SeasonNumber == null || payload.EpisodeNumber == null)
         {
             _logger.LogInformation(
-                "Plex added episode {Title} ({RatingKey}) without a season and episode number. Lingarr left it alone.",
+                "{Source} added episode {Title} ({ItemId}) without a season and episode number. Lingarr left it alone.",
+                source,
                 payload.Title,
                 payload.RatingKey);
             return;
@@ -331,7 +386,8 @@ public class WebhookJob
         if (episodeIds.Count == 0)
         {
             _logger.LogInformation(
-                "Plex added {Show} S{Season}E{Episode}, and Lingarr has no matching episode.",
+                "{Source} added {Show} S{Season}E{Episode}, and Lingarr has no matching episode.",
+                source,
                 payload.ShowTitle ?? payload.Title,
                 payload.SeasonNumber,
                 payload.EpisodeNumber);
@@ -350,7 +406,8 @@ public class WebhookJob
             if (created)
             {
                 _logger.LogInformation(
-                    "Plex added {Show} S{Season}E{Episode}. Lingarr queued a translation for episode {EpisodeId}.",
+                    "{Source} added {Show} S{Season}E{Episode}. Lingarr queued a translation for episode {EpisodeId}.",
+                    source,
                     payload.ShowTitle ?? episode.Title,
                     payload.SeasonNumber,
                     payload.EpisodeNumber,
@@ -359,7 +416,8 @@ public class WebhookJob
             else
             {
                 _logger.LogInformation(
-                    "Plex added {Show} S{Season}E{Episode}. Episode {EpisodeId} was not queued. The source subtitle is missing, the target subtitle is already there, or a request already exists.",
+                    "{Source} added {Show} S{Season}E{Episode}. Episode {EpisodeId} was not queued. The source subtitle is missing, the target subtitle is already there, or a request already exists.",
+                    source,
                     payload.ShowTitle ?? episode.Title,
                     payload.SeasonNumber,
                     payload.EpisodeNumber,
@@ -372,8 +430,7 @@ public class WebhookJob
     {
         if (payload.SeasonNumber != null
             && payload.EpisodeNumber != null
-            && !string.IsNullOrWhiteSpace(payload.ShowTitle)
-            && !string.IsNullOrWhiteSpace(payload.ShowRatingKey))
+            && !string.IsNullOrWhiteSpace(payload.ShowTitle))
         {
             return;
         }
@@ -445,7 +502,7 @@ public class WebhookJob
         if (titled.Count > 1)
         {
             _logger.LogInformation(
-                "Plex added {Show} S{Season}E{Episode}, and {Count} Lingarr shows share that name. Lingarr left it alone.",
+                "A library event for {Show} S{Season}E{Episode} matched {Count} shows. Lingarr left it alone.",
                 payload.ShowTitle,
                 seasonNumber,
                 episodeNumber,
@@ -494,6 +551,27 @@ public class WebhookJob
         }
 
         return 0;
+    }
+
+    private async Task<bool> LibraryNewEnabled(string? settingKey, string source, string title, string kind)
+    {
+        if (settingKey == null)
+        {
+            return true;
+        }
+
+        var enabled = await _settings.GetSetting(settingKey);
+        if (string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        _logger.LogInformation(
+            "{Source} added {Title}, and translation for new {Kind} is turned off.",
+            source,
+            title,
+            kind);
+        return false;
     }
 
     private async Task<string?> ReadPlexMetadata(string ratingKey)

@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using Hangfire;
 using Lingarr.Contracts.Interfaces;
 using Lingarr.Contracts.Models;
 using Lingarr.Core.Configuration;
@@ -7,8 +8,11 @@ using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
 using Lingarr.Core.Interfaces;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Jobs;
 using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
+using Lingarr.Server.Services.Integration.Bazarr;
+using Lingarr.Server.Services.Subtitle;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lingarr.Server.Services;
@@ -20,6 +24,8 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
     private readonly ISubtitleService _subtitleService;
     private readonly ISettingService _settingService;
     private readonly LingarrDbContext _dbContext;
+    private readonly IBazarrService _bazarr;
+    private readonly IBackgroundJobClient _jobs;
     private string _hash = string.Empty;
     private IMedia _media = null!;
     private MediaType _mediaType;
@@ -29,12 +35,16 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         ILogger<IMediaSubtitleProcessor> logger,
         ISettingService settingService,
         ISubtitleService subtitleService,
-        LingarrDbContext dbContext)
+        LingarrDbContext dbContext,
+        IBazarrService bazarr,
+        IBackgroundJobClient jobs)
     {
         _translationRequestService = translationRequestService;
         _settingService = settingService;
         _subtitleService = subtitleService;
         _dbContext = dbContext;
+        _bazarr = bazarr;
+        _jobs = jobs;
         _logger = logger;
     }
 
@@ -56,7 +66,68 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             return false;
         }
         
+        var sourceLanguages = await GetLanguagesSetting<SourceLanguage>(SettingKeys.Translation.SourceLanguages);
         var subtitles = await _subtitleService.GetSubtitles(media.Path, media.FileName);
+        var bazarrPolicy = BazarrRetryPolicy.From(await _settingService.GetSettings(BazarrRetryPolicy.Keys));
+        if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+        {
+            var extractFirst = BazarrSourceOrder.ExtractFirst(
+                await _settingService.GetSetting(SettingKeys.Integration.BazarrExtractFirst));
+            var englishSource = BazarrSourceOrder.SourceIncludesEnglish(sourceLanguages);
+            var picturePolicy = NonTextSubtitlePolicy.From(
+                await _settingService.GetSettings(NonTextSubtitlePolicy.Keys)
+                ?? new Dictionary<string, string>());
+            if (extractFirst && englishSource)
+            {
+                var beforeBazarr = picturePolicy.LastResort ? picturePolicy.TextOnly() : picturePolicy;
+                subtitles = await TryExtractSource(media, subtitles, sourceLanguages, beforeBazarr, nonTextOnly: false);
+            }
+            else if (!picturePolicy.LastResort && englishSource)
+            {
+                subtitles = await TryExtractSource(media, subtitles, sourceLanguages, picturePolicy, nonTextOnly: true);
+            }
+
+            if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr)
+                && await _bazarr.IsEnabled())
+            {
+                if (await _bazarr.TryEnsureSource(media, mediaType, sourceLanguages, CancellationToken.None))
+                {
+                    subtitles = await AdoptDownloadedSubtitle(media, bazarrPolicy.ReplaceOcr);
+                }
+                else if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+                {
+                    await ScheduleBazarrRetry(media, mediaType);
+                }
+            }
+
+            if (_subtitleService.SelectSourceSubtitle(subtitles, sourceLanguages, "false") == null
+                && picturePolicy.LastResort
+                && englishSource)
+            {
+                var foundAt = NonTextSubtitlePolicy.FoundAt(media);
+                if (picturePolicy.ConvertImagesNow(foundAt, DateTime.UtcNow))
+                {
+                    subtitles = await TryExtractSource(
+                        media,
+                        subtitles,
+                        sourceLanguages,
+                        picturePolicy,
+                        nonTextOnly: false);
+                }
+                else
+                {
+                    ScheduleLastResort(media, mediaType, picturePolicy, foundAt);
+                }
+            }
+
+            if (bazarrPolicy.ReplaceOcr
+                && NeedsRealSource(subtitles, sourceLanguages, true)
+                && await _bazarr.IsEnabled())
+            {
+                await ScheduleBazarrRetry(media, mediaType);
+            }
+        }
+
         ApplyCoverage(media, subtitles.Select(subtitle => subtitle.Language));
         if (!subtitles.Any())
         {
@@ -64,7 +135,6 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             return false;
         }
 
-        var sourceLanguages = await GetLanguagesSetting<SourceLanguage>(SettingKeys.Translation.SourceLanguages);
         var targetLanguages = await GetLanguagesSetting<TargetLanguage>(SettingKeys.Translation.TargetLanguages);
         var ignoreCaptions = await _settingService.GetSetting(SettingKeys.Translation.IgnoreCaptions) ?? "false";
 
@@ -79,6 +149,121 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         
         _logger.LogInformation("Initiating subtitle processing.");
         return await ProcessSubtitles(subtitles, sourceLanguages, targetLanguages, ignoreCaptions);
+    }
+
+    private static bool NeedsRealSource(
+        List<Subtitles> subtitles,
+        HashSet<string> sourceLanguages,
+        bool replaceOcr)
+    {
+        return !subtitles.Any(subtitle =>
+            sourceLanguages.Any(code => string.Equals(code, subtitle.Language, StringComparison.OrdinalIgnoreCase))
+            && !(replaceOcr && SubtitleNaming.IsOcr(subtitle.Caption)));
+    }
+
+    private async Task<List<Subtitles>> AdoptDownloadedSubtitle(IMedia media, bool replaceOcr)
+    {
+        if (replaceOcr && media.Path != null && media.FileName != null)
+        {
+            var removed = SubtitleNaming.RemoveOcrSidecars(media.Path, media.FileName);
+            if (removed > 0)
+            {
+                _logger.LogInformation(
+                    "Replaced {Count} OCR subtitle file(s) for {File}.",
+                    removed,
+                    media.FileName);
+            }
+        }
+
+        return await _subtitleService.GetSubtitles(media.Path!, media.FileName!);
+    }
+
+    private async Task<List<Subtitles>> TryExtractSource(
+        IMedia media,
+        List<Subtitles> subtitles,
+        HashSet<string> sourceLanguages,
+        NonTextSubtitlePolicy policy,
+        bool nonTextOnly)
+    {
+        if (_subtitleService.SelectSourceSubtitle(subtitles, sourceLanguages, "false") != null)
+        {
+            return subtitles;
+        }
+
+        try
+        {
+            if (await EmbeddedSubtitleExtractor.TryExtractEnglish(
+                    media.Path!,
+                    media.FileName!,
+                    CancellationToken.None,
+                    policy,
+                    nonTextOnly))
+            {
+                _logger.LogInformation("Extracted an English subtitle from {File}.", media.FileName);
+                return await _subtitleService.GetSubtitles(media.Path!, media.FileName!);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or System.ComponentModel.Win32Exception)
+        {
+            _logger.LogInformation(exception, "Could not extract an English subtitle from {File}.", media.FileName);
+        }
+
+        return subtitles;
+    }
+
+    private async Task ScheduleBazarrRetry(IMedia media, MediaType mediaType)
+    {
+        var policy = BazarrRetryPolicy.From(await _settingService.GetSettings(BazarrRetryPolicy.Keys));
+        var foundAt = NonTextSubtitlePolicy.FoundAt(media);
+        var delay = policy.NextDelay(foundAt, DateTime.UtcNow);
+        if (delay == null || delay <= TimeSpan.Zero || !BazarrRetryJob.TryMark(media.Id, mediaType))
+        {
+            return;
+        }
+
+        try
+        {
+            _jobs.Schedule<BazarrRetryJob>(job => job.Execute(media.Id, (int)mediaType), delay.Value);
+            _logger.LogInformation(
+                "Bazarr will search again for {File} in {Hours} hours, and stops {Timeout} hours after the file was added.",
+                media.FileName,
+                policy.RetryHours,
+                policy.TimeoutHours);
+        }
+        catch (Exception exception)
+        {
+            BazarrRetryJob.Clear(media.Id, mediaType);
+            _logger.LogWarning(exception, "Could not schedule another Bazarr search for {File}.", media.FileName);
+        }
+    }
+
+    private void ScheduleLastResort(
+        IMedia media,
+        MediaType mediaType,
+        NonTextSubtitlePolicy policy,
+        DateTime? foundAt)
+    {
+        var delay = policy.DelayUntilImages(foundAt, DateTime.UtcNow);
+        if (delay == null || delay <= TimeSpan.Zero || !PictureSubtitleDeferredJob.TryMark(media.Id, mediaType))
+        {
+            return;
+        }
+
+        try
+        {
+            _jobs.Schedule<PictureSubtitleDeferredJob>(
+                job => job.Execute(media.Id, (int)mediaType),
+                delay.Value);
+            _logger.LogInformation(
+                "Picture subtitles for {File} wait {Hours} hours after the file was found.",
+                media.FileName,
+                policy.WaitHours);
+        }
+        catch (Exception exception)
+        {
+            PictureSubtitleDeferredJob.Clear(media.Id, mediaType);
+            _logger.LogWarning(exception, "Could not schedule picture subtitle conversion for {File}.", media.FileName);
+        }
     }
 
     /// <summary>

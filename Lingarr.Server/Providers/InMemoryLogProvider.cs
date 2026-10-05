@@ -1,34 +1,37 @@
-﻿using System.Collections.Concurrent;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Lingarr.Server.Providers
 {
     public class LogEntry
     {
-        private LogLevel _logLevel;
+        [JsonIgnore]
+        public LogLevel LogLevel { get; set; }
 
-        public LogLevel LogLevel
-        {
-            get => _logLevel;
-            set => _logLevel = value;
-        }
+        [JsonPropertyName("id")]
+        public long Id { get; set; }
 
-        [JsonPropertyName("logLevel")] 
+        [JsonPropertyName("logLevel")]
         public string LogLevelString => LogLevel.ToString();
-        
-        [JsonPropertyName("message")] 
+
+        [JsonPropertyName("message")]
         public string? Message { get; set; }
-        
-        [JsonPropertyName("timestamp")] 
+
+        [JsonPropertyName("exception")]
+        public string? ExceptionText { get; set; }
+
+        [JsonPropertyName("hint")]
+        public string? Hint { get; set; }
+
+        [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; }
-        
-        [JsonPropertyName("category")] 
+
+        [JsonPropertyName("category")]
         public string? Category { get; set; }
 
-        [JsonPropertyName("formattedTime")] 
+        [JsonPropertyName("formattedTime")]
         public string FormattedTime => Timestamp.ToString("HH:mm:ss");
-        
-        [JsonPropertyName("formattedDate")] 
+
+        [JsonPropertyName("formattedDate")]
         public string FormattedDate => Timestamp.ToString("yyyy-MM-dd");
 
         [JsonPropertyName("formattedSource")]
@@ -37,29 +40,23 @@ namespace Lingarr.Server.Providers
 
     public static class InMemoryLogSink
     {
-        private static readonly ConcurrentQueue<LogEntry> Logs = new();
-        private static readonly int MaxLogCount = 1000;
+        private static readonly LogBuffer Buffer = new();
 
-        public static void AddLog(LogEntry logEntry)
-        {
-            Logs.Enqueue(logEntry);
+        public static LogEntry AddLog(LogEntry logEntry) => Buffer.Add(logEntry);
 
-            // Trim logs if we exceed the maximum count and only keep logs for 24h
-            while (Logs.Count > MaxLogCount && Logs.TryDequeue(out _))
-            {
-            }
-            var cutoffTime = DateTime.UtcNow.AddHours(-24);
-            while (Logs.TryPeek(out var oldestLog) && oldestLog.Timestamp < cutoffTime && Logs.TryDequeue(out _))
-            {
-            }
-        }
+        public static LogPage Page(long? before, long? after, int limit, LogLevel? minimum) =>
+            Buffer.Page(before, after, limit, minimum);
 
-        public static IEnumerable<LogEntry> GetRecentLogs(int count)
-        {
-            return Logs.TakeLast(count);
-        }
+        public static Task<IReadOnlyList<LogEntry>> WaitAsync(
+            long after,
+            LogLevel? minimum,
+            TimeSpan timeout,
+            CancellationToken cancellationToken) =>
+            Buffer.WaitAsync(after, minimum, timeout, cancellationToken);
 
-        public static ConcurrentQueue<LogEntry> LogQueue => Logs;
+        public static void Clear() => Buffer.Clear();
+
+        public static long LatestId => Buffer.LatestId;
     }
 
     public class InMemoryLogger : ILogger
@@ -73,27 +70,24 @@ namespace Lingarr.Server.Providers
 
         IDisposable? ILogger.BeginScope<TState>(TState state) => null;
 
-        public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
             if (!IsEnabled(logLevel))
+            {
                 return;
+            }
 
-            var message = formatter(state, exception);
-            if (exception != null)
-                message += $"\nException: {exception}";
-
-            var logEntry = new LogEntry
+            InMemoryLogSink.AddLog(new LogEntry
             {
                 LogLevel = logLevel,
-                Message = message,
+                Message = formatter(state, exception),
+                ExceptionText = exception?.ToString(),
                 Timestamp = DateTime.UtcNow,
                 Category = _categoryName
-            };
-
-            InMemoryLogSink.AddLog(logEntry);
+            });
         }
     }
 

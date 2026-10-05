@@ -56,7 +56,7 @@ const services = (axios: AxiosStatic): Services => ({
     mapping: mappingService(axios),
     directory: directoryService(axios),
     statistics: statisticsService(axios),
-    logs: logsService(),
+    logs: logsService(axios),
     requestTemplate: requestTemplateService(axios),
     plugin: pluginService(axios),
     xaiOAuth: xaiOAuthService(axios),

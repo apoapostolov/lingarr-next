@@ -17,8 +17,27 @@ ARG TARGETARCH
 WORKDIR /app
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        ccextractor \
+        libfontconfig1 \
+        fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+
+# Picture subtitles and captions are converted by tools shipped in the image.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS tools
+ARG TARGETARCH
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 https://github.com/SubtitleEdit/subtitleedit.git /src/subtitleedit
+WORKDIR /src/subtitleedit
+# seconv on main overrides Spectre commands as protected; this SDK requires public.
+RUN find src/seconv -name '*.cs' -print0 | xargs -0 sed -i 's/protected override/public override/g'
+RUN rid=$(if [ "$TARGETARCH" = "arm64" ]; then echo linux-arm64; else echo linux-x64; fi) \
+    && dotnet publish src/seconv/SeConv.csproj -c Release -o /out/seconv -r "$rid" --self-contained false
 
 # Step 3: Build the server
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -46,6 +65,8 @@ RUN dotnet publish "./Lingarr.Server.csproj" -c $BUILD_CONFIGURATION -o /app/pub
 # Step 5: Final image
 FROM base AS final
 WORKDIR /app
+COPY --from=tools /out/seconv /opt/seconv
+RUN ln -s /opt/seconv/seconv /usr/local/bin/seconv
 COPY --from=publish /app/publish .
 
 VOLUME /app/config

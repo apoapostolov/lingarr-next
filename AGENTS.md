@@ -198,6 +198,30 @@ already has a lot of them.
 
 Do not deploy a cherry-pick until its tests have been run.
 
+## User-facing response strings
+
+Text the user reads from a test, a validation check, or an action result uses a product tone.
+
+- Name the system, then the outcome: "Bazarr connection succeeded."
+- A failure uses the same shape: "Bazarr connection failed." Add one fact when it helps: "Bazarr connection failed. The server returned HTTP 401."
+- Missing input names the fields: "Enter the Bazarr address and API key."
+- An action names the action and the result: "Library scan started."
+- One sentence. No exclamation, no apology, and no chat.
+- Do not use "answered", "did not answer", "Test successful.", or "Set … first."
+- Log lines may stay technical. This rule is only for text shown in the interface.
+
+## System logs
+
+The log is in memory. It keeps Information and above, at most 1000 lines, and drops a line after 24 hours. Settings → System → Logs opens on the newest page. Older lines load when that pane scrolls up. A warning or error includes `hint`, one sentence naming the next step. Prefer that sentence over inventing a fix. Do not print secrets that show up in a line.
+
+Use the same authentication as the rest of the API. `X-Api-Key` works on the JSON routes. A browser `EventSource` cannot send that header, so use `wait` when authentication is on.
+
+- `GET /api/logs?limit=80` returns the newest page. Lines inside the page are oldest first. `before={id}` loads older lines. `after={id}` loads newer lines. `minLevel` is `Warning` or `Error` (that level and above).
+- The body is `{ items, hasOlder, oldestId, newestId, latestId }`. Each item has `id`, `logLevel`, `message`, `exception`, `hint`, `timestamp`, and `category`.
+- `GET /api/logs/wait?after={id}&minLevel=Error&timeout=25` returns the next matching lines, or an empty list when the wait ends. Call it again with the highest `id` you have seen. This is how an agent hears about a new error.
+- `GET /api/logs/stream?after={id}&minLevel=Error` is server-sent events. `event: log` is every matching line. `event: problem` repeats that line when it is a warning or an error. Listen to one of those events, not both. Omit `after` to follow only new lines.
+- `DELETE /api/logs` clears the buffer. Ids keep increasing.
+
 ## Code style notes
 
 - Prefer extending shared OpenAI-compatible patterns over copy-paste services.

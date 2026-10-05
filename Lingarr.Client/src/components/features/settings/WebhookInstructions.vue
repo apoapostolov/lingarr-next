@@ -1,26 +1,19 @@
 <template>
     <CardComponent title="Webhook">
         <template #description>
-            Configure webhooks in Radarr, Sonarr, and Plex to trigger translations when new
-            media is added.
+            A new movie or episode is queued when a source subtitle is already beside the file
+            and a target subtitle is missing.
         </template>
         <template #content>
             <div class="flex flex-col space-y-2">
-                <span>
-                    In Radarr or Sonarr, go to
-                    <b>Settings → Connect → Connections → +</b>
-                    and use this URL:
-                </span>
-                <span class="font-semibold">Radarr</span>
-                <CodeSnippet class="mt-1 block overflow-x-auto">{{ radarrWebhookUrl }}</CodeSnippet>
-                <span class="font-semibold">Sonarr</span>
-                <CodeSnippet class="mt-1 block overflow-x-auto">{{ sonarrWebhookUrl }}</CodeSnippet>
-                <span class="font-semibold">Plex</span>
-                <span>
-                    Settings → Webhooks. Lingarr handles a newly added movie or episode when a
-                    source subtitle file is already there and a target subtitle is missing.
-                </span>
-                <CodeSnippet class="mt-1 block overflow-x-auto">{{ plexWebhookUrl }}</CodeSnippet>
+                <template v-for="provider in providers" :key="provider.name">
+                    <span class="font-semibold">{{ provider.name }}</span>
+                    <CodeSnippet class="mt-1 block">
+                        <template v-for="(part, index) in wrapUrl(provider.url)" :key="index">
+                            <wbr v-if="index > 0" />{{ part }}
+                        </template>
+                    </CodeSnippet>
+                </template>
             </div>
         </template>
     </CardComponent>
@@ -31,7 +24,26 @@ import CardComponent from '@/components/common/CardComponent.vue'
 import CodeSnippet from '@/components/common/CodeSnippet.vue'
 import { resolveUrl } from '@/utils/baseUrl'
 
-const radarrWebhookUrl = resolveUrl('/api/webhook/radarr')
-const sonarrWebhookUrl = resolveUrl('/api/webhook/sonarr')
-const plexWebhookUrl = resolveUrl('/api/webhook/plex')
+const providers = [
+    { name: 'Radarr', url: resolveUrl('/api/webhook/radarr') },
+    { name: 'Sonarr', url: resolveUrl('/api/webhook/sonarr') },
+    { name: 'Plex', url: resolveUrl('/api/webhook/plex') },
+    { name: 'Jellyfin', url: resolveUrl('/api/webhook/jellyfin') },
+    { name: 'Emby', url: resolveUrl('/api/webhook/emby') }
+]
+
+function wrapUrl(url: string): string[] {
+    const scheme = url.indexOf('://')
+    const pathStart = scheme < 0 ? -1 : url.indexOf('/', scheme + 3)
+    if (pathStart < 0) {
+        return [url]
+    }
+
+    const segments = url
+        .slice(pathStart)
+        .split('/')
+        .filter((segment) => segment.length > 0)
+        .map((segment) => `/${segment}`)
+    return [url.slice(0, pathStart), ...segments]
+}
 </script>

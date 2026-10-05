@@ -12,7 +12,7 @@ namespace Lingarr.Server.Services;
 public class SubtitleService : ISubtitleService
 {
     private static readonly string[] SupportedExtensions = [".srt", ".ssa", ".ass"];
-    private static readonly string[] SupportedCaptions = ["sdh", "cc", "forced", "hi"];
+    private static readonly string[] SupportedCaptions = ["sdh", "cc", "forced", "hi", "ocr"];
 
     /// <summary>
     /// Extra folders that commonly hold sidecars next to media (scanned, not junk extras).
@@ -558,10 +558,13 @@ public class SubtitleService : ISubtitleService
             return null;
         }
 
+        var pool = matchingSubtitles.Where(s => s.Language == sourceLanguage).ToList();
         var sourceSubtitle = ignoreCaptions == "true"
-            ? matchingSubtitles.FirstOrDefault(s => s.Language == sourceLanguage && string.IsNullOrEmpty(s.Caption))
-                ?? matchingSubtitles.FirstOrDefault(s => s.Language == sourceLanguage)
-            : matchingSubtitles.FirstOrDefault(s => s.Language == sourceLanguage);
+            ? pool.FirstOrDefault(s => string.IsNullOrEmpty(s.Caption))
+                ?? pool.FirstOrDefault(s => !SubtitleNaming.IsOcr(s.Caption))
+                ?? pool.FirstOrDefault()
+            : pool.FirstOrDefault(s => !SubtitleNaming.IsOcr(s.Caption))
+                ?? pool.FirstOrDefault();
 
         if (sourceSubtitle == null)
         {

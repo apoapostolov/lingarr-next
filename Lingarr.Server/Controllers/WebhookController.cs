@@ -2,6 +2,7 @@ using Hangfire;
 using Lingarr.Server.Attributes;
 using Lingarr.Server.Jobs;
 using Lingarr.Server.Models.Webhooks;
+using Lingarr.Server.Services.Integration.Jellyfin;
 using Lingarr.Server.Services.Integration.Plex;
 using Microsoft.AspNetCore.Mvc;
 
@@ -94,6 +95,74 @@ public class WebhookController : ControllerBase
             added.Item.Title,
             added.Item.RatingKey);
         return Ok(new { message = "Webhook received and queued for processing" });
+    }
+
+    /// <summary>
+    /// Receives a Jellyfin Webhook plugin event. Item Added for a movie or episode is queued.
+    /// </summary>
+    [HttpPost("jellyfin")]
+    public async Task<IActionResult> JellyfinWebhook()
+    {
+        using var reader = new StreamReader(Request.Body);
+        var json = await reader.ReadToEndAsync();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            _logger.LogWarning("Jellyfin webhook payload is missing.");
+            return BadRequest(new { message = "Jellyfin webhook payload is missing." });
+        }
+
+        var decision = JellyfinWebhookReader.Read(json);
+        if (decision is PlexWebhookDecision.Unreadable)
+        {
+            _logger.LogWarning("Jellyfin webhook payload was not JSON.");
+            return BadRequest(new { message = "Jellyfin webhook payload was not JSON." });
+        }
+
+        if (decision is not PlexWebhookDecision.Added added)
+        {
+            return Ok(new { message = "Jellyfin webhook ignored." });
+        }
+
+        _backgroundJobClient.Enqueue<WebhookJob>(job => job.ProcessJellyfinWebhook(added.Item));
+        _logger.LogInformation(
+            "Queued Jellyfin ItemAdded for {Title} ({ItemId})",
+            added.Item.Title,
+            added.Item.RatingKey);
+        return Ok(new { message = "Jellyfin webhook received." });
+    }
+
+    /// <summary>
+    /// Receives an Emby webhook. library.new for a movie or episode is queued.
+    /// </summary>
+    [HttpPost("emby")]
+    public async Task<IActionResult> EmbyWebhook()
+    {
+        using var reader = new StreamReader(Request.Body);
+        var json = await reader.ReadToEndAsync();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            _logger.LogWarning("Emby webhook payload is missing.");
+            return BadRequest(new { message = "Emby webhook payload is missing." });
+        }
+
+        var decision = JellyfinWebhookReader.Read(json);
+        if (decision is PlexWebhookDecision.Unreadable)
+        {
+            _logger.LogWarning("Emby webhook payload was not JSON.");
+            return BadRequest(new { message = "Emby webhook payload was not JSON." });
+        }
+
+        if (decision is not PlexWebhookDecision.Added added)
+        {
+            return Ok(new { message = "Emby webhook ignored." });
+        }
+
+        _backgroundJobClient.Enqueue<WebhookJob>(job => job.ProcessEmbyWebhook(added.Item));
+        _logger.LogInformation(
+            "Queued Emby library.new for {Title} ({ItemId})",
+            added.Item.Title,
+            added.Item.RatingKey);
+        return Ok(new { message = "Emby webhook received." });
     }
 
     private async Task<string?> ReadPlexPayload()

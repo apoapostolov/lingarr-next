@@ -5,7 +5,44 @@ All notable changes to Lingarr Next are documented here.
 Lingarr Next uses an independent version line. Its versions are not intended
 to sort before or after versions published by upstream Lingarr.
 
-## [Unreleased]
+## [1.1.5] - 2026-10-05 — All The Subs
+
+Lingarr can turn a picture or caption track into a text subtitle, ask Bazarr
+for a missing source file, and queue a new movie or episode from Jellyfin
+or Emby.
+
+- An English picture subtitle or closed caption inside a video can be turned
+  into a text file before translation. Blu-ray PGS, DVD VobSub, DVB, and
+  DivX XSUB are read with seconv and Tesseract. Captions and teletext are
+  read with ccextractor. Both tools are included in the image.
+- Settings → Translation → Subtitles turns each tool and each format on or
+  off. They start on. Picture conversion is a last resort: Lingarr prefers a
+  text subtitle, including one from Bazarr, and converts a picture track only
+  after 72 hours with no text subtitle. The wait can be changed.
+- A library scan finds files that have a picture or caption track and no text
+  subtitle, then prepares them for translation. The scan is heavy on a large
+  library and works through one file at a time.
+- An OCR subtitle is named with an `ocr` tag, such as `movie.en.ocr.srt`.
+- When a movie or episode has no source subtitle, Lingarr can ask Bazarr for
+  the highest scored match in the source language and then translate it. The
+  switch, address, API key, and minimum score are on Settings → Connections.
+  The switch starts off. Forced subtitles are not used. By default Lingarr
+  extracts an English text track from the video first and asks Bazarr only if
+  that subtitle is still missing.
+- A missed Bazarr search is tried again every 12 hours and stops after 168
+  hours. Both times can be changed.
+- Lingarr keeps searching Bazarr for a subtitle it OCRed, and a downloaded
+  subtitle replaces that OCR file. The switch starts on.
+- Jellyfin Item Added and Emby library.new queue a new movie or episode the
+  same way a new Plex item does. The Webhook card lists Radarr, Sonarr, Plex,
+  Jellyfin, and Emby under one sentence.
+- System logs open on the newest lines. Older lines load as you scroll up. A
+  warning or error includes a short next step. Agents can read `GET /api/logs`
+  and wait for the next error with `GET /api/logs/wait`.
+- Moving between settings sections and tabs loads the page again.
+- A connection test says "Bazarr connection succeeded." or "Plex connection
+  succeeded."
+- Migrations M0035 through M0040 run at startup.
 
 ## [1.1.4] - 2026-10-05 — Resume and Classify
 
@@ -340,6 +377,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.1.5]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5
 [1.1.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4
 [1.1.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3
 [1.1.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.2

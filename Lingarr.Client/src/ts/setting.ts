@@ -4,6 +4,13 @@ import { ILocale, ITheme } from '@/ts/store'
 export const SETTINGS = {
     RADARR_URL: 'radarr_url',
     SONARR_URL: 'sonarr_url',
+    BAZARR_ENABLED: 'bazarr_enabled',
+    BAZARR_URL: 'bazarr_url',
+    BAZARR_MINIMUM_SCORE: 'bazarr_minimum_score',
+    BAZARR_EXTRACT_FIRST: 'bazarr_extract_first',
+    BAZARR_RETRY_HOURS: 'bazarr_retry_hours',
+    BAZARR_RETRY_TIMEOUT_HOURS: 'bazarr_retry_timeout_hours',
+    BAZARR_REPLACE_OCR: 'bazarr_replace_ocr',
     SOURCE_LANGUAGES: 'source_languages',
     TARGET_LANGUAGES: 'target_languages',
     SONARR_SETTINGS_COMPLETED: 'sonarr_settings_completed',
@@ -76,6 +83,17 @@ export const SETTINGS = {
     REMOVE_LANGUAGE_TAG: 'remove_language_tag',
     SUBTITLE_TAG: 'subtitle_tag',
     IGNORE_CAPTIONS: 'ignore_captions',
+    PICTURE_OCR_ENABLED: 'picture_ocr_enabled',
+    CAPTION_EXTRACT_ENABLED: 'caption_extract_enabled',
+    NONTEXT_PGS_ENABLED: 'nontext_pgs_enabled',
+    NONTEXT_VOBSUB_ENABLED: 'nontext_vobsub_enabled',
+    NONTEXT_DVB_ENABLED: 'nontext_dvb_enabled',
+    NONTEXT_XSUB_ENABLED: 'nontext_xsub_enabled',
+    NONTEXT_EIA608_ENABLED: 'nontext_eia608_enabled',
+    NONTEXT_EIA708_ENABLED: 'nontext_eia708_enabled',
+    NONTEXT_TELETEXT_ENABLED: 'nontext_teletext_enabled',
+    PICTURE_CONVERT_LAST_RESORT: 'picture_convert_last_resort',
+    PICTURE_CONVERT_WAIT_HOURS: 'picture_convert_wait_hours',
     REQUEST_TIMEOUT: 'request_timeout',
     LIBRETRANSLATE_REQUEST_TIMEOUT: 'libretranslate_request_timeout',
     GOOGLE_REQUEST_TIMEOUT: 'google_request_timeout',
@@ -125,6 +143,13 @@ export const SETTINGS = {
 
 export interface ISettings {
     radarr_url: string
+    bazarr_enabled: string
+    bazarr_url: string
+    bazarr_minimum_score: string
+    bazarr_extract_first: string
+    bazarr_retry_hours: string
+    bazarr_retry_timeout_hours: string
+    bazarr_replace_ocr: string
     sonarr_url: string
     service_type: string
     libretranslate_url: string
@@ -197,6 +222,17 @@ export interface ISettings {
     remove_language_tag: string
     subtitle_tag: string
     ignore_captions: string
+    picture_ocr_enabled: string
+    caption_extract_enabled: string
+    nontext_pgs_enabled: string
+    nontext_vobsub_enabled: string
+    nontext_dvb_enabled: string
+    nontext_xsub_enabled: string
+    nontext_eia608_enabled: string
+    nontext_eia708_enabled: string
+    nontext_teletext_enabled: string
+    picture_convert_last_resort: string
+    picture_convert_wait_hours: string
     request_timeout: string
     libretranslate_request_timeout: string
     google_request_timeout: string
@@ -261,7 +297,8 @@ export const ENCRYPTED_SETTINGS = {
     DEEPL_API_KEY: 'deepl_api_key',
     LIBRETRANSLATE_API_KEY: 'libretranslate_api_key',
     LOCAL_AI_API_KEY: 'local_ai_api_key',
-    TYPESAFE_API_KEY: 'typesafe_api_key'
+    TYPESAFE_API_KEY: 'typesafe_api_key',
+    BAZARR_API_KEY: 'bazarr_api_key'
 } as const
 
 export interface IEncryptedSettings {
@@ -282,6 +319,7 @@ export interface IEncryptedSettings {
     libretranslate_api_key: string
     local_ai_api_key: string
     typesafe_api_key: string
+    bazarr_api_key: string
 }
 
 export const SERVICE_TYPE = {
@@ -313,11 +351,22 @@ export interface IFilterOptions {
 }
 
 export interface ILogEntry {
+    id: number
     logLevel: string
     message: string
     formattedTime: string
     formattedDate: string
     formattedSource: string
     category: string
-    stackTrace?: string
+    timestamp?: string
+    exception?: string | null
+    hint?: string | null
+}
+
+export interface ILogPage {
+    items: ILogEntry[]
+    hasOlder: boolean
+    oldestId: number | null
+    newestId: number | null
+    latestId: number
 }

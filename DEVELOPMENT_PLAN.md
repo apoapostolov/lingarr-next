@@ -22,8 +22,8 @@ transcript. Completed work belongs in the changelog or a dated development log.
 
 ## Current state
 
-- **Released:** Lingarr Next 1.1.4, “Resume and Classify”.
-- **main:** the only long-lived branch, and the Lingarr Next 1.1.4 product
+- **Released:** Lingarr Next 1.1.5, “All The Subs”.
+- **main:** the only long-lived branch, and the Lingarr Next 1.1.5 product
   line. Do not recreate `next`. Do not merge `upstream/main` into `main`.
   Upstream #502 (`5eadc933`) is an old snapshot and is not the branch tip.
   The daily check uses Plex, Radarr, and Sonarr and does not walk every
