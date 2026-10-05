@@ -20,6 +20,8 @@ public class TranslationRequest : BaseEntity
     public int? QualityScore { get; set; }
     public string? QualityGrade { get; set; }
     public string? QualityStatus { get; set; }
+    /// <summary>Percent of subtitle lines saved when a request was cancelled. Null when unknown.</summary>
+    public int? CachedProgress { get; set; }
 
     [NotMapped]
     public long? InputTokens { get; set; }

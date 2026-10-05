@@ -32,6 +32,31 @@
             </template>
 
             <div class="flex flex-col space-x-2">
+                <span class="font-semibold">Cache quality progress on cancelled tasks</span>
+                Keep the lines a cancelled translation already finished. The next
+                run for that movie or episode continues from those lines when their
+                quality reaches the threshold. Below that, it starts over.
+            </div>
+            <ToggleButton v-model="cacheCancelledProgress">
+                <span class="text-sm font-medium text-primary-content">
+                    {{ cacheCancelledProgress == 'true' ? 'Enabled' : 'Disabled' }}
+                </span>
+            </ToggleButton>
+
+            <template v-if="cacheCancelledProgress == 'true'">
+                <div class="flex flex-col space-x-2">
+                    <span class="font-semibold">Quality threshold:</span>
+                    Continue when the finished lines score at least this. 90 is
+                    comfortably Good. 85 is only the border of Good, so a partial
+                    at 85 starts over.
+                </div>
+                <InputComponent
+                    v-model="cacheCancelledQualityThreshold"
+                    :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
+                    @update:validation="(val) => (isValid.cacheCancelledQualityThreshold = val)" />
+            </template>
+
+            <div class="flex flex-col space-x-2">
                 <span class="font-semibold">{{ requestTimeoutLabel }}:</span>
                 Maximum time in minutes to wait for a translation response before the request is
                 cancelled. Each provider keeps its own value; Microsoft defaults to 15 minutes
@@ -88,7 +113,8 @@ const isValid = reactive({
     requestTimeout: true,
     maxRetries: true,
     retryDelay: true,
-    retryDelayMultiplier: true
+    retryDelayMultiplier: true,
+    cacheCancelledQualityThreshold: true
 })
 const serviceType = computed(() => settingsStore.getSetting(SETTINGS.SERVICE_TYPE))
 
@@ -154,6 +180,28 @@ const requestTimeoutLabel = computed(() =>
         ? `${activeProvider.value.replace('-', ' ')} request timeout`
         : 'Default request timeout'
 )
+
+const cacheCancelledProgress = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.CACHE_CANCELLED_PROGRESS) as string) || 'true',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.CACHE_CANCELLED_PROGRESS, newValue, true)
+        saveNotification.value?.show()
+    }
+})
+
+const cacheCancelledQualityThreshold = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.CACHE_CANCELLED_QUALITY_THRESHOLD) as string) || '90',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(
+            SETTINGS.CACHE_CANCELLED_QUALITY_THRESHOLD,
+            newValue,
+            isValid.cacheCancelledQualityThreshold
+        )
+        saveNotification.value?.show()
+    }
+})
 
 const useBatchTranslation = computed({
     get: (): string => settingsStore.getSetting(SETTINGS.USE_BATCH_TRANSLATION) as string,

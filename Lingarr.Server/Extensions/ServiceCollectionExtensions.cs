@@ -21,6 +21,7 @@ using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Listener;
 using Lingarr.Server.Providers;
 using Lingarr.Server.Services;
+using Lingarr.Server.Services.Jev;
 using Lingarr.Server.Services.Integration;
 using Lingarr.Server.Services.Integration.Plex;
 using Lingarr.Server.Services.Plugins;
@@ -55,6 +56,10 @@ public static class ServiceCollectionExtensions
 
         builder.Services.AddMemoryCache();
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("jev", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(12);
+        });
         builder.Services.AddScoped<MediaLibraryRefreshService>();
         builder.Services.AddScoped<IPlexClient, PlexClient>();
         builder.Services.AddScoped<IPlexAuthService, PlexAuthService>();
@@ -175,6 +180,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddScoped<ITranslationRequestService, TranslationRequestService>();
         builder.Services.AddScoped<ITranslationRequestEventService, TranslationRequestEventService>();
         builder.Services.AddScoped<ITranslationQualityService, TranslationQualityService>();
+        builder.Services.AddScoped<IJevSubtitleGate, JevSubtitleGate>();
         builder.Services.AddScoped<IMediaSubtitleProcessor, MediaSubtitleProcessor>();
         builder.Services.AddScoped<ILibraryLightDiscovery, LibraryLightDiscovery>();
         builder.Services.AddScoped<IDirectoryService, DirectoryService>();

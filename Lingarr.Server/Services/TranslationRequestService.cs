@@ -39,6 +39,7 @@ public class TranslationRequestService : ITranslationRequestService
     private readonly IProviderHealthService _providerHealth;
     private readonly ITranslationQualityService _translationQuality;
     private readonly ITranslationPromptProfileService _promptProfiles;
+    private readonly IJevSubtitleGate _jev;
     private readonly ILogger<TranslationRequestService> _logger;
     private static readonly ConcurrentDictionary<int, CancellationTokenSource> _asyncTranslationJobs = new();
 
@@ -56,6 +57,7 @@ public class TranslationRequestService : ITranslationRequestService
         IProviderHealthService providerHealth,
         ITranslationQualityService translationQuality,
         ITranslationPromptProfileService promptProfiles,
+        IJevSubtitleGate jev,
         ILogger<TranslationRequestService> logger)
     {
         _dbContext = dbContext;
@@ -71,6 +73,7 @@ public class TranslationRequestService : ITranslationRequestService
         _providerHealth = providerHealth;
         _translationQuality = translationQuality;
         _promptProfiles = promptProfiles;
+        _jev = jev;
         _logger = logger;
     }
 
@@ -132,6 +135,12 @@ public class TranslationRequestService : ITranslationRequestService
     /// <inheritdoc />
     public async Task<int> CreateRequest(TranslateAbleSubtitle translateAbleSubtitle)
     {
+        var continued = await TryContinueCancelled(translateAbleSubtitle);
+        if (continued != null)
+        {
+            return continued.Value;
+        }
+
         var mediaTitle = await FormatMediaTitle(translateAbleSubtitle.MediaId, translateAbleSubtitle.MediaType);
         var translationRequest = new TranslationRequest
         {
@@ -197,7 +206,225 @@ public class TranslationRequestService : ITranslationRequestService
 
         return translationRequestCopy.Id;
     }
-    
+
+    private async Task<int?> TryContinueCancelled(TranslateAbleSubtitle subtitle)
+    {
+        if (!await CancelledCacheEnabled() || string.IsNullOrWhiteSpace(subtitle.SubtitlePath))
+        {
+            return null;
+        }
+
+        var cancelled = await _dbContext.TranslationRequests
+            .Where(request =>
+                request.Status == TranslationStatus.Cancelled &&
+                request.MediaId == subtitle.MediaId &&
+                request.MediaType == subtitle.MediaType &&
+                request.SubtitleToTranslate == subtitle.SubtitlePath &&
+                request.SourceLanguage == subtitle.SourceLanguage &&
+                request.TargetLanguage == subtitle.TargetLanguage)
+            .OrderByDescending(request => request.UpdatedAt)
+            .ThenByDescending(request => request.Id)
+            .FirstOrDefaultAsync();
+        if (cancelled == null)
+        {
+            return null;
+        }
+
+        var lines = await _dbContext.TranslationRequestLines
+            .Where(line => line.TranslationRequestId == cancelled.Id)
+            .ToListAsync();
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        List<SubtitleItem> current;
+        try
+        {
+            current = await _subtitleService.ReadSubtitles(subtitle.SubtitlePath);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogInformation(
+                exception,
+                "Cancelled request {Id} was not continued because the subtitle could not be read.",
+                cancelled.Id);
+            return null;
+        }
+
+        var byPosition = current
+            .GroupBy(item => item.Position)
+            .ToDictionary(group => group.Key, group => group.First());
+        var newest = lines
+            .GroupBy(line => line.Position)
+            .Select(group => group.OrderByDescending(line => line.Id).First());
+        foreach (var line in newest)
+        {
+            if (!byPosition.TryGetValue(line.Position, out var item) ||
+                !CancelledProgressCache.SourceStillMatches(line.Source, item.Lines, item.PlaintextLines))
+            {
+                _logger.LogInformation(
+                    "Cancelled request {Id} was not continued because the source subtitle changed.",
+                    cancelled.Id);
+                return null;
+            }
+        }
+
+        var score = _translationQuality.ScorePartial(lines, cancelled.TargetLanguage);
+        var threshold = await CancelledQualityThreshold();
+        if (!CancelledProgressCache.ShouldContinue(score, threshold))
+        {
+            _logger.LogInformation(
+                "Cancelled request {Id} scored {Score}, below {Threshold}. The next run starts over.",
+                cancelled.Id, score, threshold);
+            return null;
+        }
+
+        _logger.LogInformation(
+            "Continuing cancelled request {Id} at quality {Score} (threshold {Threshold}).",
+            cancelled.Id, score, threshold);
+        await ResumeTranslationRequest(cancelled);
+        return cancelled.Id;
+    }
+
+    private async Task RememberMissingCompletedQuality(List<TranslationRequest> requests)
+    {
+        foreach (var request in requests)
+        {
+            if (request.Status != TranslationStatus.Completed ||
+                request.QualityScore != null ||
+                request.QualityStatus == "file-missing")
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.SubtitleToTranslate) ||
+                string.IsNullOrWhiteSpace(request.TranslatedSubtitle))
+            {
+                request.QualityStatus = "file-missing";
+                continue;
+            }
+
+            try
+            {
+                var sourceItems = await _subtitleService.ReadSubtitles(request.SubtitleToTranslate);
+                var targetItems = await _subtitleService.ReadSubtitles(request.TranslatedSubtitle);
+                var targets = targetItems
+                    .GroupBy(item => item.Position)
+                    .ToDictionary(group => group.Key, group => group.First());
+                var lines = new List<TranslationRequestLine>();
+                var id = 1;
+                foreach (var source in sourceItems)
+                {
+                    if (!targets.TryGetValue(source.Position, out var target))
+                    {
+                        continue;
+                    }
+
+                    lines.Add(new TranslationRequestLine
+                    {
+                        Id = id++,
+                        TranslationRequestId = request.Id,
+                        Position = source.Position,
+                        Source = string.Join(" ", source.PlaintextLines),
+                        Target = string.Join(" ", target.PlaintextLines)
+                    });
+                }
+
+                var score = _translationQuality.ScorePartial(lines, request.TargetLanguage);
+                if (score == null)
+                {
+                    request.QualityStatus = "file-missing";
+                    continue;
+                }
+
+                request.QualityScore = score;
+                request.QualityGrade = TranslationQualityService.GradeFor(score.Value);
+                request.QualityStatus = "completed";
+            }
+            catch (Exception exception)
+            {
+                _logger.LogInformation(
+                    exception,
+                    "Could not score completed request {Id} from its subtitle files.",
+                    request.Id);
+                request.QualityStatus = "file-missing";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private async Task RememberMissingCancelledProgress(List<TranslationRequest> requests)
+    {
+        if (!await CancelledCacheEnabled())
+        {
+            return;
+        }
+
+        foreach (var request in requests)
+        {
+            if (request.Status == TranslationStatus.Cancelled &&
+                (request.QualityStatus == null ||
+                 (request.CachedProgress == 0 && request.QualityScore >= 90)))
+            {
+                await RememberCancelledProgress(request);
+            }
+        }
+    }
+
+    private async Task RememberCancelledProgress(TranslationRequest request)
+    {
+        if (!await CancelledCacheEnabled())
+        {
+            return;
+        }
+
+        var lines = await _dbContext.TranslationRequestLines
+            .Where(line => line.TranslationRequestId == request.Id)
+            .ToListAsync();
+        var newest = lines
+            .GroupBy(line => line.Position)
+            .Select(group => group.OrderByDescending(line => line.Id).First())
+            .ToList();
+        var translated = newest.Count(line => !string.IsNullOrWhiteSpace(line.Target));
+        var score = _translationQuality.ScorePartial(lines, request.TargetLanguage);
+        request.QualityScore = score;
+        request.QualityGrade = score.HasValue ? TranslationQualityService.GradeFor(score.Value) : null;
+        request.QualityStatus = score.HasValue ? "partial" : "none";
+
+        int? total = null;
+        if (!string.IsNullOrWhiteSpace(request.SubtitleToTranslate))
+        {
+            try
+            {
+                total = (await _subtitleService.ReadSubtitles(request.SubtitleToTranslate)).Count;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogDebug(
+                    exception,
+                    "Could not count lines for cancelled request {Id}.",
+                    request.Id);
+            }
+        }
+
+        request.CachedProgress = CancelledProgressCache.ProgressPercent(translated, total ?? 0);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private async Task<bool> CancelledCacheEnabled()
+    {
+        var value = await _settingService.GetSetting(SettingKeys.Translation.CacheCancelledProgress);
+        return CancelledProgressCache.IsEnabled(value);
+    }
+
+    private async Task<int> CancelledQualityThreshold()
+    {
+        var value = await _settingService.GetSetting(SettingKeys.Translation.CacheCancelledQualityThreshold);
+        return CancelledProgressCache.ThresholdOrDefault(value);
+    }
+
     /// <inheritdoc />
     public async Task CreateBulkRequest(BulkTranslateRequest request)
     {
@@ -365,9 +592,10 @@ public class TranslationRequestService : ITranslationRequestService
         translationRequest.Status = TranslationStatus.Cancelled;
         translationRequest.ErrorMessage = "Translation was cancelled";
         await _dbContext.SaveChangesAsync();
+        await RememberCancelledProgress(translationRequest);
         await _eventService.LogEvent(translationRequest.Id, TranslationStatus.Cancelled, "Translation was cancelled");
         await UpdateActiveCount();
-        await _progressService.Emit(translationRequest, 0);
+        await _progressService.Emit(translationRequest, translationRequest.CachedProgress ?? 0);
 
         return $"Translation request with id {cancelRequest.Id} has been cancelled";
     }
@@ -579,6 +807,8 @@ public class TranslationRequestService : ITranslationRequestService
             .Take(pageSize)
             .ToListAsync();
         await AttachTokenUsage(requests);
+        await RememberMissingCancelledProgress(requests);
+        await RememberMissingCompletedQuality(requests);
 
         return new PagedResult<TranslationRequest>
         {
@@ -758,7 +988,8 @@ public class TranslationRequestService : ITranslationRequestService
                     services,
                     _logger,
                     _progressService,
-                    _providerHealth);
+                    _providerHealth,
+                    _jev);
                 var totalSize = translateAbleContent.Lines.Count;
                 var maxSize = int.TryParse(settings[SettingKeys.Translation.MaxBatchSize], out var batchSize)
                     ? batchSize
@@ -803,7 +1034,8 @@ public class TranslationRequestService : ITranslationRequestService
                 var subtitleTranslator = new SubtitleTranslationService(
                     services,
                     _logger,
-                    providerHealth: _providerHealth);
+                    providerHealth: _providerHealth,
+                    jevGate: _jev);
                 var tempResults = new List<BatchTranslatedLine>();
 
                 var iteration = 1;

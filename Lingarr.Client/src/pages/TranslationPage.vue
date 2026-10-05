@@ -79,7 +79,7 @@
                             {{ episodeTitleParts(item.title).secondary }}
                         </span>
                     </div>
-                    <span v-else class="min-w-0 flex-1 md:flex-none">
+                    <span v-else class="block min-w-0 flex-1 truncate" :title="item.title">
                         {{ item.title }}
                     </span>
                     <span class="ml-auto flex flex-none items-center gap-2 md:hidden">
@@ -116,6 +116,16 @@
                 <div
                     class="flex flex-col items-start gap-0.5 md:col-span-1 md:items-center md:justify-center md:px-2 md:py-2 md:text-center">
                     <TranslationStatus :translation-status="item.status" />
+                    <span
+                        v-if="showCancelledCache(item)"
+                        class="whitespace-nowrap text-xs text-primary-content/55"
+                        :title="cancelledCacheTitle(item)"
+                        :aria-label="cancelledCacheTitle(item)">
+                        {{ item.cachedProgress ?? 0 }}% · Qual:
+                        <span class="font-semibold text-primary-content/75">
+                            {{ item.qualityScore }}%
+                        </span>
+                    </span>
                     <span
                         v-if="
                             item.status === TRANSLATION_STATUS.COMPLETED &&
@@ -200,10 +210,12 @@ import {
     IPagedResult,
     ITranslationRequest,
     MEDIA_TYPE,
+    SETTINGS,
     TRANSLATION_ACTIONS,
     TRANSLATION_STATUS
 } from '@/ts'
 import useTranslationRequestStore from '@/store/translationRequest'
+import { useSettingStore } from '@/store/setting'
 import { useSignalR } from '@/composables/useSignalR'
 import useDebounce from '@/composables/useDebounce'
 import PaginationComponent from '@/components/common/PaginationComponent.vue'
@@ -220,6 +232,7 @@ import CheckboxComponent from '@/components/common/CheckboxComponent.vue'
 const signalR = useSignalR()
 const hubConnection = ref<Hub>()
 const translationRequestStore = useTranslationRequestStore()
+const settingsStore = useSettingStore()
 
 const translationRequests: ComputedRef<IPagedResult<ITranslationRequest>> = computed(
     () => translationRequestStore.getTranslationRequests
@@ -231,6 +244,20 @@ const filter: ComputedRef<IFilter> = computed({
         translationRequestStore.setFilter(value)
     }, 300)
 })
+
+function showCancelledCache(item: ITranslationRequest) {
+    if (settingsStore.getSetting(SETTINGS.CACHE_CANCELLED_PROGRESS) === 'false') {
+        return false
+    }
+    if (item.status !== TRANSLATION_STATUS.CANCELLED) {
+        return false
+    }
+    return item.qualityScore !== null && item.qualityScore !== undefined
+}
+
+function cancelledCacheTitle(item: ITranslationRequest) {
+    return `Progress ${item.cachedProgress ?? 0}%. Quality ${item.qualityScore}%`
+}
 
 function showTokenLine(item: ITranslationRequest) {
     return item.showTokenUsage === true

@@ -175,6 +175,13 @@ public static class SettingKeys
         public const string RetryDelayMultiplier = "retry_delay_multiplier";
         public const string NavigateToDetailsOnRequest = "navigate_to_details_on_request";
         public const string LanguageCodeFormat = "language_code_format";
+        /// <summary>When true, a later run can continue a cancelled request whose saved lines still score well.</summary>
+        public const string CacheCancelledProgress = "cache_cancelled_progress";
+        /// <summary>Minimum partial quality score, 0-100, required to continue a cancelled request.</summary>
+        public const string CacheCancelledQualityThreshold = "cache_cancelled_quality_threshold";
+        public const string TypesafeApiKey = "typesafe_api_key";
+        public const string JevSkipNonDialogue = "jev_skip_non_dialogue";
+        public const string JevRejectUntranslated = "jev_reject_untranslated";
     }
 
     public static class Automation

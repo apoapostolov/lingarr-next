@@ -7,6 +7,25 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-05 — Resume and Classify
+
+A cancelled translation can continue, and TypeSafe Jev can keep cues, credits,
+and bad results out of the file.
+
+- A cancelled translation keeps the lines it already finished. The next run
+  for that same movie or episode continues when those lines score at least
+  90. The switch starts on. The threshold sits under it in Settings →
+  Translation → Advanced.
+- Under Cancelled, the list shows progress and quality, such as
+  `55% · Qual: 98%`.
+- A completed movie or episode that still has its subtitle files gets a
+  Quality line even when the request did not store line rows.
+- Settings → Translation → Advanced has a Jev block for a TypeSafe API key.
+  Two uses start off: skip sound cues and credits, and drop a result that is
+  not a translation.
+- The Languages panel on Translation → Setup is one wide row, with Source
+  and Target side by side.
+
 ## [1.1.3] - 2026-10-04 — Imports
 
 The daily translation check asks Plex, Radarr, and Sonarr which files are
@@ -321,6 +340,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.1.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4
 [1.1.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3
 [1.1.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.2
 [1.1.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.1

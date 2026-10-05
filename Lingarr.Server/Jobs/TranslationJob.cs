@@ -33,6 +33,7 @@ public class TranslationJob
     private readonly ITranslationQualityService _translationQuality;
     private readonly ITranslationPromptProfileService _promptProfiles;
     private readonly IPlexSubtitleSelector _plexSubtitles;
+    private readonly IJevSubtitleGate _jev;
 
     public TranslationJob(
         ILogger<TranslationJob> logger,
@@ -48,7 +49,8 @@ public class TranslationJob
         IProviderHealthService providerHealth,
         ITranslationQualityService translationQuality,
         ITranslationPromptProfileService promptProfiles,
-        IPlexSubtitleSelector plexSubtitles)
+        IPlexSubtitleSelector plexSubtitles,
+        IJevSubtitleGate jev)
     {
         _logger = logger;
         _settings = settings;
@@ -64,6 +66,7 @@ public class TranslationJob
         _translationQuality = translationQuality;
         _promptProfiles = promptProfiles;
         _plexSubtitles = plexSubtitles;
+        _jev = jev;
     }
 
     [AutomaticRetry(Attempts = 0)]
@@ -205,7 +208,8 @@ public class TranslationJob
                 services,
                 _logger,
                 _progressService,
-                _providerHealth);
+                _providerHealth,
+                _jev);
             var subtitles = await _subtitleService.ReadSubtitles(request.SubtitleToTranslate);
 
             // subtitle already carries a translation from an earlier prior run.

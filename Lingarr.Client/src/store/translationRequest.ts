@@ -63,6 +63,7 @@ export const useTranslationRequestStore = defineStore('translateRequest', {
         },
         async cancel(translationRequest: ITranslationRequest) {
             await services.translationRequest.cancel<string>(translationRequest)
+            await this.fetch()
         },
         async remove(translationRequest: ITranslationRequest) {
             await services.translationRequest.remove<string>(translationRequest).finally(() => {

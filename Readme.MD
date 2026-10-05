@@ -19,7 +19,7 @@ Translate the subtitles you already have. Keep the drive quiet.
 Lingarr Next is a self-hosted subtitle manager for movies and TV. It watches
 Sonarr, Radarr, and Plex for new files, translates a subtitle that is already
 on disk, and can hand the result back to Plex as the selected track. The
-current release is **1.1.3**.
+current release is **1.1.4**.
 
 <p align="center">
   <img src="docs/images/hero.jpg" alt="A dim home theater with a film on the screen and a laptop showing a dark teal dashboard" width="100%" />
@@ -36,8 +36,16 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.1.3](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3).
+Current release: [1.1.4](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.1.4 — Resume and Classify (2026-10-05)
+
+- A cancelled translation can continue when the saved lines still score at
+  least 90.
+- Under Cancelled, the list shows progress and quality.
+- TypeSafe Jev can skip sound cues and credits, and it can drop a result that
+  is not a translation. Both uses start off.
 
 ### 1.1.3 — Imports (2026-10-04)
 

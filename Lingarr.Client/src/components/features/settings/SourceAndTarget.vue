@@ -31,12 +31,6 @@
     </div>
 
     <template v-if="!translateStore.hasLanguagesError">
-        <div class="flex flex-col space-x-2">
-            <span class="font-semibold">Source and target translation</span>
-            Select a source and target language. Both the source and target are used to request
-            translations.
-        </div>
-
         <div v-if="translateStore.isLanguagesLoading" class="py-4">
             <div class="flex items-center space-x-2">
                 <LoaderCircleIcon class="h-5 w-5" />
@@ -44,22 +38,22 @@
             </div>
         </div>
 
-        <template v-else>
-            <div>
-                <span>Source languages:</span>
+        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="min-w-0">
+                <span class="font-semibold">Source</span>
                 <LanguageSelect
                     v-model:selected="sourceLanguages"
                     class="w-full"
                     :options="languages" />
             </div>
-            <div>
-                <span>Target languages:</span>
+            <div class="min-w-0">
+                <span class="font-semibold">Target</span>
                 <LanguageSelect
                     v-model:selected="targetLanguages"
                     class="w-full"
                     :options="languages" />
             </div>
-        </template>
+        </div>
         <p class="text-sm text-secondary-content">
             If no configured service supports the language code, the language falls back to the
             closest available variant (for example, <CodeSnippet>en-US</CodeSnippet>

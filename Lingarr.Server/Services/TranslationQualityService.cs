@@ -64,7 +64,7 @@ public partial class TranslationQualityService : ITranslationQualityService
             return ToSummary(assessment);
         }
 
-        var findings = EvaluateLines(lines, request.TargetLanguage);
+        var findings = EvaluateLines(lines, request.TargetLanguage, includeGaps: true);
         var scores = lines
             .Select(line => Math.Max(0, 100 - findings
                 .Where(f => f.TranslationRequestLineId == line.Id)
@@ -154,29 +154,68 @@ public partial class TranslationQualityService : ITranslationQualityService
         return new TranslationQualityDetail(ToSummary(assessment), findings);
     }
 
+    public int? ScorePartial(IReadOnlyList<TranslationRequestLine> lines, string targetLanguage)
+    {
+        var newest = lines
+            .GroupBy(line => line.Position)
+            .Select(group => group.OrderByDescending(line => line.Id).First())
+            .OrderBy(line => line.Position)
+            .ToList();
+        if (newest.Count == 0)
+        {
+            return null;
+        }
+
+        var findings = EvaluateLines(newest, targetLanguage, includeGaps: false);
+        var scores = newest
+            .Select(line => Math.Max(0, 100 - findings
+                .Where(finding => finding.TranslationRequestLineId == line.Id)
+                .GroupBy(finding => finding.RuleId)
+                .Sum(group => group.Max(finding => finding.Penalty))))
+            .OrderBy(score => score)
+            .ToArray();
+
+        var average = scores.Average();
+        var lowTailCount = Math.Max(1, (int)Math.Ceiling(scores.Length * 0.05));
+        var lowTail = scores.Take(lowTailCount).Average();
+        var score = (int)Math.Round((average * 0.75) + (lowTail * 0.25));
+
+        var emptyCount = findings.Count(finding => finding.RuleId == "integrity.target_empty");
+        if (emptyCount > newest.Count * 0.05)
+        {
+            score = Math.Min(score, 39);
+        }
+
+        return Math.Clamp(score, 0, 100);
+    }
+
     private static List<TranslationLineQualityFinding> EvaluateLines(
         IReadOnlyList<TranslationRequestLine> lines,
-        string targetLanguage)
+        string targetLanguage,
+        bool includeGaps)
     {
         var findings = new List<TranslationLineQualityFinding>();
         var positions = lines.GroupBy(line => line.Position).ToList();
-        foreach (var duplicate in positions.Where(group => group.Count() > 1))
+        if (includeGaps)
         {
-            foreach (var line in duplicate)
-                Add(findings, line, "integrity.position_duplicate", "Integrity", QualitySeverity.Critical, 100,
-                    "This subtitle position appears more than once.", new { count = duplicate.Count() });
-        }
-
-        var orderedPositions = positions.Select(group => group.Key).OrderBy(x => x).ToArray();
-        if (orderedPositions.Length > 1)
-        {
-            var missing = Enumerable.Range(orderedPositions[0], orderedPositions[^1] - orderedPositions[0] + 1)
-                .Except(orderedPositions)
-                .Count();
-            if (missing > 0)
+            foreach (var duplicate in positions.Where(group => group.Count() > 1))
             {
-                Add(findings, null, "integrity.position_missing", "Integrity", QualitySeverity.Critical, 0,
-                    "One or more subtitle positions are missing.", new { count = missing });
+                foreach (var line in duplicate)
+                    Add(findings, line, "integrity.position_duplicate", "Integrity", QualitySeverity.Critical, 100,
+                        "This subtitle position appears more than once.", new { count = duplicate.Count() });
+            }
+
+            var orderedPositions = positions.Select(group => group.Key).OrderBy(x => x).ToArray();
+            if (orderedPositions.Length > 1)
+            {
+                var missing = Enumerable.Range(orderedPositions[0], orderedPositions[^1] - orderedPositions[0] + 1)
+                    .Except(orderedPositions)
+                    .Count();
+                if (missing > 0)
+                {
+                    Add(findings, null, "integrity.position_missing", "Integrity", QualitySeverity.Critical, 0,
+                        "One or more subtitle positions are missing.", new { count = missing });
+                }
             }
         }
 
@@ -401,7 +440,7 @@ public partial class TranslationQualityService : ITranslationQualityService
         return openings != closings;
     }
 
-    private static string GradeFor(int score) => score switch
+    public static string GradeFor(int score) => score switch
     {
         >= 95 => "Excellent",
         >= 85 => "Good",

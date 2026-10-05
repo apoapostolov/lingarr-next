@@ -20,6 +20,7 @@ public class SubtitleTranslationService
     private readonly IReadOnlyList<TranslationServiceEntry> _services;
     private readonly IProgressService? _progressService;
     private readonly IProviderHealthService? _providerHealth;
+    private readonly IJevSubtitleGate? _jev;
     private readonly ILogger _logger;
     private readonly Dictionary<int, (string Service, LanguagePair Pair)> _translationByPosition = [];
     private readonly HashSet<string> _loggedSkips = [];
@@ -30,7 +31,8 @@ public class SubtitleTranslationService
         IReadOnlyList<TranslationServiceEntry> services,
         ILogger logger,
         IProgressService? progressService = null,
-        IProviderHealthService? providerHealth = null)
+        IProviderHealthService? providerHealth = null,
+        IJevSubtitleGate? jevGate = null)
     {
         if (services.Count == 0)
         {
@@ -39,6 +41,7 @@ public class SubtitleTranslationService
         _services = services;
         _progressService = progressService;
         _providerHealth = providerHealth;
+        _jev = jevGate;
         _logger = logger;
     }
 
@@ -77,6 +80,7 @@ public class SubtitleTranslationService
         // file and reuse the result for the rest. SRT/VTT files almost never
         // share timestamps, so this is a no-op there.
         var translationCache = new Dictionary<string, string>();
+        var skipped = await NonDialoguePositions(subtitles, stripSubtitleFormatting, cancellationToken);
 
         for (var index = 0; index < totalSubtitles; index++)
         {
@@ -103,6 +107,22 @@ public class SubtitleTranslationService
 
                 iteration++;
                 await EmitProgress(translationRequest, iteration, totalSubtitles);
+                continue;
+            }
+
+            if (skipped.Contains(subtitle.Position))
+            {
+                var kept = stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines;
+                subtitle.TranslatedLines = kept.ToList();
+                iteration++;
+                await EmitProgress(translationRequest, iteration, totalSubtitles);
+                await _progressService!.EmitLine(
+                    translationRequest,
+                    subtitle.Position,
+                    string.Join(" ", kept),
+                    string.Join(" ", kept),
+                    null,
+                    null);
                 continue;
             }
 
@@ -152,6 +172,23 @@ public class SubtitleTranslationService
 
             var sourceText = string.Join(" ", contentLines);
             var translatedText = string.Join(" ", subtitle.TranslatedLines);
+            if (_jev != null && await _jev.RejectEnabled(cancellationToken))
+            {
+                var rejected = await _jev.PositionsToReject(
+                    [(subtitle.Position, sourceText, translatedText)],
+                    translationRequest.SourceLanguage,
+                    translationRequest.TargetLanguage,
+                    cancellationToken);
+                if (rejected.Contains(subtitle.Position))
+                {
+                    subtitle.TranslatedLines = contentLines.ToList();
+                    translatedText = sourceText;
+                    _logger.LogInformation(
+                        "Jev left position {Position} untranslated because the result was not a translation.",
+                        subtitle.Position);
+                }
+            }
+
             if (service != null && pair != null)
             {
                 _translationByPosition[subtitle.Position] = (service, pair);
@@ -327,6 +364,32 @@ public class SubtitleTranslationService
 
         var totalBatches = (int)Math.Ceiling((double)subtitles.Count / batchSize);
         var processedSubtitles = 0;
+        var skipped = await NonDialoguePositions(subtitles, stripSubtitleFormatting, cancellationToken);
+        foreach (var subtitle in subtitles)
+        {
+            if (!skipped.Contains(subtitle.Position) || subtitle.TranslatedLines.Count > 0)
+            {
+                continue;
+            }
+
+            var kept = stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines;
+            subtitle.TranslatedLines = kept.ToList();
+        }
+
+        if (skipped.Count > 0)
+        {
+            await _progressService!.EmitLines(
+                translationRequest,
+                subtitles
+                    .Where(subtitle => skipped.Contains(subtitle.Position))
+                    .Select(subtitle => new TranslatedLineData
+                    {
+                        Position = subtitle.Position,
+                        Source = string.Join(" ", subtitle.TranslatedLines),
+                        Target = string.Join(" ", subtitle.TranslatedLines)
+                    })
+                    .ToList());
+        }
 
         for (var batchIndex = 0; batchIndex < totalBatches; batchIndex++)
         {
@@ -352,6 +415,28 @@ public class SubtitleTranslationService
 
             if (newlyTranslated.Count > 0)
             {
+                if (_jev != null && await _jev.RejectEnabled(cancellationToken))
+                {
+                    var rejected = await _jev.PositionsToReject(
+                        newlyTranslated.Select(subtitle => (
+                            subtitle.Position,
+                            string.Join(" ", stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines),
+                            string.Join(" ", subtitle.TranslatedLines))).ToList(),
+                        translationRequest.SourceLanguage,
+                        translationRequest.TargetLanguage,
+                        cancellationToken);
+                    foreach (var subtitle in newlyTranslated)
+                    {
+                        if (!rejected.Contains(subtitle.Position))
+                        {
+                            continue;
+                        }
+
+                        var original = stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines;
+                        subtitle.TranslatedLines = original.ToList();
+                    }
+                }
+
                 var lineData = newlyTranslated.Select(subtitle =>
                 {
                     _translationByPosition.TryGetValue(subtitle.Position, out var entry);
@@ -548,6 +633,39 @@ public class SubtitleTranslationService
                 subtitle.Position);
             _translationByPosition[subtitle.Position] = (candidate.Entry.Name, candidate.Pair);
         }
+    }
+
+    private async Task<HashSet<int>> NonDialoguePositions(
+        List<SubtitleItem> subtitles,
+        bool stripSubtitleFormatting,
+        CancellationToken cancellationToken)
+    {
+        if (_jev == null || !await _jev.SkipEnabled(cancellationToken))
+        {
+            return [];
+        }
+
+        var pending = new List<(int Position, string Text)>();
+        foreach (var subtitle in subtitles)
+        {
+            if (subtitle.TranslatedLines.Count > 0)
+            {
+                continue;
+            }
+
+            var text = string.Join(" ", stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                pending.Add((subtitle.Position, text));
+            }
+        }
+
+        if (pending.Count == 0)
+        {
+            return [];
+        }
+
+        return (await _jev.PositionsToSkip(pending, cancellationToken)).ToHashSet();
     }
 
     /// <summary>

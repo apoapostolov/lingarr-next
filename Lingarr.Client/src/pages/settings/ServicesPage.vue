@@ -1,10 +1,10 @@
 <template>
     <div class="w-full">
         <SettingsSectionTabs section="translation" />
-        <div class="grid grid-flow-row auto-rows-max grid-cols-1 gap-4 p-4 md:grid-cols-2">
-            <ServicesSettings />
+        <div class="grid grid-flow-row auto-rows-max grid-cols-1 gap-4 p-4">
             <LanguageSettings />
-            <ProviderHealthPanel class="md:col-span-2" />
+            <ServicesSettings />
+            <ProviderHealthPanel />
         </div>
     </div>
 </template>

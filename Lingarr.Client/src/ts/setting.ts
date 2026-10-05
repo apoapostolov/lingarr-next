@@ -68,6 +68,10 @@ export const SETTINGS = {
     ACTIVE_CONTEXT_PROMPT_PROFILE_ID: 'active_context_prompt_profile_id',
     USE_BATCH_TRANSLATION: 'use_batch_translation',
     MAX_BATCH_SIZE: 'max_batch_size',
+    CACHE_CANCELLED_PROGRESS: 'cache_cancelled_progress',
+    CACHE_CANCELLED_QUALITY_THRESHOLD: 'cache_cancelled_quality_threshold',
+    JEV_SKIP_NON_DIALOGUE: 'jev_skip_non_dialogue',
+    JEV_REJECT_UNTRANSLATED: 'jev_reject_untranslated',
     USE_SUBTITLE_TAGGING: 'use_subtitle_tagging',
     REMOVE_LANGUAGE_TAG: 'remove_language_tag',
     SUBTITLE_TAG: 'subtitle_tag',
@@ -185,6 +189,10 @@ export interface ISettings {
     active_context_prompt_profile_id: string
     use_batch_translation: string
     max_batch_size: string
+    cache_cancelled_progress: string
+    cache_cancelled_quality_threshold: string
+    jev_skip_non_dialogue: string
+    jev_reject_untranslated: string
     use_subtitle_tagging: string
     remove_language_tag: string
     subtitle_tag: string
@@ -252,7 +260,8 @@ export const ENCRYPTED_SETTINGS = {
     MISTRAL_API_KEY: 'mistral_api_key',
     DEEPL_API_KEY: 'deepl_api_key',
     LIBRETRANSLATE_API_KEY: 'libretranslate_api_key',
-    LOCAL_AI_API_KEY: 'local_ai_api_key'
+    LOCAL_AI_API_KEY: 'local_ai_api_key',
+    TYPESAFE_API_KEY: 'typesafe_api_key'
 } as const
 
 export interface IEncryptedSettings {
@@ -272,6 +281,7 @@ export interface IEncryptedSettings {
     deepl_api_key: string
     libretranslate_api_key: string
     local_ai_api_key: string
+    typesafe_api_key: string
 }
 
 export const SERVICE_TYPE = {

@@ -46,6 +46,7 @@ export interface ITranslationRequest {
     qualityScore?: number | null
     qualityGrade?: string | null
     qualityStatus?: string | null
+    cachedProgress?: number | null
     inputTokens?: number | null
     outputTokens?: number | null
     showTokenUsage?: boolean
