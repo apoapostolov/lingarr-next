@@ -18,11 +18,10 @@ Translate the subtitles you already have. Keep the drive quiet.
 
 Lingarr Next is a self-hosted subtitle manager for movies and TV. It watches
 Sonarr, Radarr, and Plex for new files, translates a subtitle that is already
-on disk, and can hand the result back to Plex as the selected track. The
-current release is **1.1.5**.
+on disk, and can hand the result back to Plex as the selected track.
 
 <p align="center">
-  <img src="docs/images/hero.jpg" alt="A dim home theater with a film on the screen and a laptop showing a dark teal dashboard" width="100%" />
+  <img src="docs/images/hero-cinema.jpg" alt="A dim home theater. The film on the wall has a subtitle that is changing language, and the laptop on the table is closed." width="100%" />
 </p>
 
 You run it yourself. There is no hosted translation service. Connect your own
@@ -36,8 +35,44 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.1.5](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5).
+Current release: [1.1.6](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.1.6 — Infinitely Extendable (2026-10-05)
+
+- A plugin is a DLL. Set `PLUGINS_PATH` to its folder and restart. Every
+  plugin starts off.
+- Settings → Plugins shows each plugin as its own card. The switch is in the
+  upper right. An off card is dim, and each card keeps its own height.
+- A plugin can add a tab and several cards, change a finished subtitle, run
+  one external command, supply a source subtitle, accept a webhook, send a
+  notice when a translation ends, and run a scheduled task.
+- Plex, Jellyfin, and Emby stay built in. A plugin media server runs after
+  them.
+- The developer guide is
+  [Developer API documentation](Lingarr.Docs/developers/Plugins.md).
+  `samples/StyleSample` is a working set, all off until you enable one.
+- International quotes follows the target language. Its dropdown can
+  overwrite that country with another dialogue style.
+- A plugin's failure policy says whether Lingarr continues after an error,
+  stops that file, or fails the translation and keeps the old file.
+- Strip HTML is on. Tags such as font, bold, and italics are removed before
+  translation.
+- Translation services and Provider Health list only translators.
+- A provider cancel is tried again, 5 times by default, 2 hours apart. The
+  status reads Cancelled (1/5). Line retries stay inside the job and wait
+  seconds.
+- Settings → Translation → Setup has one Provider panel. Drag a row to
+  change the order. The selected row's address, key, and account are below.
+  Microsoft Translate has no fields of its own.
+- Open Translation Setup scrolls to that provider.
+- The main chart hover shows the day, that day's count, and the average.
+- Translation detail shows Revise with AI and Subtitle Quality side by side
+  on a wide screen. Settings and provider guidance was tightened.
+- Settings → Translation → Advanced can use TypeSafe Jev or OpenAI Luna
+  Decisions. Existing installs stay on Jev, and both checks stay off.
+- A subtitle with no language code is unknown. Signup stays closed once
+  authentication is on, and onboarding cannot be completed twice.
 
 ### 1.1.5 — All The Subs (2026-10-05)
 
@@ -161,7 +196,14 @@ The first Lingarr Next release. It is its own version line, not an upstream
 - Quality is currently **observe-only**: it helps you review translations but
   does not silently reject or delete a completed file.
 - The Translations list shows source, target, status, quality, progress, episode
-  details, and compact relative completion times.
+  details, and compact relative completion times. An enabled plugin can add a
+  short badge on a row, such as `ocr`.
+- An English picture subtitle or closed caption inside a video can become a
+  text file before translation. Picture conversion waits 72 hours and is the
+  last resort. An OCR file keeps an `ocr` tag in the name.
+- When no source subtitle is on disk, Lingarr can ask Bazarr. That switch
+  starts off. A miss is tried again for up to 7 days, and a downloaded file
+  can replace one Lingarr made by OCR.
 
 ### Translation providers
 
@@ -196,6 +238,13 @@ device-login connection for SuperGrok / Premium+ accounts.
 
 - Settings are grouped into **Connections**, **Translation**, **Automation**,
   **System**, and **Plugins**.
+- Plugins load from `PLUGINS_PATH`. Each plugin is its own card. The switch
+  in the upper right turns it on. An off card is dim. A plugin can register
+  its own tab and place more than one card on that tab.
+- Jellyfin Item Added and Emby library.new queue a new movie or episode the
+  same way a Plex library.new event does. Radarr and Sonarr webhooks stay.
+- System logs open on the newest lines. Older lines load as you scroll up. A
+  warning or error includes a short next step.
 - Translation has local **Setup**, **Subtitles**, **Prompts**, and **Advanced**
   tabs.
 - Translation Services are placed before Languages and retain the familiar
@@ -258,7 +307,8 @@ docker compose up -d
 
 Open `http://localhost:9876`, connect Sonarr and/or Radarr under
 **Settings → Connections**, configure paths, then choose translation providers
-under **Settings → Translation → Setup**.
+under **Settings → Translation → Setup**. To load plugins, set `PLUGINS_PATH`
+and restart. They stay off until you enable each card.
 
 MySQL and PostgreSQL remain supported for larger or existing installations.
 Docker secrets can be supplied by using the `_FILE` form of supported
@@ -302,11 +352,13 @@ Common environment variables:
 | `SONARR_URL` / `SONARR_API_KEY` | Sonarr connection |
 | `AUTH_ENABLED` | Enable Lingarr Next authentication |
 | `BASE_PATH` | Optional reverse-proxy path prefix |
+| `PLUGINS_PATH` | Folder of plugin DLLs. Empty disables plugins |
 
 See [Settings.MD](Settings.MD) for the full environment-variable reference.
 
 ## Documentation
 
+- [Developer API documentation](Lingarr.Docs/developers/Plugins.md)
 - [Documentation index](docs/README.md)
 - [Architecture and request flows](docs/architecture.md)
 - [Testing and live smoke checks](docs/testing.md)

@@ -1,8 +1,7 @@
 <template>
     <CardComponent title="Provider Health">
         <template #description>
-            Every available translation provider, with its current configuration and recent
-            operating state.
+            Provider configuration and recent translation status.
         </template>
         <template #content>
             <div v-if="loading" class="space-y-2" aria-label="Loading provider health">
@@ -120,11 +119,12 @@
                                 role="status">
                                 {{ probeResults[provider.provider]?.message }}
                             </p>
-                            <router-link
-                                :to="{ name: 'translation-setup-settings' }"
-                                class="text-accent-content focus-visible:ring-accent rounded-sm text-xs underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none sm:ml-auto">
+                            <a
+                                href="#"
+                                class="text-accent-content focus-visible:ring-accent rounded-sm text-xs underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none sm:ml-auto"
+                                @click.prevent="openSetup(provider.provider)">
                                 Open Translation Setup
-                            </router-link>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -134,12 +134,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { IProviderHealth, IProviderProbe, ProviderHealthState } from '@/ts'
 import services from '@/services'
 import ButtonComponent from '@/components/common/ButtonComponent.vue'
 import CardComponent from '@/components/common/CardComponent.vue'
 
+const route = useRoute()
+const router = useRouter()
 const providers = ref<IProviderHealth[]>([])
 const loading = ref(true)
 const loadError = ref<string | null>(null)
@@ -157,6 +160,18 @@ const load = async () => {
     } finally {
         loading.value = false
     }
+}
+
+const openSetup = async (provider: string) => {
+    const hash = `#service-${provider}`
+    if (route.name !== 'translation-setup-settings' || route.hash !== hash) {
+        await router.push({ name: 'translation-setup-settings', hash })
+    }
+    await nextTick()
+    document.getElementById(`service-${provider}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    })
 }
 
 const toggle = (provider: string) => {

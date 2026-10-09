@@ -1,18 +1,16 @@
 <template>
     <CardComponent title="Plex">
         <template #description>
-            Sign in with Plex, or use a local server token. After a translation, Lingarr can
-            add that subtitle to the matched movie or episode and select it for one language.
+            Connect Plex to attach translated subtitles to matched movies and episodes.
         </template>
         <template #content>
             <p v-if="status?.source === 'environment'" class="text-secondary-content text-sm">
-                Signed in with the Plex token configured on the server. Sign out to use a
-                different account.
+                Using the Plex token configured on the server. Sign out to change accounts.
             </p>
 
             <div v-if="pin" class="space-y-2">
                 <p class="text-primary-content text-sm">
-                    Approve Lingarr on Plex, then return here. Code:
+                    Authorize Lingarr in Plex, then return and enter this code:
                     <span class="font-mono">{{ pin.code }}</span>
                 </p>
                 <a
@@ -32,13 +30,12 @@
                     Server: {{ status.serverName }}
                 </p>
                 <p v-if="status.needsServer" class="text-secondary-content">
-                    The account is signed in. This container could not open a saved Plex
-                    address yet.
+                    Plex account connected, but Lingarr cannot reach its server.
                 </p>
             </div>
 
             <div v-if="servers.length > 1" class="space-y-2">
-                <p class="text-primary-content text-sm">Choose the server Lingarr can reach.</p>
+                <p class="text-primary-content text-sm">Select a Plex server reachable from Lingarr.</p>
                 <button
                     v-for="server in servers"
                     :key="server.machineIdentifier"
@@ -118,7 +115,7 @@
             </div>
 
             <SelectComponent
-                label="Default subtitle language"
+                label="Subtitle language for selection"
                 :options="languageOptions"
                 :selected="language"
                 placeholder="Choose a language"
@@ -132,8 +129,7 @@
                 </span>
             </ToggleButton>
             <p class="text-secondary-content text-sm">
-                If Plex does not list a sidecar such as <span class="font-mono">name.bg.srt</span>
-                after a refresh, Lingarr uploads that file onto the matched item.
+                Lingarr uploads the sidecar if Plex does not detect it after refresh.
             </p>
             <ToggleButton
                 :model-value="translateMoviesOnAdd"
@@ -152,15 +148,14 @@
                 </span>
             </ToggleButton>
             <div class="space-y-2">
+                <p class="text-secondary-content text-sm">Add this URL under Plex Settings → Webhooks.</p>
                 <p class="text-secondary-content text-sm">
-                    In Plex, open Settings → Webhooks and add this URL. Lingarr queues a
-                    translation when the new item is a movie or an episode, a source subtitle
-                    file is already beside it, and a target subtitle is missing. A track that
-                    exists only inside the video is skipped until it has been extracted.
+                    Translation queues when source subtitles exist and the target is missing.
+                    Extract embedded tracks before sending webhooks.
                 </p>
                 <CodeSnippet class="block overflow-x-auto">{{ plexWebhookUrl }}</CodeSnippet>
                 <p v-if="authEnabled === 'true'" class="text-secondary-content text-sm">
-                    Plex does not send the Lingarr API key. Leave authentication off for this URL.
+                    Plex webhooks cannot send Lingarr credentials. Disable API authentication for this endpoint.
                 </p>
             </div>
         </template>
@@ -410,7 +405,7 @@ async function saveSelection(value: string | boolean) {
     const next = String(value)
     error.value = null
     if (next === 'true' && !language.value) {
-        error.value = 'Choose a default subtitle language first.'
+        error.value = 'Select a subtitle language before enabling this setting.'
         return
     }
     try {

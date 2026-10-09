@@ -4,6 +4,7 @@ import {
     IPluginOptionsResponse,
     IPluginStatus,
     IPluginSummary,
+    IPluginUi,
     IPluginService
 } from '@/ts'
 
@@ -51,6 +52,29 @@ const service = (http: AxiosStatic, resource = '/api/plugin'): IPluginService =>
                     reject(error.response)
                 })
         })
+    },
+    ui(): Promise<IPluginUi> {
+        return http.get(`${resource}/ui`).then((response) => response.data)
+    },
+    values(provider: string): Promise<Record<string, string>> {
+        return http
+            .get(`${resource}/${provider}/settings`)
+            .then((response) => response.data.values ?? {})
+    },
+    saveValues(provider: string, values: Record<string, string>): Promise<string> {
+        return http
+            .put(`${resource}/${provider}/settings`, { values })
+            .then((response) => response.data.message as string)
+    },
+    saveHost(provider, host): Promise<string> {
+        return http
+            .put(`${resource}/${provider}/host`, host)
+            .then((response) => response.data.message as string)
+    },
+    runAction(provider: string, action: string): Promise<string> {
+        return http
+            .post(`${resource}/${provider}/actions/${action}`)
+            .then((response) => response.data.message as string)
     }
 })
 

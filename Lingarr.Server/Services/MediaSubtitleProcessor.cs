@@ -12,6 +12,7 @@ using Lingarr.Server.Jobs;
 using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services.Integration.Bazarr;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,9 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
     private readonly LingarrDbContext _dbContext;
     private readonly IBazarrService _bazarr;
     private readonly IBackgroundJobClient _jobs;
+    private readonly PluginToolRunner _tools;
+    private readonly PluginSignals _signals;
+    private readonly PluginShelf _shelf;
     private string _hash = string.Empty;
     private IMedia _media = null!;
     private MediaType _mediaType;
@@ -37,7 +41,10 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         ISubtitleService subtitleService,
         LingarrDbContext dbContext,
         IBazarrService bazarr,
-        IBackgroundJobClient jobs)
+        IBackgroundJobClient jobs,
+        PluginToolRunner tools,
+        PluginSignals signals,
+        PluginShelf shelf)
     {
         _translationRequestService = translationRequestService;
         _settingService = settingService;
@@ -45,6 +52,9 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         _dbContext = dbContext;
         _bazarr = bazarr;
         _jobs = jobs;
+        _tools = tools;
+        _signals = signals;
+        _shelf = shelf;
         _logger = logger;
     }
 
@@ -53,6 +63,8 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         IMedia media, 
         MediaType mediaType)
     {
+        await _signals.OnDiscoveredAsync(media.Path, media.FileName, CancellationToken.None);
+
         if (media.Path == null || media.FileName == null)
         {
             _logger.LogWarning(
@@ -87,6 +99,7 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
                 subtitles = await TryExtractSource(media, subtitles, sourceLanguages, picturePolicy, nonTextOnly: true);
             }
 
+            var bazarrMissed = false;
             if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr)
                 && await _bazarr.IsEnabled())
             {
@@ -94,13 +107,38 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
                 {
                     subtitles = await AdoptDownloadedSubtitle(media, bazarrPolicy.ReplaceOcr);
                 }
-                else if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+                else
                 {
-                    await ScheduleBazarrRetry(media, mediaType);
+                    bazarrMissed = true;
                 }
             }
 
-            if (_subtitleService.SelectSourceSubtitle(subtitles, sourceLanguages, "false") == null
+            if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr)
+                && media.Path != null
+                && media.FileName != null
+                && (!await _bazarr.IsEnabled() || bazarrMissed))
+            {
+                var language = sourceLanguages.FirstOrDefault() ?? "en";
+                if (await _tools.TrySupplySourceAsync(
+                        media.Path,
+                        media.FileName,
+                        language,
+                        CancellationToken.None))
+                {
+                    subtitles = await _subtitleService.GetSubtitles(media.Path, media.FileName);
+                    bazarrMissed = false;
+                }
+            }
+
+            if (bazarrMissed && NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+            {
+                await ScheduleBazarrRetry(media, mediaType);
+            }
+
+            if (_subtitleService.SelectSourceSubtitle(
+                    await _shelf.FilterCaptionsAsync(subtitles),
+                    sourceLanguages,
+                    "false") == null
                 && picturePolicy.LastResort
                 && englishSource)
             {
@@ -165,6 +203,13 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
     {
         if (replaceOcr && media.Path != null && media.FileName != null)
         {
+            var incoming = Path.Combine(media.Path, media.FileName + ".srt");
+            var choice = await _shelf.MergeAsync(media.Path, incoming, existingIsOcr: true);
+            replaceOcr = PluginShelf.ReplaceOcrSource(true, choice);
+        }
+
+        if (replaceOcr && media.Path != null && media.FileName != null)
+        {
             var removed = SubtitleNaming.RemoveOcrSidecars(media.Path, media.FileName);
             if (removed > 0)
             {
@@ -185,7 +230,10 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         NonTextSubtitlePolicy policy,
         bool nonTextOnly)
     {
-        if (_subtitleService.SelectSourceSubtitle(subtitles, sourceLanguages, "false") != null)
+        if (_subtitleService.SelectSourceSubtitle(
+                await _shelf.FilterCaptionsAsync(subtitles),
+                sourceLanguages,
+                "false") != null)
         {
             return subtitles;
         }
@@ -202,6 +250,11 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
                 _logger.LogInformation("Extracted an English subtitle from {File}.", media.FileName);
                 return await _subtitleService.GetSubtitles(media.Path!, media.FileName!);
             }
+
+            if (await _tools.TryExtractAsync(media.Path!, media.FileName!, CancellationToken.None))
+            {
+                return await _subtitleService.GetSubtitles(media.Path!, media.FileName!);
+            }
         }
         catch (Exception exception) when (exception is IOException or System.ComponentModel.Win32Exception)
         {
@@ -215,7 +268,14 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
     {
         var policy = BazarrRetryPolicy.From(await _settingService.GetSettings(BazarrRetryPolicy.Keys));
         var foundAt = NonTextSubtitlePolicy.FoundAt(media);
-        var delay = policy.NextDelay(foundAt, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        var delay = await _shelf.AdjustDelayAsync(
+            policy.NextDelay(foundAt, now),
+            "bazarr-miss",
+            media.FileName,
+            foundAt,
+            now,
+            policy.TimeoutHours);
         if (delay == null || delay <= TimeSpan.Zero || !BazarrRetryJob.TryMark(media.Id, mediaType))
         {
             return;
@@ -289,7 +349,10 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             return false;
         }
 
-        var selected = _subtitleService.SelectSourceSubtitle(subtitles, sourceLanguages, ignoreCaptions);
+        var selected = _subtitleService.SelectSourceSubtitle(
+            await _shelf.FilterCaptionsAsync(subtitles),
+            sourceLanguages,
+            ignoreCaptions);
         if (selected == null || !targetLanguages.Any())
         {
             // Common when target (e.g. bg) already exists and source en is gone — not an error condition.

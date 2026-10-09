@@ -4,7 +4,7 @@
             ref="excludeClickOutside"
             class="flex min-h-12 cursor-pointer items-center justify-between rounded-md border border-accent px-4 py-2"
             @click="toggleDropdown">
-            <span v-if="selectedItems.length === 0" class="text-gray-400">Select language...</span>
+            <span v-if="selectedItems.length === 0" class="text-gray-400">Select languages</span>
             <div v-else class="flex flex-1 flex-wrap items-center gap-2">
                 <span
                     v-for="(item, index) in selectedItems"
@@ -25,13 +25,13 @@
             ref="clickOutside"
             class="absolute z-10 max-h-60 w-full overflow-auto rounded-md border border-accent bg-primary shadow-lg"
             :class="openUpward ? 'bottom-full mb-1' : 'top-full mt-1'">
-            <li v-if="!options?.length" class="p-3">Select a source language first.</li>
+            <li v-if="!options?.length" class="p-3">Select a source language to view targets.</li>
             <li v-else class="flex items-center">
                 <input
                     ref="searchInput"
                     v-model="searchTerm"
                     class="outline-hidden relative w-full border-b border-accent bg-transparent p-2"
-                    placeholder="Select or search language" />
+                    placeholder="Search languages" />
 
                 <span
                     v-if="searchTerm"

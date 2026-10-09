@@ -13,6 +13,13 @@ public sealed class PluginSettingField
     public string? Default { get; init; }
     public string? Description { get; init; }
     public string? OptionsEndpoint { get; init; }
+    public IReadOnlyList<PluginSettingOption> Options { get; init; } = [];
     public int? MinLength { get; init; }
     public string? ValidationErrorMessage { get; init; }
+}
+
+public sealed class PluginSettingOption
+{
+    public required string Value { get; init; }
+    public required string Label { get; init; }
 }

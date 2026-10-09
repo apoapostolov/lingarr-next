@@ -10,7 +10,7 @@ public sealed class MicrosoftTranslatePluginManifest : IPluginManifest
     public string DisplayName => "Microsoft Translate";
 
     public string? Description =>
-        "Microsoft Translate through the GTranslate library. No API key required, but rate limiting may cause failures.";
+        "Uses the GTranslate library; availability depends on the upstream service.";
 
     public IReadOnlyList<PluginSettingField> Settings { get; } = [];
 }

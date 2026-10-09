@@ -2,7 +2,7 @@
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CardComponent title="Media Overview" class="lg:col-span-2">
             <template #description>
-                Current subtitle coverage in your connected libraries for the selected language.
+                Subtitle coverage in connected libraries for the selected language.
             </template>
             <template #actions>
                 <div class="flex items-center gap-3">
@@ -70,8 +70,7 @@
 
         <CardComponent title="Recent Activity">
             <template #description>
-                Work completed in the selected period, based on translation requests rather than
-                lifetime totals.
+                Translation requests completed during the selected period.
             </template>
             <template #content>
                 <div class="mb-4 flex items-center justify-between gap-3">
@@ -153,10 +152,10 @@
                     <section class="mt-6 border-t border-accent/25 pt-5">
                         <div class="mb-4">
                             <h3 class="text-lg font-semibold text-primary-content">
-                                Subtitle quality
+                                Subtitle Quality
                             </h3>
                             <p class="mt-1 text-sm text-primary-content/55">
-                                Mechanical checks for completed subtitles in this same time window.
+                                Rule-based assessment of completed subtitles during this period.
                             </p>
                         </div>
                         <div class="grid grid-cols-3 gap-3">
@@ -175,8 +174,7 @@
                                 </span>
                             </div>
                             <p class="mt-2 text-xs text-primary-content/50">
-                                This reflects suspicious mechanical results, not artistic
-                                translation quality.
+                                Scores reflect rule-based output checks, including formatting and consistency.
                             </p>
                         </div>
                         <div v-if="activity.topLanguagePairs.length" class="mt-4 space-y-2">
@@ -201,7 +199,7 @@
 
         <CardComponent title="All-time Totals" class="lg:col-span-2">
             <template #description>
-                Historical context. These figures are secondary to the recent operational view.
+                Lifetime totals for library and translation activity.
             </template>
             <template #content>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">

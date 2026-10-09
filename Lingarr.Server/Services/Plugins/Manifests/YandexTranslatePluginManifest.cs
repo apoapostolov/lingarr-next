@@ -10,7 +10,7 @@ public sealed class YandexTranslatePluginManifest : IPluginManifest
     public string DisplayName => "Yandex Translate";
 
     public string? Description =>
-        "Yandex Translate through the GTranslate library. No API key required, but rate limiting may cause failures.";
+        "Uses the GTranslate library; availability depends on the upstream service.";
 
     public IReadOnlyList<PluginSettingField> Settings { get; } = [];
 }

@@ -13,7 +13,7 @@
                     </ToggleButton>
                 </div>
                 <div v-if="authEnabled === 'false'" class="text-sm text-gray-400">
-                    Note: At least one user must exist before authentication can be enabled.
+                    Create at least one user before enabling authentication.
                 </div>
             </div>
         </template>

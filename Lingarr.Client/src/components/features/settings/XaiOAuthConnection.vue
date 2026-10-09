@@ -8,7 +8,7 @@
                     xAI account connection
                 </h4>
                 <p class="text-primary-content/60 text-xs">
-                    Experimental · SuperGrok or X Premium+ entitlement is controlled by xAI.
+                    Experimental. Requires an eligible SuperGrok or X Premium+ subscription.
                 </p>
             </div>
             <span

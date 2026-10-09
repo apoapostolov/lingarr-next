@@ -11,7 +11,7 @@ public sealed class DeepLPluginManifest : IPluginManifest
     public string DisplayName => "DeepL";
 
     public string? Description =>
-        "DeepL machine translation through the official SDK. Free and Pro keys are both supported. DeepL has <a href='https://developers.deepl.com/docs/resources/usage-limits' target='_blank' rel='noopener'>usage limits</a> and rate limits. A single subtitle file typically contains between 60,000 and 120,000 characters. To avoid exceeding these limits, keep automated translation disabled.";
+        "DeepL translation API. Free and Pro keys are supported.";
 
     public IReadOnlyList<PluginSettingField> Settings { get; } =
     [
@@ -21,7 +21,7 @@ public sealed class DeepLPluginManifest : IPluginManifest
             Label = "API key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "DeepL API key (Free or Pro). Stored encrypted.",
+            Description = "Stored encrypted.",
             MinLength = 1,
             ValidationErrorMessage = "Value must not be empty"
         }

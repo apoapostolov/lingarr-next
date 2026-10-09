@@ -15,7 +15,7 @@ export default defineConfig({
         nav: [
             { text: 'Home', link: '/' },
             { text: 'Getting Started', link: '/getting-started/installation' },
-            { text: 'Plugins', link: '/developers/plugins' }
+            { text: 'Developer API', link: '/developers/Plugins' }
         ],
         sidebar: [
             {
@@ -35,7 +35,7 @@ export default defineConfig({
             },
             {
                 text: 'Developers',
-                items: [{ text: 'Plugin API', link: '/developers/plugins' }]
+                items: [{ text: 'Developer API', link: '/developers/Plugins' }]
             }
         ],
         socialLinks: [{ icon: 'github', link: 'https://github.com/lingarr-translate/lingarr' }],

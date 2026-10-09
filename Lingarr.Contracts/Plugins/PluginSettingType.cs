@@ -6,5 +6,7 @@ public enum PluginSettingType
     Url,
     Secret,
     RemoteDropdown,
-    OAuth
+    OAuth,
+    Toggle,
+    Dropdown
 }

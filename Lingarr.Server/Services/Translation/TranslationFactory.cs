@@ -2,6 +2,7 @@
 using Lingarr.Contracts.Translation;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Translation;
+using Lingarr.Server.Services.Plugins;
 
 namespace Lingarr.Server.Services.Translation;
 
@@ -201,9 +202,22 @@ public class TranslationFactory : ITranslationServiceFactory
                 }
                 if (service is IInstructionOverridable instructionOverridable)
                 {
-                    instructionOverridable.OverrideInstructions(
-                        entry.ResolvedSystemPrompt,
-                        entry.ResolvedContextPrompt);
+                    var context = entry.ResolvedContextPrompt;
+                    var shelf = _serviceProvider.GetService<PluginShelf>();
+                    if (shelf != null)
+                    {
+                        var block = shelf.PromptBlockAsync(
+                            entry.RequestSourceLanguage,
+                            entry.RequestTargetLanguage).GetAwaiter().GetResult();
+                        if (!string.IsNullOrWhiteSpace(block))
+                        {
+                            context = string.IsNullOrWhiteSpace(context)
+                                ? block
+                                : context + "\n\n" + block;
+                        }
+                    }
+
+                    instructionOverridable.OverrideInstructions(entry.ResolvedSystemPrompt, context);
                 }
                 services.Add(new TranslationServiceEntry(name, service, service as IBatchTranslationService, entry.Model));
             }

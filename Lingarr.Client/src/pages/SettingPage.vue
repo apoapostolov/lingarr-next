@@ -89,7 +89,18 @@ const menuItems: MenuItem[] = [
     { label: 'Plugins', icon: SettingIcon, route: 'plugins-settings', children: [] }
 ]
 
+const sectionForRoute: Record<string, string> = {
+    'connections-media-settings': 'connections',
+    'translation-setup-settings': 'translation',
+    'automation-settings': 'automation',
+    'system-access-settings': 'system',
+    'plugins-settings': 'plugins'
+}
+
 const isActive = (item: MenuItem) => {
+    if (route.name === 'plugin-panel-settings') {
+        return sectionForRoute[item.route] === route.params.section
+    }
     if (item.route === route.name) return true
     return item.children.includes(route.name as string)
 }

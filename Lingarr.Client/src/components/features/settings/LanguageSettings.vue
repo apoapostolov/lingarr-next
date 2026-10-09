@@ -1,7 +1,7 @@
 <template>
     <CardComponent title="Languages">
         <template #description>
-            Choose the source and target languages used for subtitle translation.
+            Set the source language and translation target.
         </template>
         <template #content>
             <SaveNotification ref="saveNotification" />

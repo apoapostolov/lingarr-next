@@ -24,6 +24,7 @@ public sealed class ProviderHealthService : IProviderHealthService
     private readonly IPluginRegistry _registry;
     private readonly ISettingService _settings;
     private readonly ITranslationServiceFactory _translationServiceFactory;
+    private readonly PluginLoader _plugins;
     private readonly ILogger<ProviderHealthService> _logger;
 
     public ProviderHealthService(
@@ -31,12 +32,14 @@ public sealed class ProviderHealthService : IProviderHealthService
         IPluginRegistry registry,
         ISettingService settings,
         ITranslationServiceFactory translationServiceFactory,
+        PluginLoader plugins,
         ILogger<ProviderHealthService> logger)
     {
         _dbContext = dbContext;
         _registry = registry;
         _settings = settings;
         _translationServiceFactory = translationServiceFactory;
+        _plugins = plugins;
         _logger = logger;
     }
 
@@ -55,7 +58,7 @@ public sealed class ProviderHealthService : IProviderHealthService
             .ToDictionary(group => group.Key, group => group.First().Model);
 
         var responses = new List<ProviderHealthResponse>(_registry.All.Count);
-        foreach (var plugin in _registry.All)
+        foreach (var plugin in TranslationProviders())
         {
             var configuration = await GetConfigurationStatus(plugin, cancellationToken);
             var snapshot = await EvaluateAsync(
@@ -284,7 +287,7 @@ public sealed class ProviderHealthService : IProviderHealthService
             .Where(item => item.OccurredAt < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        foreach (var plugin in _registry.All)
+        foreach (var plugin in TranslationProviders())
         {
             var configuration = await GetConfigurationStatus(plugin, cancellationToken);
             await EvaluateAsync(
@@ -293,6 +296,10 @@ public sealed class ProviderHealthService : IProviderHealthService
                 cancellationToken);
         }
     }
+
+    private IEnumerable<RegisteredPlugin> TranslationProviders() =>
+        _registry.All.Where(plugin =>
+            plugin.IsBuiltIn || _plugins.ProvidesTranslation(plugin.Manifest.Provider));
 
     public static (string Family, bool Transient) Classify(Exception exception)
     {

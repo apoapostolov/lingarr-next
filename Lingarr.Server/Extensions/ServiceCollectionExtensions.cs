@@ -6,6 +6,7 @@ using Hangfire.MySql;
 using Hangfire.PostgreSql;
 using Hangfire.Storage.SQLite;
 using Lingarr.Contracts.Interfaces.Plugins;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Contracts.Settings;
 using Lingarr.Core;
 using Lingarr.Core.Configuration;
@@ -22,10 +23,10 @@ using Lingarr.Server.Listener;
 using Lingarr.Server.Providers;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Integration.Bazarr;
-using Lingarr.Server.Services.Jev;
+using Lingarr.Server.Services.Plugins;
+using Lingarr.Server.Services.Classification;
 using Lingarr.Server.Services.Integration;
 using Lingarr.Server.Services.Integration.Plex;
-using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Plugins.Manifests;
 using Lingarr.Server.Services.Subtitle;
 using Lingarr.Server.Services.Sync;
@@ -58,6 +59,10 @@ public static class ServiceCollectionExtensions
         builder.Services.AddMemoryCache();
         builder.Services.AddHttpClient();
         builder.Services.AddHttpClient("jev", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(12);
+        });
+        builder.Services.AddHttpClient("openai-decisions", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(12);
         });
@@ -186,7 +191,7 @@ public static class ServiceCollectionExtensions
         builder.Services.AddScoped<ITranslationRequestService, TranslationRequestService>();
         builder.Services.AddScoped<ITranslationRequestEventService, TranslationRequestEventService>();
         builder.Services.AddScoped<ITranslationQualityService, TranslationQualityService>();
-        builder.Services.AddScoped<IJevSubtitleGate, JevSubtitleGate>();
+        builder.Services.AddScoped<IClassifierSubtitleGate, ClassifierSubtitleGate>();
         builder.Services.AddScoped<IMediaSubtitleProcessor, MediaSubtitleProcessor>();
         builder.Services.AddScoped<ILibraryLightDiscovery, LibraryLightDiscovery>();
         builder.Services.AddScoped<IDirectoryService, DirectoryService>();
@@ -226,6 +231,12 @@ public static class ServiceCollectionExtensions
 
         // Plugin discovery and the read settings
         builder.Services.AddSingleton<IPluginRegistry, PluginRegistry>();
+        builder.Services.AddScoped<SubtitlePostProcessRunner>();
+        builder.Services.AddScoped<PluginToolRunner>();
+        builder.Services.AddScoped<PluginSignals>();
+        builder.Services.AddScoped<PluginShelf>();
+        builder.Services.AddHostedService<PluginLogBridge>();
+        builder.Services.AddScoped<IPluginCommand, PluginCommand>();
         builder.Services.AddScoped<ISettingsAccess, SettingsAccess>();
 
         // Scan for external plugins before the container is ready

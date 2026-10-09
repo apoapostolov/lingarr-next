@@ -17,9 +17,113 @@ public sealed class PluginLoader
 
     private readonly ILogger<PluginLoader> _logger;
     private readonly List<RegisteredPlugin> _loadedPlugins = new();
+    private readonly HashSet<string> _translators = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _actions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _postProcessors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _extractTools = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _sources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _inboxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _notifiers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _servers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _tasks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _mediaActions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _filters = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _glossaries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _fileTools = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _logSinks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _healthChecks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _widgets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _events = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _mappers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _retries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _badges = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _prompts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _exporters = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _merges = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _codecs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _captions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _agents = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<RegisteredPlugin> LoadedPlugins => _loadedPlugins;
     public bool LoadingEnabled { get; private set; }
+
+    public bool ProvidesTranslation(string provider) => _translators.Contains(provider);
+
+    public bool ProvidesAction(string provider) => _actions.Contains(provider);
+
+    public bool ProvidesPostProcess(string provider) => _postProcessors.Contains(provider);
+
+    public bool ProvidesExtract(string provider) => _extractTools.Contains(provider);
+
+    public bool ProvidesSource(string provider) => _sources.Contains(provider);
+
+    public bool ProvidesInbox(string provider) => _inboxes.Contains(provider);
+
+    public bool ProvidesNotifier(string provider) => _notifiers.Contains(provider);
+
+    public bool ProvidesServer(string provider) => _servers.Contains(provider);
+
+    public bool ProvidesTask(string provider) => _tasks.Contains(provider);
+
+    public bool ProvidesMediaAction(string provider) => _mediaActions.Contains(provider);
+
+    public bool ProvidesFilter(string provider) => _filters.Contains(provider);
+
+    public bool ProvidesGlossary(string provider) => _glossaries.Contains(provider);
+
+    public bool ProvidesFileTool(string provider) => _fileTools.Contains(provider);
+
+    public bool ProvidesLogSink(string provider) => _logSinks.Contains(provider);
+
+    public bool ProvidesHealth(string provider) => _healthChecks.Contains(provider);
+
+    public bool ProvidesWidget(string provider) => _widgets.Contains(provider);
+
+    public bool ProvidesEvent(string provider) => _events.Contains(provider);
+
+    public bool ProvidesMapper(string provider) => _mappers.Contains(provider);
+
+    public bool ProvidesRetry(string provider) => _retries.Contains(provider);
+
+    public bool ProvidesBadge(string provider) => _badges.Contains(provider);
+
+    public bool ProvidesPrompt(string provider) => _prompts.Contains(provider);
+
+    public bool ProvidesExporter(string provider) => _exporters.Contains(provider);
+
+    public bool ProvidesMerge(string provider) => _merges.Contains(provider);
+
+    public bool ProvidesCodec(string provider) => _codecs.Contains(provider);
+
+    public bool ProvidesCaption(string provider) => _captions.Contains(provider);
+
+    public bool ProvidesAgent(string provider) => _agents.Contains(provider);
+
+    public bool StartsOff(string provider) =>
+        ProvidesPostProcess(provider)
+        || ProvidesExtract(provider)
+        || ProvidesSource(provider)
+        || _inboxes.Contains(provider)
+        || _notifiers.Contains(provider)
+        || _servers.Contains(provider)
+        || _tasks.Contains(provider)
+        || _mediaActions.Contains(provider)
+        || _filters.Contains(provider)
+        || _glossaries.Contains(provider)
+        || _fileTools.Contains(provider)
+        || _logSinks.Contains(provider)
+        || _healthChecks.Contains(provider)
+        || _widgets.Contains(provider)
+        || _events.Contains(provider)
+        || _mappers.Contains(provider)
+        || _retries.Contains(provider)
+        || _badges.Contains(provider)
+        || _prompts.Contains(provider)
+        || _exporters.Contains(provider)
+        || _merges.Contains(provider)
+        || _codecs.Contains(provider)
+        || _captions.Contains(provider)
+        || _agents.Contains(provider);
 
     public PluginLoader(ILogger<PluginLoader> logger)
     {
@@ -113,6 +217,52 @@ public sealed class PluginLoader
                 RegisterProvider(services, type, providerAttribute);
             }
 
+            if (typeof(IPluginActionHandler).IsAssignableFrom(type) && providerAttribute is not null)
+            {
+                _actions.Add(providerAttribute.Provider);
+                services.AddScoped(typeof(IPluginActionHandler), type);
+            }
+
+            if (typeof(ISubtitlePostProcessor).IsAssignableFrom(type) && providerAttribute is not null)
+            {
+                _postProcessors.Add(providerAttribute.Provider);
+                services.AddScoped(typeof(ISubtitlePostProcessor), type);
+            }
+
+            if (typeof(IExtractTool).IsAssignableFrom(type) && providerAttribute is not null)
+            {
+                _extractTools.Add(providerAttribute.Provider);
+                services.AddScoped(typeof(IExtractTool), type);
+            }
+
+            if (typeof(ISubtitleSource).IsAssignableFrom(type) && providerAttribute is not null)
+            {
+                _sources.Add(providerAttribute.Provider);
+                services.AddScoped(typeof(ISubtitleSource), type);
+            }
+
+            Register(type, providerAttribute, typeof(IWebhookInbox), _inboxes, services);
+            Register(type, providerAttribute, typeof(IPluginNotifier), _notifiers, services);
+            Register(type, providerAttribute, typeof(IMediaServerPlugin), _servers, services);
+            Register(type, providerAttribute, typeof(IPluginTask), _tasks, services);
+            Register(type, providerAttribute, typeof(IMediaAction), _mediaActions, services);
+            Register(type, providerAttribute, typeof(IContentFilter), _filters, services);
+            Register(type, providerAttribute, typeof(IGlossary), _glossaries, services);
+            Register(type, providerAttribute, typeof(IFileTool), _fileTools, services);
+            Register(type, providerAttribute, typeof(ILogSink), _logSinks, services);
+            Register(type, providerAttribute, typeof(IPluginHealthCheck), _healthChecks, services);
+            Register(type, providerAttribute, typeof(IDashboardWidget), _widgets, services);
+            Register(type, providerAttribute, typeof(IMediaEventSink), _events, services);
+            Register(type, providerAttribute, typeof(IPathMapper), _mappers, services);
+            Register(type, providerAttribute, typeof(IRetryPolicy), _retries, services);
+            Register(type, providerAttribute, typeof(IListBadge), _badges, services);
+            Register(type, providerAttribute, typeof(IPromptContributor), _prompts, services);
+            Register(type, providerAttribute, typeof(IStatisticsExporter), _exporters, services);
+            Register(type, providerAttribute, typeof(ISubtitleMerge), _merges, services);
+            Register(type, providerAttribute, typeof(ISidecarCodec), _codecs, services);
+            Register(type, providerAttribute, typeof(ICaptionPolicy), _captions, services);
+            Register(type, providerAttribute, typeof(ILibraryAgent), _agents, services);
+
             if (typeof(IPluginManifest).IsAssignableFrom(type))
             {
                 var manifestInstance = TryCreateManifest(type, pluginFile);
@@ -140,13 +290,30 @@ public sealed class PluginLoader
             manifestsFromThisAssembly.Count);
     }
 
-    private static void RegisterProvider(
+    private static void Register(
+        Type type,
+        PluginProviderAttribute? providerAttribute,
+        Type serviceType,
+        HashSet<string> ids,
+        IServiceCollection services)
+    {
+        if (providerAttribute is null || !serviceType.IsAssignableFrom(type))
+        {
+            return;
+        }
+
+        ids.Add(providerAttribute.Provider);
+        services.AddScoped(serviceType, type);
+    }
+
+    private void RegisterProvider(
         IServiceCollection services,
         Type implementationType,
         PluginProviderAttribute providerAttribute)
     {
         if (typeof(ITranslationService).IsAssignableFrom(implementationType))
         {
+            _translators.Add(providerAttribute.Provider);
             services.AddKeyedScoped(
                 typeof(ITranslationService),
                 providerAttribute.Provider.ToLowerInvariant(),

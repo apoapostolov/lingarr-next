@@ -5,7 +5,9 @@ export const PLUGIN_SETTING_TYPE = {
     URL: 'Url',
     SECRET: 'Secret',
     REMOTE_DROPDOWN: 'RemoteDropdown',
-    OAUTH: 'OAuth'
+    OAUTH: 'OAuth',
+    TOGGLE: 'Toggle',
+    DROPDOWN: 'Dropdown'
 } as const
 
 export type PluginSettingType = (typeof PLUGIN_SETTING_TYPE)[keyof typeof PLUGIN_SETTING_TYPE]
@@ -18,6 +20,7 @@ export interface IPluginSettingField {
     default?: string | null
     description?: string | null
     optionsEndpoint?: string | null
+    options?: { value: string; label: string }[] | null
     minLength?: number | null
     validationErrorMessage?: string | null
 }
@@ -30,6 +33,38 @@ export interface IPluginSummary {
     sourceFile?: string | null
     hasRequestTemplate: boolean
     supportsInstructionProfiles: boolean
+    enabled?: boolean
+    order?: number
+    failurePolicy?: string
+    capabilities?: string[]
+    panels?: { id: string }[]
+}
+
+export interface IPluginUiTab {
+    section: string
+    tabId: string
+    label: string
+    provider: string
+}
+
+export interface IPluginUiPanel {
+    provider: string
+    id: string
+    section: string
+    tabId: string
+    tabLabel: string
+    title: string
+    description?: string | null
+    fields: IPluginSettingField[]
+    actions: { id: string; label: string }[]
+    enabled?: boolean
+    order?: number
+    failurePolicy?: string
+}
+
+export interface IPluginUi {
+    tabs: IPluginUiTab[]
+    panels: IPluginUiPanel[]
 }
 
 export interface IPluginManifest extends IPluginSummary {

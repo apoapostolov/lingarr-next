@@ -9,6 +9,7 @@ using Lingarr.Server.Filters;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Models.FileSystem;
+using Lingarr.Server.Services.Subtitle;
 using Lingarr.Server.Services.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
@@ -83,11 +84,15 @@ public class ProofreadJob
 
             var settings = await _settings.GetSettings([
                 SettingKeys.Translation.ServiceType,
-                SettingKeys.Translation.StripSubtitleFormatting
+                SettingKeys.Translation.StripSubtitleFormatting,
+                SettingKeys.Translation.StripSubtitleHtml
             ]);
             var stripSubtitleFormatting =
                 settings.GetValueOrDefault(SettingKeys.Translation.StripSubtitleFormatting) == "true";
+            var stripSubtitleHtml = SubtitleHtml.Enabled(
+                settings.GetValueOrDefault(SettingKeys.Translation.StripSubtitleHtml));
             var chain = TranslationChain.Parse(settings[SettingKeys.Translation.ServiceType]);
+            TranslationChain.StampLanguages(chain, request.SourceLanguage, request.TargetLanguage);
             var services = _translationServiceFactory.CreateTranslationServices(chain);
             var proofreadEntry = services.FirstOrDefault(entry => entry.Service is IProofreadService);
             if (proofreadEntry.Service is not IProofreadService proofreadService)
@@ -112,12 +117,19 @@ public class ProofreadJob
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 iteration++;
-                subtitle.TranslatedLines = subtitle.Lines;
+                subtitle.TranslatedLines = stripSubtitleHtml
+                    ? subtitle.Lines.Select(SubtitleHtml.Strip).ToList()
+                    : subtitle.Lines;
 
                 if (sourceByPosition.TryGetValue(subtitle.Position, out var sourceSubtitle))
                 {
                     var sourceText = string.Join(" ", ContentLines(sourceSubtitle, stripSubtitleFormatting));
                     var translatedText = string.Join(" ", ContentLines(subtitle, stripSubtitleFormatting));
+                    if (stripSubtitleHtml)
+                    {
+                        sourceText = SubtitleHtml.Strip(sourceText);
+                        translatedText = SubtitleHtml.Strip(translatedText);
+                    }
 
                     if (!string.IsNullOrWhiteSpace(sourceText) && !string.IsNullOrWhiteSpace(translatedText))
                     {
@@ -131,7 +143,7 @@ public class ProofreadJob
                         if (!string.IsNullOrWhiteSpace(proofread)
                             && !string.Equals(proofread.Trim(), translatedText.Trim(), StringComparison.Ordinal))
                         {
-                            subtitle.TranslatedLines = [proofread];
+                            subtitle.TranslatedLines = [stripSubtitleHtml ? SubtitleHtml.Strip(proofread) : proofread];
                             revised++;
                         }
                     }

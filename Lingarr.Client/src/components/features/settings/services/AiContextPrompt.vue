@@ -6,39 +6,37 @@
         :placeholders="[
             {
                 placeholder: '{sourceLanguage}',
-                placeholderText: 'insert {sourceLanguage}',
+                placeholderText: 'Insert {sourceLanguage}',
                 title: 'Source Language',
-                description: 'The language the provided subtitle line is in',
+                description: 'Source subtitle language',
                 required: true
             },
             {
                 placeholder: '{targetLanguage}',
-                placeholderText: 'insert {targetLanguage}',
+                placeholderText: 'Insert {targetLanguage}',
                 title: 'Target Language',
-                description: 'The language the provided subtitle line needs to be translated to',
+                description: 'Target language',
                 required: true
             },
             {
                 placeholder: '{lineToTranslate}',
-                placeholderText: 'insert {lineToTranslate}',
+                placeholderText: 'Insert {lineToTranslate}',
                 title: 'Subtitle line',
-                description: 'Subtitle line to translate',
+                description: 'Target subtitle line',
                 required: false
             },
             {
                 placeholder: '{contextBefore}',
-                placeholderText: 'insert {contextBefore}',
+                placeholderText: 'Insert {contextBefore}',
                 title: 'Context',
-                description:
-                    'Subtitles before the provided subtitle line that can be used as context',
+                description: 'Subtitle lines preceding the target',
                 required: false
             },
             {
                 placeholder: '{contextAfter}',
-                placeholderText: 'insert {contextAfter}',
+                placeholderText: 'Insert {contextAfter}',
                 title: 'Context',
-                description:
-                    'Subtitles after the provided subtitle line that can be used as context',
+                description: 'Subtitle lines following the target',
                 required: false
             }
         ]"

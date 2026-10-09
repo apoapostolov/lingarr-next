@@ -1,8 +1,7 @@
 ﻿<template>
     <CardComponent title="AI Request Body Template">
         <template #description>
-            Customize the JSON structure sent to your AI provider. Use placeholders {model},
-            {systemPrompt}, and {userMessage} which will be replaced when performing translations.
+            Define the JSON request body and insert values with the available placeholders.
         </template>
         <template #content>
             <div class="space-y-4">
@@ -103,33 +102,33 @@ const selectedPreset = ref('')
 const placeholderItems = [
     {
         placeholder: '{model}',
-        placeholderText: 'insert {model}',
+        placeholderText: 'Insert {model}',
         title: 'Model',
-        description: 'The AI model identifier configured for the selected service'
+        description: 'Configured model identifier'
     },
     {
         placeholder: '{systemPrompt}',
-        placeholderText: 'insert {systemPrompt}',
+        placeholderText: 'Insert {systemPrompt}',
         title: 'System Prompt',
-        description: 'The system prompt with source and target language instructions'
+        description: 'System prompt with language instructions'
     },
     {
         placeholder: '{userMessage}',
-        placeholderText: 'insert {userMessage}',
+        placeholderText: 'Insert {userMessage}',
         title: 'User Message',
-        description: 'The subtitle text that needs to be translated'
+        description: 'Subtitle text to translate'
     },
     {
         placeholder: '{sourceLanguage}',
-        placeholderText: 'insert {sourceLanguage}',
+        placeholderText: 'Insert {sourceLanguage}',
         title: 'Source Language',
-        description: 'The full name of the source language (e.g. English)'
+        description: 'Source language name'
     },
     {
         placeholder: '{targetLanguage}',
-        placeholderText: 'insert {targetLanguage}',
+        placeholderText: 'Insert {targetLanguage}',
         title: 'Target Language',
-        description: 'The full name of the target language (e.g. Dutch)'
+        description: 'Target language name'
     }
 ]
 

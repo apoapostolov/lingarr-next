@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Hangfire;
 using Hangfire.Common;
 using Hangfire.States;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
@@ -460,7 +461,11 @@ public class PlexWebhookTests
 
     private static WebhookController Controller(Mock<IBackgroundJobClient> jobs)
     {
-        var controller = new WebhookController(jobs.Object, NullLogger<WebhookController>.Instance);
+        var controller = new WebhookController(
+            jobs.Object,
+            [],
+            new Mock<ISettingService>().Object,
+            NullLogger<WebhookController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = JsonContext(ElixirPayload) };
         return controller;
     }

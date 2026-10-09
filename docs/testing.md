@@ -43,6 +43,7 @@ docker run --rm --network=host \
 | `Services/Subtitle/EmbeddedSubtitleExtractorTests.cs` | English text-track selection and ffprobe JSON parse |
 | `Services/DashboardActivityServiceTests.cs` | Bounded recent-work metrics and deterministic progress prose |
 | `Services/ProviderHealthServiceTests.cs` | Provider status precedence, recovery, and safe event classification |
+| `Services/ClassifierProviderTests.cs` | Selected classifier key, OpenAI Decisions request and answers, Jev fallback, and fail-open behavior |
 
 ### Upstream coverage already present
 

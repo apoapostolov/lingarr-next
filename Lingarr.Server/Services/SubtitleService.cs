@@ -4,6 +4,7 @@ using Lingarr.Contracts.Translation;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Subtitle;
 using Lingarr.Server.Models.FileSystem;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
 using SubtitleValidationOptions = Lingarr.Server.Models.SubtitleValidationOptions;
 
@@ -35,24 +36,27 @@ public class SubtitleService : ISubtitleService
 
     private readonly ILogger<SubtitleService> _logger;
     private readonly LanguageCodeService _languageCodeService;
+    private readonly PluginShelf? _shelf;
 
     public SubtitleService(
         ILogger<SubtitleService> logger,
-        LanguageCodeService languageCodeService)
+        LanguageCodeService languageCodeService,
+        PluginShelf? shelf = null)
     {
         _logger = logger;
         _languageCodeService = languageCodeService;
+        _shelf = shelf;
     }
 
     /// <inheritdoc />
-    public Task<List<Subtitles>> GetAllSubtitles(string path)
+    public async Task<List<Subtitles>> GetAllSubtitles(string path)
     {
         if (!Directory.Exists(path))
         {
             _logger.LogInformation(
                 "Failed to collect subtitles in path |Red|{Path}|/Red|. Try reindexing or verify that the media is correctly set up in the source system.",
                 path);
-            return Task.FromResult(new List<Subtitles>());
+            return [];
         }
 
         try
@@ -60,14 +64,15 @@ public class SubtitleService : ISubtitleService
             var subtitles = EnumerateSubtitlePaths(path)
                 .Select(ParseSubtitleFile)
                 .ToList();
-            return Task.FromResult(subtitles);
+            await AddCodecFiles(path, null, subtitles);
+            return subtitles;
         }
         catch (IOException ex)
         {
             _logger.LogWarning(ex,
                 "Failed to enumerate subtitles under |Red|{Path}|/Red| (I/O or memory pressure). Returning empty list.",
                 path);
-            return Task.FromResult(new List<Subtitles>());
+            return [];
         }
     }
 
@@ -141,6 +146,83 @@ public class SubtitleService : ISubtitleService
         }
     }
 
+    private async Task AddCodecFiles(string path, string? fileName, List<Subtitles> subtitles)
+    {
+        if (_shelf == null || !Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (var codec in await _shelf.CodecsAsync())
+        {
+            var extension = NormalizeExtension(codec.Extension);
+            if (SupportedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(path, "*" + extension, SearchOption.TopDirectoryOnly);
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                var parsed = ParseSubtitleFile(file);
+                if (fileName != null
+                    && !parsed.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                    && !parsed.FileName.StartsWith(fileName + ".", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (subtitles.All(item => !string.Equals(item.Path, parsed.Path, StringComparison.OrdinalIgnoreCase)))
+                {
+                    subtitles.Add(parsed);
+                }
+            }
+        }
+    }
+
+    private async Task<string?> ReadCodecText(string path, string extension)
+    {
+        if (_shelf == null)
+        {
+            return null;
+        }
+
+        foreach (var codec in await _shelf.CodecsAsync())
+        {
+            if (!extension.Equals(NormalizeExtension(codec.Extension), StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var text = await codec.ReadAsync(path, CancellationToken.None);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeExtension(string extension)
+    {
+        var value = extension.Trim().ToLowerInvariant();
+        return value.StartsWith('.') ? value : "." + value;
+    }
+
     private Subtitles ParseSubtitleFile(string file)
     {
         var extension = Path.GetExtension(file).ToLowerInvariant();
@@ -172,7 +254,7 @@ public class SubtitleService : ISubtitleService
         {
             Path = file,
             FileName = fileName,
-            Language = language ?? "unknown",
+            Language = string.IsNullOrEmpty(language) ? "unknown" : language,
             Caption = caption,
             Format = extension
         };
@@ -182,30 +264,52 @@ public class SubtitleService : ISubtitleService
     public async Task<List<SubtitleItem>> ReadSubtitles(string filePath)
     {
         var extension = Path.GetExtension(filePath).ToLower();
-        ISubtitleParser parser = extension switch
+        if (extension is ".srt" or ".ssa" or ".ass")
         {
-            ".srt" => new SrtParser(),
-            ".ssa" or ".ass" => new SsaParser(),
-            _ => throw new NotSupportedException($"Subtitle format {extension} is not supported")
-        };
+            ISubtitleParser parser = extension == ".srt" ? new SrtParser() : new SsaParser();
+            await using var fileStream = File.OpenRead(filePath);
+            return parser.ParseStream(fileStream, Encoding.UTF8);
+        }
 
-        await using var fileStream = File.OpenRead(filePath);
-        return parser.ParseStream(fileStream, Encoding.UTF8);
+        var text = await ReadCodecText(filePath, extension);
+        if (text == null)
+        {
+            throw new NotSupportedException($"Subtitle format {extension} is not supported");
+        }
+
+        using var memory = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        return new SrtParser().ParseStream(memory, Encoding.UTF8);
     }
 
     /// <inheritdoc />
     public async Task WriteSubtitles(string filePath, List<SubtitleItem> subtitles, bool stripSubtitleFormatting)
     {
         var extension = Path.GetExtension(filePath).ToLower();
-        ISubtitleWriter writer = extension switch
+        if (extension is ".srt" or ".ssa" or ".ass")
         {
-            ".srt" => new SrtWriter(),
-            ".ssa" or ".ass" => new SsaWriter(),
-            _ => throw new NotSupportedException($"Subtitle format {extension} is not supported")
-        };
+            ISubtitleWriter writer = extension == ".srt" ? new SrtWriter() : new SsaWriter();
+            await using var fileStream = File.OpenWrite(filePath);
+            await writer.WriteStreamAsync(fileStream, subtitles, stripSubtitleFormatting);
+            return;
+        }
 
-        await using var fileStream = File.OpenWrite(filePath);
-        await writer.WriteStreamAsync(fileStream, subtitles, stripSubtitleFormatting);
+        if (_shelf != null)
+        {
+            foreach (var codec in await _shelf.CodecsAsync())
+            {
+                if (!extension.Equals(NormalizeExtension(codec.Extension), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                using var memory = new MemoryStream();
+                await new SrtWriter().WriteStreamAsync(memory, subtitles, stripSubtitleFormatting);
+                await codec.WriteAsync(filePath, Encoding.UTF8.GetString(memory.ToArray()), CancellationToken.None);
+                return;
+            }
+        }
+
+        throw new NotSupportedException($"Subtitle format {extension} is not supported");
     }
 
     /// <inheritdoc />
@@ -507,11 +611,11 @@ public class SubtitleService : ISubtitleService
     }
 
     /// <inheritdoc />
-    public Task<List<Subtitles>> GetSubtitles(string path, string fileName)
+    public async Task<List<Subtitles>> GetSubtitles(string path, string fileName)
     {
         if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(fileName))
         {
-            return Task.FromResult(new List<Subtitles>());
+            return [];
         }
 
         if (!Directory.Exists(path))
@@ -519,7 +623,7 @@ public class SubtitleService : ISubtitleService
             _logger.LogInformation(
                 "Failed to collect subtitles in path |Red|{Path}|/Red|. Try reindexing or verify that the media is correctly set up in the source system.",
                 path);
-            return Task.FromResult(new List<Subtitles>());
+            return [];
         }
 
         try
@@ -531,14 +635,15 @@ public class SubtitleService : ISubtitleService
                     s.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
                     s.FileName.StartsWith(fileName + ".", StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            return Task.FromResult(matches);
+            await AddCodecFiles(path, fileName, matches);
+            return matches;
         }
         catch (IOException ex)
         {
             _logger.LogWarning(ex,
                 "Failed to collect subtitles for |Red|{FileName}|/Red| under |Red|{Path}|/Red|.",
                 fileName, path);
-            return Task.FromResult(new List<Subtitles>());
+            return [];
         }
     }
 

@@ -123,6 +123,11 @@ const routes: RouteRecordRaw[] = [
                         component: () => import('@/pages/settings/PluginsPage.vue')
                     },
                     {
+                        path: 'plugin/:section/:tabId',
+                        name: 'plugin-panel-settings',
+                        component: () => import('@/pages/settings/PluginPanelPage.vue')
+                    },
+                    {
                         path: 'integration',
                         name: 'integration-settings',
                         redirect: { name: 'connections-media-settings' }

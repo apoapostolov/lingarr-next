@@ -14,4 +14,9 @@ public interface IPluginManifest
     IReadOnlyList<PluginSettingField> Settings { get; }
     bool HasRequestTemplate => false;
     bool SupportsInstructionProfiles => false;
+
+    /// <summary>
+    /// Tabs and panels the host draws for this plugin. Empty for a translation-only plugin.
+    /// </summary>
+    IReadOnlyList<PluginPanelContribution> Panels => [];
 }

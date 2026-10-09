@@ -22,15 +22,17 @@ transcript. Completed work belongs in the changelog or a dated development log.
 
 ## Current state
 
-- **Released:** Lingarr Next 1.1.5, “All The Subs”.
-- **main:** the only long-lived branch, and the Lingarr Next 1.1.5 product
+- **Released:** Lingarr Next 1.1.6, “Infinitely Extendable”.
+- **main:** the only long-lived branch, and the Lingarr Next 1.1.6 product
   line. Do not recreate `next`. Do not merge `upstream/main` into `main`.
   Upstream #502 (`5eadc933`) is an old snapshot and is not the branch tip.
   The daily check uses Plex, Radarr, and Sonarr and does not walk every
-  folder. Upstream #527, #529, #550, #551, and #552 are ported. Still
-  skipped: telemetry #510, date handling #514, translated context #530, and
-  the later Dependabot trains. Remaining 1.3.0 majors (Pinia 4, Node 26
-  types, Tailwind range, oxlint/oxfmt) are still skipped.
+  folder. Upstream 1.4.0 was reviewed after pulling `main`. #527, #529,
+  #550, #551, and #552 were already present. #553 and the signup/onboarding
+  guard from `9fba9f7` are ported. Still skipped: telemetry #510, date
+  handling #514, translated context #530, the issue-validation workflow
+  deletion, and the Dependabot trains. Remaining 1.3.0 majors (Pinia 4,
+  Node 26 types, Tailwind range, oxlint/oxfmt) are still skipped.
 - **Protected line:** `main`.
 - **Validation baseline:** server unit tests including chunker + Local AI parse
   retry. Image rebuild/deploy is a follow-up, not part of this import.

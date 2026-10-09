@@ -1,9 +1,9 @@
-namespace Lingarr.Server.Services.Jev;
+namespace Lingarr.Server.Services.Classification;
 
 /// <summary>
-/// Thresholds for acting on a Jev answer. Uncertain answers do nothing.
+/// Thresholds for acting on a classifier answer. Uncertain answers do nothing.
 /// </summary>
-public static class JevLinePolicy
+public static class ClassifierLinePolicy
 {
     public const double SkipConfidence = 0.85;
     public const double RejectBelow = 0.35;

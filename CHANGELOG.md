@@ -5,6 +5,54 @@ All notable changes to Lingarr Next are documented here.
 Lingarr Next uses an independent version line. Its versions are not intended
 to sort before or after versions published by upstream Lingarr.
 
+## [1.1.6] - 2026-10-05 — Infinitely Extendable
+
+A plugin can extend Lingarr without a fork. Drop a DLL in `PLUGINS_PATH` and
+restart. Every plugin starts off.
+
+- Settings → Plugins shows each plugin as its own card. The switch is in the
+  upper right. An off card is dim. Cards keep their own height.
+- A plugin can add a tab and several cards, change a finished subtitle, run
+  one external command, supply a source subtitle, accept a webhook, notify
+  you when a translation ends, and run a scheduled task.
+- Plex, Jellyfin, and Emby stay built in. A plugin server runs after them.
+- The developer guide is
+  [Plugins](Lingarr.Docs/developers/Plugins.md).
+  `samples/StyleSample` is a working set of plugins, all off until enabled.
+- International quotes follows the target language. The Quote style dropdown
+  can overwrite that country with another dialogue style.
+- A plugin's failure policy says what Lingarr does: continue after an error,
+  stop this file and keep earlier edits, or fail the translation and keep
+  the old file.
+- Strip HTML is on. Lingarr removes tags such as font, bold, and italics
+  before translation, so the written subtitle stays plain text.
+- Translation services and Provider Health list only translators. Other
+  plugins stay on the Plugins page.
+- When a provider cancels a job, Lingarr tries again. The default is 5
+  tries, 2 hours apart. 0 tries means no retry. A wait below 1 hour waits 1
+  hour. The status shows Cancelled (1/5) for that retry.
+- Line retries stay inside the current job and wait seconds. Each later try
+  waits longer by the growth factor. That wait is separate from the hours
+  between full job retries.
+- Settings → Translation → Setup has one Provider panel beside Languages.
+  Drag a row to change the fallback order. Address, key, model, and account
+  fields sit under the selected row. The first row keeps the same gap as the
+  delete button on the later rows. Microsoft Translate has no fields of its
+  own.
+- Open Translation Setup scrolls to that provider and rings the row.
+- The dashboard chart hover shows the day, that day's count, and then the
+  average. Both numbers are bold. The day is written as Sep 23.
+- Translation detail pages show Revise with AI and Subtitle Quality side by
+  side on wide screens.
+- Settings, provider, and subtitle guidance was revised for clarity.
+- Settings → Translation → Advanced can use TypeSafe Jev or OpenAI Luna
+  Decisions for the same two subtitle checks. Luna uses the OpenAI
+  translation key. Jev keeps its TypeSafe key. Existing installs stay on
+  Jev, and both checks stay off until enabled.
+- A subtitle file with no language code is treated as unknown.
+- Creating a user requires a signed-in account once authentication is on.
+  Onboarding cannot be completed again after it is finished.
+
 ## [1.1.5] - 2026-10-05 — All The Subs
 
 Lingarr can turn a picture or caption track into a text subtitle, ask Bazarr
@@ -377,6 +425,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.1.6]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6
 [1.1.5]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5
 [1.1.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4
 [1.1.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.3

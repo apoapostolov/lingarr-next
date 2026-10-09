@@ -142,11 +142,13 @@ search `DEVELOPMENT_PLAN.md` and `git log main --grep '#<N>'` for that PR.
 Do not pick it again when it is already recorded.
 
 Already ported onto `main`: #527, #529, #550 (behavior port, not a clean
-pick), #551, #552.
+pick), #551, #552, #553 (empty subtitle language becomes `unknown`), and
+the unauthenticated signup and onboarding guard from `9fba9f7` (1.4.0).
 
 Still skipped: telemetry #510, date handling #514, translated context #530,
-Dependabot trains, and the remaining 1.3.0 majors (Pinia 4, Node 26 types,
-Tailwind range, oxlint/oxfmt).
+the issue-validation workflow deletion, Dependabot trains, and the
+remaining 1.3.0 majors (Pinia 4, Node 26 types, Tailwind range,
+oxlint/oxfmt).
 
 ### Diff one new commit against current main
 

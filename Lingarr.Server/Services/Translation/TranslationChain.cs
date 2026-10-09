@@ -45,6 +45,12 @@ public sealed class TranslationChainEntry
 
     [JsonIgnore]
     public string ProviderNormalized => Provider.Trim().ToLowerInvariant();
+
+    [JsonIgnore]
+    public string? RequestSourceLanguage { get; set; }
+
+    [JsonIgnore]
+    public string? RequestTargetLanguage { get; set; }
 }
 
 public static class TranslationChain
@@ -54,6 +60,15 @@ public static class TranslationChain
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    public static void StampLanguages(IEnumerable<TranslationChainEntry> entries, string? source, string? target)
+    {
+        foreach (var entry in entries)
+        {
+            entry.RequestSourceLanguage = source;
+            entry.RequestTargetLanguage = target;
+        }
+    }
 
     public static List<TranslationChainEntry> Parse(string? raw, ILogger? logger = null)
     {

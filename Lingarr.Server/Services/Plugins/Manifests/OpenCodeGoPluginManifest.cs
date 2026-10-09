@@ -9,7 +9,7 @@ public sealed class OpenCodeGoPluginManifest : IPluginManifest
     public string Provider => "opencode-go";
     public string DisplayName => "OpenCode Go";
     public string Description =>
-        "OpenCode Go curated open models (OpenAI-compatible). Subscription key from opencode.ai.";
+        "OpenCode Go models through the OpenAI-compatible API.";
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
     public IReadOnlyList<PluginSettingField> Settings { get; } =
@@ -20,7 +20,7 @@ public sealed class OpenCodeGoPluginManifest : IPluginManifest
             Label = "API Key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "OpenCode API key. Stored encrypted."
+            Description = "Stored encrypted."
         },
         new()
         {
@@ -29,7 +29,6 @@ public sealed class OpenCodeGoPluginManifest : IPluginManifest
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
             OptionsEndpoint = "/api/plugin/opencode-go/models",
-            Description = "Model id from the OpenCode Go catalogue."
         },
         new()
         {
@@ -38,7 +37,7 @@ public sealed class OpenCodeGoPluginManifest : IPluginManifest
             Type = PluginSettingType.Url,
             Required = false,
             Default = "https://opencode.ai/zen/go/v1",
-            Description = "Override if OpenCode documents a different Go base URL."
+            Description = "Set a different API URL only when required by OpenCode."
         }
     ];
 }

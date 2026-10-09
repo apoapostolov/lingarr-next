@@ -1,7 +1,7 @@
 <template>
     <CardComponent title="Radarr">
         <template #description>
-            Connect Lingarr Next to Radarr and choose whether new movie imports are included.
+            Connect Radarr to import newly added movies.
         </template>
         <template #content>
             <SaveNotification ref="radarrSaveNotification" />
@@ -22,9 +22,9 @@
                 @update:validation="(val) => (isValid.radarrApiKey = val)" />
             <ToggleButton
                 v-model="radarrDefaultInclude"
-                aria-label="Include new Radarr imports by default">
+                aria-label="Include new Radarr imports">
                 <span class="text-primary-content text-sm font-medium">
-                    Include new imports by default
+                    Include new imports
                 </span>
             </ToggleButton>
         </template>
@@ -32,7 +32,7 @@
 
     <CardComponent title="Sonarr">
         <template #description>
-            Connect Lingarr Next to Sonarr and choose whether new TV imports are included.
+            Connect Sonarr to import newly added episodes.
         </template>
         <template #content>
             <SaveNotification ref="sonarrSaveNotification" />
@@ -53,17 +53,17 @@
                 @update:validation="(val) => (isValid.sonarrApiKey = val)" />
             <ToggleButton
                 v-model="sonarrDefaultInclude"
-                aria-label="Include new Sonarr imports by default">
+                aria-label="Include new Sonarr imports">
                 <span class="text-primary-content text-sm font-medium">
-                    Include new imports by default
+                    Include new imports
                 </span>
             </ToggleButton>
             <p class="text-secondary-content text-sm">
-                No media visible? Run the relevant sync task in
+                Run a sync task from
                 <router-link :to="{ name: 'system-tasks-settings' }" class="underline">
                     System Tasks
                 </router-link>
-                .
+                if media is missing.
             </p>
         </template>
     </CardComponent>

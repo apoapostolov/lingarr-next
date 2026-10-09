@@ -1,15 +1,23 @@
 ﻿using Lingarr.Core.Data;
 using Lingarr.Core.Enum;
+using Lingarr.Server.Services.Plugins;
 
 namespace Lingarr.Server.Services;
 
 public class PathConversionService
 {
     private readonly LingarrDbContext _context;
+    private readonly PluginShelf? _shelf;
 
     public PathConversionService(LingarrDbContext context)
+        : this(context, null)
+    {
+    }
+
+    public PathConversionService(LingarrDbContext context, PluginShelf? shelf)
     {
         _context = context;
+        _shelf = shelf;
     }
     
     /// <summary>
@@ -26,7 +34,13 @@ public class PathConversionService
         }
 
         var normalizedPath = NormalizePath(sourcePath);
-        return PathReplace(normalizedPath, mediaType);
+        var mapped = PathReplace(normalizedPath, mediaType);
+        if (_shelf == null)
+        {
+            return mapped;
+        }
+
+        return _shelf.MapAsync(mapped, mediaType.ToString()).GetAwaiter().GetResult();
     }
 
     /// <summary>

@@ -43,15 +43,17 @@ jobs:
       working-directory: ./Lingarr.Docs
       run: npm run build
 
+    # Parked until this repo has its own GitHub Pages site.
     - name: Upload Pages artifact
-      if: github.event_name != 'pull_request'
+      if: false
       uses: actions/upload-pages-artifact@v5
       with:
         path: Lingarr.Docs/.vitepress/dist
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
+    # Parked until this repo has its own GitHub Pages site.
+    if: false
     needs: build
     runs-on: ubuntu-latest
     concurrency:

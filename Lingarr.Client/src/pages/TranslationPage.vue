@@ -115,7 +115,16 @@
                 </div>
                 <div
                     class="flex flex-col items-start gap-0.5 md:col-span-1 md:items-center md:justify-center md:px-2 md:py-2 md:text-center">
-                    <TranslationStatus :translation-status="item.status" />
+                    <TranslationStatus
+                        :translation-status="item.status"
+                        :retry-attempt="item.providerCancelAttempts"
+                        :retry-max="item.providerCancelRetryMax" />
+                    <span
+                        v-for="badge in item.badges ?? []"
+                        :key="badge"
+                        class="whitespace-nowrap text-xs font-semibold text-primary-content/75">
+                        {{ badge }}
+                    </span>
                     <span
                         v-if="showCancelledCache(item)"
                         class="whitespace-nowrap text-xs text-primary-content/55"
@@ -133,7 +142,7 @@
                             item.qualityScore !== undefined
                         "
                         class="whitespace-nowrap text-xs text-primary-content/55"
-                        :title="`Subtitle quality: ${item.qualityScore}/100 · ${item.qualityGrade ?? 'Checked'}`"
+                        :title="`Subtitle Quality: ${item.qualityScore}/100 · ${item.qualityGrade ?? 'Checked'}`"
                         :aria-label="`Subtitle quality score ${item.qualityScore} out of 100, ${item.qualityGrade ?? 'checked'}`">
                         Quality:
                         <span class="font-semibold text-primary-content/75">

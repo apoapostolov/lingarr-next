@@ -11,7 +11,7 @@ public sealed class LibreTranslatePluginManifest : IPluginManifest
     public string DisplayName => "LibreTranslate";
 
     public string? Description =>
-        "Self-hosted or community LibreTranslate endpoint. Free public instances may or may not require an API key depending on your chosen configuration.";
+        "Connect to a self-hosted or hosted LibreTranslate deployment.";
 
     public IReadOnlyList<PluginSettingField> Settings { get; } =
     [
@@ -21,7 +21,6 @@ public sealed class LibreTranslatePluginManifest : IPluginManifest
             Label = "Address",
             Type = PluginSettingType.Url,
             Required = true,
-            Description = "Base URL of the LibreTranslate deployment."
         },
         new()
         {
@@ -29,7 +28,7 @@ public sealed class LibreTranslatePluginManifest : IPluginManifest
             Label = "API key (optional)",
             Type = PluginSettingType.Secret,
             Required = false,
-            Description = "API key for deployments that require one. Stored encrypted."
+            Description = "Required only when configured by the deployment; stored encrypted."
         }
     ];
 }

@@ -209,6 +209,34 @@ public class WebhookJob
         }
     }
 
+    [DisableConcurrentExecution(timeoutInSeconds: 2 * 60)]
+    [AutomaticRetry(Attempts = 3)]
+    [Queue("webhook")]
+    public async Task ProcessPluginWebhook(string source, PlexAddedMovie payload)
+    {
+        if (payload == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (string.Equals(payload.Kind, "episode", StringComparison.OrdinalIgnoreCase))
+            {
+                await TranslateAddedEpisode(payload, null, source);
+            }
+            else
+            {
+                await TranslateAddedMovie(payload, null, source);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing {Source} webhook for {Title}", source, payload.Title);
+            throw;
+        }
+    }
+
     private async Task TranslateAddedMovie(PlexAddedMovie payload, string? settingKey, string source)
     {
         if (!await LibraryNewEnabled(settingKey, source, payload.Title, "movies"))

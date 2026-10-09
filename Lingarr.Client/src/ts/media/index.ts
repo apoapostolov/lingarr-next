@@ -47,10 +47,13 @@ export interface ITranslationRequest {
     qualityGrade?: string | null
     qualityStatus?: string | null
     cachedProgress?: number | null
+    providerCancelAttempts?: number | null
+    providerCancelRetryMax?: number | null
     inputTokens?: number | null
     outputTokens?: number | null
     showTokenUsage?: boolean
     createdAt?: string
+    badges?: string[]
 }
 
 export interface ITranslationRequestDetail extends ITranslationRequest {

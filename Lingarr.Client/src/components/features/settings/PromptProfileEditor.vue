@@ -62,7 +62,7 @@
                     <input
                         v-model="description"
                         class="w-full rounded-md border border-accent bg-secondary px-3 py-2 text-primary-content"
-                        placeholder="When should this profile be used?" />
+                        placeholder="Intended use" />
                 </label>
             </div>
 
@@ -70,7 +70,7 @@
                 class="rounded-md border border-accent/30 bg-primary/45 p-3 text-sm leading-6 text-primary-content/70">
                 <p>{{ help }}</p>
                 <p class="mt-2 text-xs text-yellow-200/80">
-                    Do not put API keys, passwords, or other secrets in a prompt profile.
+                    Do not include credentials or other secrets in prompt profiles.
                 </p>
             </div>
 
@@ -87,8 +87,7 @@
                     :min-height="320"
                     :placeholders="placeholders" />
                 <p class="mt-2 text-xs text-primary-content/50">
-                    {{ content.length.toLocaleString() }} / 40,000 characters. Publishing can
-                    increase AI token use; concise rules are cheaper and easier to follow.
+                    {{ content.length.toLocaleString() }} / 40,000 characters. Longer prompts increase AI token usage.
                 </p>
             </div>
 
@@ -99,7 +98,7 @@
                 <input
                     v-model="changeNote"
                     class="w-full rounded-md border border-accent bg-secondary px-3 py-2 text-primary-content"
-                    placeholder="What changed in this version?" />
+                    placeholder="Version summary" />
             </label>
 
             <div class="flex flex-wrap gap-2">
@@ -238,16 +237,16 @@ const placeholders = computed(() => {
     const common = [
         {
             placeholder: '{sourceLanguage}',
-            placeholderText: 'insert {sourceLanguage}',
+            placeholderText: 'Insert {sourceLanguage}',
             title: 'Source language',
-            description: 'Language of the source subtitle',
+            description: 'Source subtitle language',
             required: props.type === 'system'
         },
         {
             placeholder: '{targetLanguage}',
-            placeholderText: 'insert {targetLanguage}',
+            placeholderText: 'Insert {targetLanguage}',
             title: 'Target language',
-            description: 'Language the subtitle is translated into',
+            description: 'Target language',
             required: props.type === 'system'
         }
     ]
@@ -256,23 +255,23 @@ const placeholders = computed(() => {
         ...common,
         {
             placeholder: '{lineToTranslate}',
-            placeholderText: 'insert {lineToTranslate}',
+            placeholderText: 'Insert {lineToTranslate}',
             title: 'Target subtitle line',
-            description: 'The line that must be translated',
+            description: 'Subtitle line to translate',
             required: true
         },
         {
             placeholder: '{contextBefore}',
-            placeholderText: 'insert {contextBefore}',
+            placeholderText: 'Insert {contextBefore}',
             title: 'Earlier context',
-            description: 'Neighbouring lines before the target',
+            description: 'Subtitle lines preceding the target',
             required: false
         },
         {
             placeholder: '{contextAfter}',
-            placeholderText: 'insert {contextAfter}',
+            placeholderText: 'Insert {contextAfter}',
             title: 'Later context',
-            description: 'Neighbouring lines after the target',
+            description: 'Subtitle lines following the target',
             required: false
         }
     ]

@@ -14,10 +14,9 @@
                     clip-rule="evenodd" />
             </svg>
             <div>
-                <p class="font-medium text-secondary-content">Error retrieving languages</p>
+                <p class="font-medium text-secondary-content">Unable to load languages</p>
                 <p class="mt-1 text-sm text-secondary-content">
-                    Unknown error occurred while retrieving languages, make sure the api key is set
-                    correctly.
+                    Check the provider configuration and try again.
                 </p>
                 <button
                     class="mt-3 cursor-pointer justify-end rounded border border-accent px-3 py-2 transition-colors hover:bg-accent hover:text-white"
@@ -38,16 +37,16 @@
             </div>
         </div>
 
-        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div v-else class="grid grid-cols-1 gap-4">
             <div class="min-w-0">
-                <span class="font-semibold">Source</span>
+                <span>Source languages:</span>
                 <LanguageSelect
                     v-model:selected="sourceLanguages"
                     class="w-full"
                     :options="languages" />
             </div>
             <div class="min-w-0">
-                <span class="font-semibold">Target</span>
+                <span>Target languages:</span>
                 <LanguageSelect
                     v-model:selected="targetLanguages"
                     class="w-full"
@@ -55,16 +54,13 @@
             </div>
         </div>
         <p class="text-sm text-secondary-content">
-            If no configured service supports the language code, the language falls back to the
-            closest available variant (for example, <CodeSnippet>en-US</CodeSnippet>
-            may resolve to neutral <CodeSnippet>en</CodeSnippet>).
+            If a provider lacks a language code, Lingarr uses its closest supported variant.
         </p>
     </template>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import CodeSnippet from '@/components/common/CodeSnippet.vue'
 import LanguageSelect from '@/components/features/settings/LanguageSelect.vue'
 import { ILanguage, SETTINGS } from '@/ts'
 import { useTranslateStore } from '@/store/translate'

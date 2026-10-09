@@ -42,6 +42,7 @@ public class SubtitleServiceEnumerationTests
             Assert.DoesNotContain("trailer.en.srt", names);
             Assert.DoesNotContain("extra.en.srt", names);
             Assert.Equal(3, all.Count);
+            Assert.Equal("en", all.Single(s => s.Path.EndsWith("Movie.en.srt")).Language);
         }
         finally
         {
@@ -66,6 +67,29 @@ public class SubtitleServiceEnumerationTests
             var matches = await service.GetSubtitles(root.FullName, "Show.S01E01");
             Assert.Equal(2, matches.Count);
             Assert.All(matches, s => Assert.StartsWith("Show.S01E01", s.FileName));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetAllSubtitles_UsesUnknownWhenTheFileNameHasNoLanguage()
+    {
+        var root = Directory.CreateTempSubdirectory();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root.FullName, "Movie.srt"), "1");
+
+            var service = new SubtitleService(
+                NullLogger<SubtitleService>.Instance,
+                new LanguageCodeService());
+
+            var all = await service.GetAllSubtitles(root.FullName);
+
+            Assert.Single(all);
+            Assert.Equal("unknown", all[0].Language);
         }
         finally
         {

@@ -8,6 +8,7 @@ using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Models.Api;
 using Lingarr.Server.Services;
+using Lingarr.Server.Services.Subtitle;
 using Lingarr.Server.Services.Translation;
 
 namespace Lingarr.Server.Controllers;
@@ -93,6 +94,10 @@ public class TranslateController : ControllerBase
     {
         var chain = TranslationChain.Parse(await _settings.GetSetting(SettingKeys.Translation.ServiceType));
         await _promptProfiles.ResolveChainAsync(chain, cancellationToken: cancellationToken);
+        TranslationChain.StampLanguages(
+            chain,
+            translateAbleSubtitleLine.SourceLanguage,
+            translateAbleSubtitleLine.TargetLanguage);
         var subtitleTranslator = new SubtitleTranslationService(
             _translationServiceFactory.CreateTranslationServices(chain),
             _logger,
@@ -102,8 +107,15 @@ public class TranslateController : ControllerBase
         {
             return translateAbleSubtitleLine.SubtitleLine;
         }
+
+        var stripHtml = SubtitleHtml.Enabled(await _settings.GetSetting(SettingKeys.Translation.StripSubtitleHtml));
+        if (stripHtml)
+        {
+            translateAbleSubtitleLine.SubtitleLine = SubtitleHtml.Strip(translateAbleSubtitleLine.SubtitleLine);
+        }
+
         var result = await subtitleTranslator.TranslateSubtitleLine(translateAbleSubtitleLine, cancellationToken);
-        return result.Translation;
+        return stripHtml ? SubtitleHtml.Strip(result.Translation) : result.Translation;
     }
 
     /// <summary>

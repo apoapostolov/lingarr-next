@@ -1,7 +1,9 @@
 ﻿using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Interfaces.Services.Integration;
 using Lingarr.Server.Interfaces.Services.Sync;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Models.Integrations;
 
 namespace Lingarr.Server.Services.Sync;
@@ -10,13 +12,16 @@ public class EpisodeSync : IEpisodeSync
 {
     private readonly ISonarrService _sonarrService;
     private readonly PathConversionService _pathConversionService;
+    private readonly PluginShelf _shelf;
 
     public EpisodeSync(
         ISonarrService sonarrService,
-        PathConversionService pathConversionService)
+        PathConversionService pathConversionService,
+        PluginShelf shelf)
     {
         _sonarrService = sonarrService;
         _pathConversionService = pathConversionService;
+        _shelf = shelf;
     }
 
     /// <inheritdoc />
@@ -28,10 +33,16 @@ public class EpisodeSync : IEpisodeSync
         foreach (var episode in episodes.Where(e => e.HasFile))
         {
             var episodePathResult = await _sonarrService.GetEpisodePath(episode.Id);
-            var episodePath = _pathConversionService.ConvertAndMapPath(
-                episodePathResult?.EpisodeFile.Path ?? string.Empty,
-                MediaType.Show
-            );
+            var episodePath = await _shelf.ResolvePathAsync(
+                _pathConversionService.ConvertAndMapPath(
+                    episodePathResult?.EpisodeFile.Path ?? string.Empty,
+                    MediaType.Show),
+                new LibraryQuery
+                {
+                    Kind = "episode",
+                    ExternalId = episode.Id.ToString(),
+                    Title = episode.Title
+                });
 
             SyncEpisode(episode, episodePath, season, episodePathResult?.EpisodeFile.DateAdded, defaultInclude);
         }

@@ -9,12 +9,19 @@
         <div v-else class="flex h-full w-full items-center justify-center text-primary-content">
             No data available
         </div>
+        <div
+            v-show="hover.visible"
+            class="border-accent bg-primary text-primary-content pointer-events-none absolute z-20 rounded-md border px-3 py-2 text-xs shadow-md"
+            :style="{ left: hover.left, top: hover.top }">
+            <p>{{ hover.date }}: <span class="font-bold">{{ hover.count }}</span></p>
+            <p>Average: <span class="font-bold">{{ hover.average }}</span></p>
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { ChartData, ChartOptions } from 'chart.js'
+import type { Chart, ChartData, ChartOptions, TooltipModel } from 'chart.js'
 import {
     Chart as ChartJS,
     ChartDataset,
@@ -125,6 +132,40 @@ const chartData = computed<ChartData<'bar'> | undefined>(() => {
     } as ChartData<'bar'>
 })
 
+const hover = ref({
+    visible: false,
+    left: '0px',
+    top: '0px',
+    date: '',
+    count: 0,
+    average: 0
+})
+
+const showHover = (context: { chart: Chart; tooltip: TooltipModel<'bar'> }) => {
+    const { chart, tooltip } = context
+    if (tooltip.opacity === 0 || tooltip.dataPoints.length === 0) {
+        hover.value.visible = false
+        return
+    }
+
+    const daily = tooltip.dataPoints.find((point) => point.datasetIndex === 0)
+    const average = tooltip.dataPoints.find((point) => point.datasetIndex === 1)
+    const parent = chart.canvas.parentElement
+    const width = parent?.clientWidth ?? chart.canvas.clientWidth
+    const boxWidth = 160
+    const rawLeft = tooltip.caretX - boxWidth / 2
+    const left = Math.min(Math.max(rawLeft, 8), Math.max(8, width - boxWidth - 8))
+
+    hover.value = {
+        visible: true,
+        left: `${left}px`,
+        top: `${Math.max(tooltip.caretY - 52, 4)}px`,
+        date: daily?.label ?? tooltip.title?.[0] ?? '',
+        count: Number(daily?.parsed.y ?? 0),
+        average: Number(average?.parsed.y ?? 0)
+    }
+}
+
 const chartOptions: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -184,30 +225,8 @@ const chartOptions: ChartOptions<'bar'> = {
             }
         },
         tooltip: {
-            backgroundColor: colors.value.card.background,
-            borderColor: colors.value.card.border,
-            borderWidth: 1,
-            padding: 12,
-            titleColor: '#c0c8d2',
-            bodyColor: '#c0c8d2',
-            titleFont: {
-                size: 13
-            },
-            bodyFont: {
-                size: 12
-            },
-            displayColors: false,
-            callbacks: {
-                title(tooltipItems) {
-                    return tooltipItems[0].label
-                },
-                label(context) {
-                    if (context.datasetIndex === 1) {
-                        return `Average: ${context.parsed.y} translations`
-                    }
-                    return `${context.parsed.y} translations`
-                }
-            }
+            enabled: false,
+            external: showHover
         }
     },
     interaction: {

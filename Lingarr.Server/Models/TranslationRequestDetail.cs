@@ -21,6 +21,8 @@ public class TranslationRequestDetail
     public string? QualityGrade { get; set; }
     public string? QualityStatus { get; set; }
     public int Progress { get; set; }
+    public int ProviderCancelAttempts { get; set; }
+    public int ProviderCancelRetryMax { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<TranslationRequestEventDetail> Events { get; set; } = [];

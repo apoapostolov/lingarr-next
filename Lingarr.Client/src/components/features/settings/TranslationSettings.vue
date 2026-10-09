@@ -1,7 +1,7 @@
 ﻿<template>
     <CardComponent title="Translation Request">
         <template #description>
-            Modify translation request settings by changing retry options or batch size if available in the service.
+            Configure batching, request timeouts, and retry behavior.
         </template>
         <template #content>
             <SaveNotification ref="saveNotification" />
@@ -9,9 +9,7 @@
             <template v-if="supportsBatch">
                 <div class="flex flex-col space-x-2">
                     <span class="font-semibold">Use batch translation</span>
-                    Process multiple subtitle lines together in batches to improve translation
-                    efficiency and context awareness. Note that single-line translations with context
-                    are still more reliable and of higher quality.
+                    Sends multiple subtitle lines in one request. Batch behavior depends on the provider.
                 </div>
                 <ToggleButton v-model="useBatchTranslation">
                     <span class="text-sm font-medium text-primary-content">
@@ -22,8 +20,7 @@
 
             <template v-if="useBatchTranslation == 'true'">
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Batch size:</span>
-                    Amount of subtitle lines in a single batch.
+                    <span class="font-semibold">Batch size (subtitle lines)</span>
                 </div>
                 <InputComponent
                     v-model="maxBatchSize"
@@ -32,10 +29,8 @@
             </template>
 
             <div class="flex flex-col space-x-2">
-                <span class="font-semibold">Cache quality progress on cancelled tasks</span>
-                Keep the lines a cancelled translation already finished. The next
-                run for that movie or episode continues from those lines when their
-                quality reaches the threshold. Below that, it starts over.
+                <span class="font-semibold">Reuse completed lines from cancelled requests</span>
+                Retries resume lines that meet the threshold; lower scores restart the translation.
             </div>
             <ToggleButton v-model="cacheCancelledProgress">
                 <span class="text-sm font-medium text-primary-content">
@@ -45,10 +40,8 @@
 
             <template v-if="cacheCancelledProgress == 'true'">
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Quality threshold:</span>
-                    Continue when the finished lines score at least this. 90 is
-                    comfortably Good. 85 is only the border of Good, so a partial
-                    at 85 starts over.
+                    <span class="font-semibold">Minimum quality score</span>
+                    Requests below this score restart from the beginning.
                 </div>
                 <InputComponent
                     v-model="cacheCancelledQualityThreshold"
@@ -57,10 +50,7 @@
             </template>
 
             <div class="flex flex-col space-x-2">
-                <span class="font-semibold">{{ requestTimeoutLabel }}:</span>
-                Maximum time in minutes to wait for a translation response before the request is
-                cancelled. Each provider keeps its own value; Microsoft defaults to 15 minutes
-                while other providers default to 5.
+                <span class="font-semibold">{{ requestTimeoutLabel }} (minutes):</span>
             </div>
             <InputComponent
                 v-model="requestTimeout"
@@ -68,8 +58,24 @@
                 @update:validation="(val) => (isValid.requestTimeout = val)" />
 
             <div class="flex flex-col space-x-2">
-                <span class="font-semibold">Max translation retries:</span>
-                Maximum number of retries per line or batch.
+                <span class="font-semibold">Job retries after provider cancellation</span>
+            </div>
+            <InputComponent
+                v-model="providerCancelRetryCount"
+                :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
+                @update:validation="(val) => (isValid.providerCancelRetryCount = val)" />
+
+            <div class="flex flex-col space-x-2">
+                <span class="font-semibold">Delay before a full retry (hours)</span>
+            </div>
+            <InputComponent
+                v-model="providerCancelRetryHours"
+                :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
+                @update:validation="(val) => (isValid.providerCancelRetryHours = val)" />
+
+            <div class="flex flex-col space-x-2">
+                <span class="font-semibold">Maximum line retries</span>
+                Retries busy or timed-out lines within the current job.
             </div>
             <InputComponent
                 v-model="maxRetries"
@@ -77,8 +83,7 @@
                 @update:validation="(val) => (isValid.maxRetries = val)" />
 
             <div class="flex flex-col space-x-2">
-                <span class="font-semibold">Delay between retries:</span>
-                Initial delay before retrying, in seconds.
+                <span class="font-semibold">Initial line retry delay (seconds)</span>
             </div>
             <InputComponent
                 v-model="retryDelay"
@@ -86,8 +91,7 @@
                 @update:validation="(val) => (isValid.retryDelay = val)" />
 
             <div class="flex flex-col space-x-2">
-                <span class="font-semibold">Retry delay multiplier:</span>
-                Factor by which the delay increases after each retry.
+                <span class="font-semibold">Line retry growth multiplier</span>
             </div>
             <InputComponent
                 v-model="retryDelayMultiplier"
@@ -112,6 +116,8 @@ const isValid = reactive({
     maxBatchSize: true,
     requestTimeout: true,
     maxRetries: true,
+    providerCancelRetryCount: true,
+    providerCancelRetryHours: true,
     retryDelay: true,
     retryDelayMultiplier: true,
     cacheCancelledQualityThreshold: true
@@ -198,6 +204,32 @@ const cacheCancelledQualityThreshold = computed({
             SETTINGS.CACHE_CANCELLED_QUALITY_THRESHOLD,
             newValue,
             isValid.cacheCancelledQualityThreshold
+        )
+        saveNotification.value?.show()
+    }
+})
+
+const providerCancelRetryCount = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.PROVIDER_CANCEL_RETRY_COUNT) as string) || '5',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(
+            SETTINGS.PROVIDER_CANCEL_RETRY_COUNT,
+            newValue,
+            isValid.providerCancelRetryCount
+        )
+        saveNotification.value?.show()
+    }
+})
+
+const providerCancelRetryHours = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.PROVIDER_CANCEL_RETRY_HOURS) as string) || '2',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(
+            SETTINGS.PROVIDER_CANCEL_RETRY_HOURS,
+            newValue,
+            isValid.providerCancelRetryHours
         )
         saveNotification.value?.show()
     }

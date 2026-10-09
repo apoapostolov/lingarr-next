@@ -153,6 +153,7 @@ public class ProviderHealthServiceTests
             registry,
             settings.Object,
             Mock.Of<ITranslationServiceFactory>(),
+            pluginLoader,
             NullLogger<ProviderHealthService>.Instance);
     }
 }

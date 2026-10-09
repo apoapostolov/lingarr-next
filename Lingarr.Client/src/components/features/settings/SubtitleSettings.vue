@@ -1,18 +1,13 @@
 ﻿<template>
-    <CardComponent title="Subtitle">
+    <CardComponent title="Subtitle Processing">
         <template #description>
-            Configure how subtitles are cleaned, and timed to prevent overlaps and remove unwanted
-            formatting.
+            Configure subtitle timing, formatting, and output filenames.
         </template>
         <template #content>
             <div class="flex flex-col space-y-4">
                 <SaveNotification ref="saveNotification" />
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">
-                        Skip translation if subtitles with caption tags exist:
-                    </span>
-                    Skip translation if a target subtitle with captions such as Hearing Impaired or
-                    Forced already exists.
+                    <span class="font-semibold">Skip translation when the target has SDH or forced captions</span>
                 </div>
                 <ToggleButton v-model="ignoreCaptions">
                     <span class="text-primary-content text-sm font-medium">
@@ -21,10 +16,8 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Fix overlapping subtitles:</span>
-                    Automatically resolves overlapping subtitles by trimming the end time of the
-                    earlier subtitle. This won't work on subtitles that are out of sync.
-                    And in most cases it also caused subtitles to go out of sync.
+                    <span class="font-semibold">Fix overlapping cues</span>
+                    Corrects overlapping cue end times. Use with synchronized source files.
                 </div>
                 <ToggleButton v-model="fixOverlappingSubtitles">
                     <span class="text-primary-content text-sm font-medium">
@@ -33,9 +26,18 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Strip subtitle formatting:</span>
-                    Enable this option to remove all formatting tags (e.g., italics, bold, color,
-                    position) from (SRT) subtitles, resulting in plain text subtitles.
+                    <span class="font-semibold">Strip HTML</span>
+                    Removes HTML tags from subtitles before translation.
+                </div>
+                <ToggleButton v-model="stripSubtitleHtml">
+                    <span class="text-primary-content text-sm font-medium">
+                        {{ stripSubtitleHtml == 'true' ? 'Enabled' : 'Disabled' }}
+                    </span>
+                </ToggleButton>
+
+                <div class="flex flex-col space-x-2">
+                    <span class="font-semibold">Strip subtitle formatting</span>
+                    Removes styling tags from SRT files before translation.
                 </div>
                 <ToggleButton v-model="stripSubtitleFormatting">
                     <span class="text-primary-content text-sm font-medium">
@@ -44,11 +46,7 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Preserve line breaks:</span>
-                    Keep multi-line subtitles split across lines after translation instead of
-                    merging them into a single line. AI services translate the whole subtitle in one
-                    call; classic services (DeepL, Google, Libre, etc.) translate each line
-                    separately.
+                    <span class="font-semibold">Preserve line breaks</span>
                 </div>
                 <ToggleButton v-model="preserveLineBreaks">
                     <span class="text-primary-content text-sm font-medium">
@@ -57,8 +55,7 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Add translator info</span>
-                    Add translator info at the beginning of subtitles.
+                    <span class="font-semibold">Add translator attribution</span>
                 </div>
                 <ToggleButton v-model="addTranslatorInfo">
                     <span class="text-primary-content text-sm font-medium">
@@ -67,8 +64,8 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
-                    <span class="font-semibold">Remove language tag</span>
-                    Remove language tags (e.g., ".en.") from file names.
+                    <span class="font-semibold">Remove source language tag</span>
+                    Removes source language codes such as <code>.en</code> from filenames.
                 </div>
                 <ToggleButton v-model="removeLanguageTag">
                     <span class="text-primary-content text-sm font-medium">
@@ -78,9 +75,8 @@
 
                 <div class="flex flex-col space-y-4">
                     <div class="flex flex-col space-x-2">
-                        <span class="font-semibold">Use subtitle tagging</span>
-                        Appends a custom segment to the subtitle filename however. This is not a
-                        recognised subtitle standard and may cause issues with other apps.
+                        <span class="font-semibold">Add a subtitle filename tag</span>
+                        Adds a custom filename segment; support varies by media software.
                     </div>
                     <ToggleButton v-model="useSubtitleTagging">
                         <span class="text-primary-content text-sm font-medium">
@@ -127,6 +123,14 @@ const fixOverlappingSubtitles = computed({
     get: (): string => settingsStore.getSetting(SETTINGS.FIX_OVERLAPPING_SUBTITLES) as string,
     set: (newValue: string): void => {
         settingsStore.updateSetting(SETTINGS.FIX_OVERLAPPING_SUBTITLES, newValue, true)
+        saveNotification.value?.show()
+    }
+})
+
+const stripSubtitleHtml = computed({
+    get: (): string => settingsStore.getSetting(SETTINGS.STRIP_SUBTITLE_HTML) as string,
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.STRIP_SUBTITLE_HTML, newValue, true)
         saveNotification.value?.show()
     }
 })

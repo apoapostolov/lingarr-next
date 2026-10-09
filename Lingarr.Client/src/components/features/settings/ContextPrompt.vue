@@ -1,8 +1,7 @@
 <template>
     <CardComponent title="Context Prompt Profiles">
         <template #description>
-            Templates that place the current subtitle line among neighbouring lines so an AI can
-            understand who or what is being discussed.
+            Adds adjacent subtitle lines to clarify dialogue and references.
         </template>
         <template #content>
             <div class="space-y-5">
@@ -14,8 +13,7 @@
                                 Use neighbouring subtitle context
                             </div>
                             <p class="mt-1 text-xs text-primary-content/55">
-                                Applies to individual-line AI translation. Batch translation already
-                                carries several lines together.
+                                Applies to line-by-line AI requests. Batch requests include multiple lines.
                             </p>
                         </div>
                         <ToggleButton v-model="aiContextPromptEnabled">
@@ -41,8 +39,7 @@
                             @update:validation="(value) => (isValid.contextAfter = value)" />
                     </div>
                     <p v-if="useBatchTranslation === 'true'" class="mt-3 text-xs text-yellow-200/80">
-                        Context profiles are saved, but are not used while batch translation is
-                        enabled.
+                        Context profiles are inactive while batch translation is enabled.
                     </p>
                 </div>
 
@@ -71,7 +68,7 @@ const settingsStore = useSettingStore()
 const saveNotification = ref<InstanceType<typeof SaveNotification> | null>(null)
 const isValid = reactive({ contextBefore: true, contextAfter: true })
 const help =
-    'The Context Prompt is a wrapper for one target line and its neighbours. Keep {lineToTranslate}; otherwise Lingarr Next cannot place the line to translate. The recommended tagged format clearly separates earlier context, the target, and later context so the model does not translate or repeat neighbouring lines.'
+    'Keep {lineToTranslate} to mark the target. Use separate placeholders for earlier and later context.'
 
 const useBatchTranslation = computed(
     () => settingsStore.getSetting(SETTINGS.USE_BATCH_TRANSLATION) as string

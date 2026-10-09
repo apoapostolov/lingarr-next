@@ -4,16 +4,12 @@
         <div
             class="grid grid-flow-row auto-rows-max grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
             <TranslationSettings />
-            <JevSettings />
+            <ClassifierSettings />
             <CardComponent title="Request Templates">
                 <template #description>
-                    Customize the request body sent to each configured AI translation provider.
+                    Customize the JSON request body sent to an AI provider.
                 </template>
                 <template #content>
-                    <p class="text-secondary-content text-sm">
-                        Request templates are available for configured providers that support custom
-                        request bodies.
-                    </p>
                     <ButtonComponent
                         variant="secondary"
                         :disabled="!firstTemplateProvider"
@@ -21,7 +17,7 @@
                         Configure request templates
                     </ButtonComponent>
                     <p v-if="!firstTemplateProvider" class="text-secondary-content/60 text-xs">
-                        Add a compatible AI provider in Translation Setup first.
+                        Configure an AI provider that supports custom request bodies.
                     </p>
                 </template>
             </CardComponent>
@@ -39,7 +35,7 @@ import ButtonComponent from '@/components/common/ButtonComponent.vue'
 import CardComponent from '@/components/common/CardComponent.vue'
 import SettingsSectionTabs from '@/components/features/settings/SettingsSectionTabs.vue'
 import TranslationSettings from '@/components/features/settings/TranslationSettings.vue'
-import JevSettings from '@/components/features/settings/JevSettings.vue'
+import ClassifierSettings from '@/components/features/settings/ClassifierSettings.vue'
 
 const router = useRouter()
 const settingsStore = useSettingStore()

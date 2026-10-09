@@ -11,6 +11,6 @@ hero:
           link: /getting-started/installation
         - theme: alt
           text: Developers
-          link: /developers/plugins
+          link: /developers/Plugins
 
 ---

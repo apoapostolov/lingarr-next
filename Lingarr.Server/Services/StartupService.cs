@@ -36,7 +36,10 @@ public class StartupService : IHostedService
         var pluginLoader = scope.ServiceProvider.GetService<PluginLoader>();
         if (pluginRegistry is not null)
         {
-            await SyncPluginSettings(dbContext, pluginRegistry, pluginLoader?.LoadingEnabled ?? false);
+            await SyncPluginSettings(
+                dbContext,
+                pluginRegistry,
+                pluginLoader?.LoadingEnabled ?? false);
         }
 
         await CheckAndUpdateIntegrationSettings(dbContext, "radarr", [
@@ -71,11 +74,20 @@ public class StartupService : IHostedService
         }
     }
 
-    private async Task AddDeclaredSettings(LingarrDbContext dbContext, IReadOnlyList<RegisteredPlugin> pluginEntries)
+    private async Task AddDeclaredSettings(
+        LingarrDbContext dbContext,
+        IReadOnlyList<RegisteredPlugin> pluginEntries)
     {
         var declaredKeys = pluginEntries
-            .SelectMany(plugin => plugin.Manifest.Settings.Select(field => field.Key))
+            .SelectMany(plugin => PluginCatalog.Fields(plugin.Manifest).Select(field => field.Key))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var plugin in pluginEntries)
+        {
+            foreach (var key in PluginCatalog.HostKeys(plugin.Manifest.Provider))
+            {
+                declaredKeys.Add(key);
+            }
+        }
 
         var existingByKey = await dbContext.Settings
             .Where(setting => declaredKeys.Contains(setting.Key))
@@ -86,41 +98,62 @@ public class StartupService : IHostedService
         foreach (var plugin in pluginEntries)
         {
             var provider = plugin.Manifest.Provider;
-            foreach (var field in plugin.Manifest.Settings)
+            foreach (var field in PluginCatalog.Fields(plugin.Manifest))
             {
-                if (!existingByKey.TryGetValue(field.Key, out var existing))
-                {
-                    dbContext.Settings.Add(new Setting
-                    {
-                        Key = field.Key,
-                        Value = field.Default ?? string.Empty,
-                        Provider = provider
-                    });
-                    _logger.LogInformation("Added plugin setting {Key} for {Provider}.", field.Key, provider);
-                    continue;
-                }
-
-                if (existing.Provider is null)
-                {
-                    _logger.LogWarning(
-                        "Plugin {Provider} declares key {Key} but a built-in setting with that key already exists; skipping.",
-                        provider,
-                        field.Key);
-                    continue;
-                }
-
-                if (!string.Equals(existing.Provider, provider, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogWarning(
-                        "Plugin {Provider} declares key {Key} but it is already owned by {Owner}; skipping.",
-                        provider,
-                        field.Key,
-                        existing.Provider);
-                }
+                EnsurePluginSetting(dbContext, existingByKey, provider, field.Key, field.Default ?? string.Empty);
             }
+
+            EnsurePluginSetting(dbContext, existingByKey, provider, PluginCatalog.EnabledKey(provider), "false");
+            EnsurePluginSetting(dbContext, existingByKey, provider, PluginCatalog.OrderKey(provider), "100");
+            EnsurePluginSetting(
+                dbContext,
+                existingByKey,
+                provider,
+                PluginCatalog.PolicyKey(provider),
+                PluginCatalog.PolicySkip);
         }
 
         await dbContext.SaveChangesAsync();
+    }
+
+    private void EnsurePluginSetting(
+        LingarrDbContext dbContext,
+        Dictionary<string, Setting> existingByKey,
+        string provider,
+        string key,
+        string defaultValue)
+    {
+        if (!existingByKey.TryGetValue(key, out var existing))
+        {
+            var created = new Setting
+            {
+                Key = key,
+                Value = defaultValue,
+                Provider = provider
+            };
+            dbContext.Settings.Add(created);
+            existingByKey[key] = created;
+            _logger.LogInformation("Added plugin setting {Key} for {Provider}.", key, provider);
+            return;
+        }
+
+        if (existing.Provider is null)
+        {
+            _logger.LogWarning(
+                "Plugin {Provider} declares key {Key} but a built-in setting with that key already exists; skipping.",
+                provider,
+                key);
+            return;
+        }
+
+        if (!string.Equals(existing.Provider, provider, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Plugin {Provider} declares key {Key} but it is already owned by {Owner}; skipping.",
+                provider,
+                key,
+                existing.Provider);
+        }
     }
 
     private async Task RemoveOrphanedSettings(LingarrDbContext dbContext, IReadOnlyList<RegisteredPlugin> pluginEntries)

@@ -11,7 +11,7 @@ public sealed class DeepSeekPluginManifest : IPluginManifest
     public string DisplayName => "DeepSeek";
 
     public string? Description =>
-        "DeepSeek's OpenAI-compatible chat completion models. AI translation can be costly, only use it when you know what you are doing and keep automation disabled.";
+        "DeepSeek chat models via the OpenAI-compatible API.";
 
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
@@ -24,7 +24,7 @@ public sealed class DeepSeekPluginManifest : IPluginManifest
             Label = "API key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "DeepSeek API key. Stored encrypted.",
+            Description = "Stored encrypted.",
             MinLength = 1,
             ValidationErrorMessage = "Value must not be empty"
         },
@@ -34,8 +34,7 @@ public sealed class DeepSeekPluginManifest : IPluginManifest
             Label = "AI Model",
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
-            OptionsEndpoint = "/api/plugin/deepseek/models",
-            Description = "Select a model from your DeepSeek catalogue."
+            OptionsEndpoint = "/api/plugin/deepseek/models"
         }
     ];
 }

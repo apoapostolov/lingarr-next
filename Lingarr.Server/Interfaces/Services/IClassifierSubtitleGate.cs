@@ -1,6 +1,6 @@
 namespace Lingarr.Server.Interfaces.Services;
 
-public interface IJevSubtitleGate
+public interface IClassifierSubtitleGate
 {
     Task<bool> SkipEnabled(CancellationToken cancellationToken);
 
@@ -8,7 +8,7 @@ public interface IJevSubtitleGate
 
     /// <summary>
     /// Positions whose text is a sound cue or a credit, confident enough to leave untranslated.
-    /// Empty when the switch is off, the key is missing, or Jev cannot be reached.
+    /// Empty when the switch is off, the selected provider has no key, or it cannot be reached.
     /// </summary>
     Task<IReadOnlySet<int>> PositionsToSkip(
         IReadOnlyList<(int Position, string Text)> lines,

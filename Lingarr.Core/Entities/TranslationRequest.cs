@@ -23,6 +23,15 @@ public class TranslationRequest : BaseEntity
     /// <summary>Percent of subtitle lines saved when a request was cancelled. Null when unknown.</summary>
     public int? CachedProgress { get; set; }
 
+    /// <summary>How many times the provider has cancelled this request.</summary>
+    public int ProviderCancelAttempts { get; set; }
+
+    /// <summary>Retry limit captured when the provider cancelled this request.</summary>
+    public int ProviderCancelRetryMax { get; set; }
+
+    /// <summary>A delayed retry is waiting to run.</summary>
+    public bool ProviderCancelRetryPending { get; set; }
+
     [NotMapped]
     public long? InputTokens { get; set; }
 
@@ -31,4 +40,7 @@ public class TranslationRequest : BaseEntity
 
     [NotMapped]
     public bool ShowTokenUsage { get; set; }
+
+    [NotMapped]
+    public List<string> Badges { get; set; } = [];
 }

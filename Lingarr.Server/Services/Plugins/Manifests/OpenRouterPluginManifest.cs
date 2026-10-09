@@ -9,7 +9,7 @@ public sealed class OpenRouterPluginManifest : IPluginManifest
     public string Provider => "openrouter";
     public string DisplayName => "OpenRouter";
     public string Description =>
-        "100+ models via a single OpenAI-compatible API. AI translation can be costly — keep automation cautious.";
+        "Access multiple providers through the OpenRouter API.";
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
     public IReadOnlyList<PluginSettingField> Settings { get; } =
@@ -20,7 +20,7 @@ public sealed class OpenRouterPluginManifest : IPluginManifest
             Label = "API Key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "OpenRouter API key. Stored encrypted."
+            Description = "Stored encrypted."
         },
         new()
         {
@@ -29,7 +29,7 @@ public sealed class OpenRouterPluginManifest : IPluginManifest
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
             OptionsEndpoint = "/api/plugin/openrouter/models",
-            Description = "Prefer openrouter/free (listed first) for bulk/low-quality-OK free routing."
+            Description = "Free model routing is available for bulk translation."
         },
         new()
         {
@@ -38,7 +38,7 @@ public sealed class OpenRouterPluginManifest : IPluginManifest
             Type = PluginSettingType.Url,
             Required = false,
             Default = "https://openrouter.ai/api/v1/",
-            Description = "Override only if using a proxy."
+            Description = "Set a compatible proxy URL if required."
         }
     ];
 }

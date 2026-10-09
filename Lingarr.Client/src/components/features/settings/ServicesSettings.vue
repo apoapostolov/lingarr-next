@@ -1,20 +1,43 @@
 <template>
-    <CardComponent title="Translation Services">
-        <template #description>
-            Configure the translation service for subtitle localization. Each row is self-contained:
-            provider, model (when needed), and API key. Fallbacks run in order if earlier rows fail.
-        </template>
-        <template #content>
+    <div class="translation-setup-grid p-4">
+        <LanguageSettings class="min-w-0" />
+        <CardComponent title="Provider" class="min-w-0">
+            <template #description>
+                Reorder providers to set translation priority. Configure the selected provider below.
+            </template>
+            <template #content>
             <SaveNotification ref="saveNotification" />
 
             <div class="space-y-2">
-                <span class="font-semibold">Translation services</span>
-                <ol class="space-y-3">
+                <ol id="translation-services" class="space-y-3">
                     <li
                         v-for="(entry, index) in chain"
                         :key="entry.id"
-                        class="border-accent/30 flex gap-3 rounded-md border p-3">
-                        <!-- 1-based index badge (primary = 1) -->
+                        :id="`service-${entry.provider}`"
+                        class="flex cursor-pointer gap-3 rounded-md border p-3"
+                        :class="rowClass(entry, index)"
+                        @click="selectRow(index)"
+                        @dragover.prevent="onDragOver(index, $event)"
+                        @drop.prevent="onDrop">
+                        <button
+                            type="button"
+                            draggable="true"
+                            class="text-primary-content/70 hover:text-primary-content focus-visible:ring-accent mt-2 flex h-8 w-6 shrink-0 cursor-grab items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+                            title="Drag to reorder"
+                            aria-label="Drag to reorder"
+                            @click.stop
+                            @dragstart="onDragStart(index, $event)"
+                            @dragend="onDragEnd"
+                            @keydown="onHandleKeydown(index, $event)">
+                            <svg viewBox="0 0 10 16" class="h-4 w-3" fill="currentColor" aria-hidden="true">
+                                <circle cx="2" cy="2" r="1.2" />
+                                <circle cx="8" cy="2" r="1.2" />
+                                <circle cx="2" cy="8" r="1.2" />
+                                <circle cx="8" cy="8" r="1.2" />
+                                <circle cx="2" cy="14" r="1.2" />
+                                <circle cx="8" cy="14" r="1.2" />
+                            </svg>
+                        </button>
                         <span
                             class="bg-accent/20 text-accent-content mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold tabular-nums"
                             :title="index === 0 ? 'Primary' : `Fallback ${index}`"
@@ -30,127 +53,16 @@
                                 placeholder="Select provider..."
                                 @update:selected="(value: string) => setProvider(index, value)" />
 
-                            <!-- Row 2: model (AI / multi-model providers) -->
-                            <div
-                                v-if="supportsModel(entry.provider)"
-                                class="flex items-center gap-2">
-                                <div class="min-w-0 flex-1">
-                                    <SelectComponent
-                                        :ref="(el) => setModelSelectRef(index, el)"
-                                        :selected="entry.model ?? ''"
-                                        :options="modelOptions[index] || []"
-                                        :load-on-open="true"
-                                        :sort-options="false"
-                                        placeholder="Select model..."
-                                        :no-options="modelError[index] || 'Loading models...'"
-                                        @update:selected="(value: string) => setModel(index, value)"
-                                        @fetch-options="() => loadModels(index, false)" />
-                                </div>
-                                <ButtonComponent
-                                    variant="ghost"
-                                    size="xs"
-                                    title="Refresh models"
-                                    @click="loadModels(index, true)">
-                                    Refresh
-                                </ButtonComponent>
-                            </div>
-
-                            <div
-                                v-if="supportsInstructions(entry.provider)"
-                                class="grid gap-2 rounded-md border border-accent/20 bg-primary/35 p-2 sm:grid-cols-2">
-                                <label>
-                                    <span class="mb-1 block text-xs font-semibold text-primary-content/65">
-                                        System prompt
-                                    </span>
-                                    <select
-                                        :value="entry.systemPromptProfileId ?? ''"
-                                        class="w-full rounded-md border border-accent bg-secondary px-2 py-2 text-sm text-primary-content"
-                                        @change="
-                                            setPromptProfile(
-                                                index,
-                                                'system',
-                                                ($event.target as HTMLSelectElement).value
-                                            )
-                                        ">
-                                        <option value="">
-                                            Default · {{ activeSystemProfileName }}
-                                        </option>
-                                        <option
-                                            v-for="profile in systemProfiles"
-                                            :key="profile.id"
-                                            :value="profile.id">
-                                            {{ profile.name }} · v{{ profile.currentVersionNumber ?? 'draft' }}
-                                        </option>
-                                    </select>
-                                </label>
-                                <label>
-                                    <span class="mb-1 block text-xs font-semibold text-primary-content/65">
-                                        Context prompt
-                                    </span>
-                                    <select
-                                        :value="entry.contextPromptProfileId ?? ''"
-                                        class="w-full rounded-md border border-accent bg-secondary px-2 py-2 text-sm text-primary-content"
-                                        @change="
-                                            setPromptProfile(
-                                                index,
-                                                'context',
-                                                ($event.target as HTMLSelectElement).value
-                                            )
-                                        ">
-                                        <option value="">
-                                            Default · {{ activeContextProfileName }}
-                                        </option>
-                                        <option
-                                            v-for="profile in contextProfiles"
-                                            :key="profile.id"
-                                            :value="profile.id">
-                                            {{ profile.name }} · v{{ profile.currentVersionNumber ?? 'draft' }}
-                                        </option>
-                                    </select>
-                                </label>
-                                <router-link
-                                    :to="{ name: 'translation-prompts-settings' }"
-                                    class="text-xs text-accent underline sm:col-span-2">
-                                    Manage prompt profiles
-                                </router-link>
-                            </div>
-
-                            <!-- API key (per provider, only when needed) -->
-                            <InputComponent
-                                v-if="apiKeySettingKey(entry.provider)"
-                                :id="`api-key-${index}-${entry.provider}`"
-                                :model-value="apiKeyValue(entry.provider)"
-                                :type="INPUT_TYPE.PASSWORD"
-                                placeholder="API key"
-                                @update:model-value="(v: string) => setApiKey(entry.provider, v)" />
                         </div>
 
-                        <div class="flex shrink-0 flex-col items-center gap-0.5 pt-1">
-                            <button
-                                type="button"
-                                class="text-primary-content hover:text-primary-content/50 focus-visible:ring-accent cursor-pointer rounded p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-30"
-                                :disabled="index === 0"
-                                title="Move up"
-                                aria-label="Move up"
-                                @click="moveRow(index, -1)">
-                                <CaretUpIcon class="h-4 w-4" />
-                            </button>
-                            <button
-                                type="button"
-                                class="text-primary-content hover:text-primary-content/50 focus-visible:ring-accent cursor-pointer rounded p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-30"
-                                :disabled="index === chain.length - 1"
-                                title="Move down"
-                                aria-label="Move down"
-                                @click="moveRow(index, 1)">
-                                <CaretDownIcon class="h-4 w-4" />
-                            </button>
+                        <div class="mt-2 flex h-6 w-6 shrink-0 items-center justify-center">
                             <button
                                 v-if="index > 0"
                                 type="button"
                                 class="text-primary-content hover:text-primary-content/50 focus-visible:ring-accent cursor-pointer rounded p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                                 title="Remove fallback"
                                 aria-label="Remove fallback"
-                                @click="removeRow(index)">
+                                @click.stop="removeRow(index)">
                                 <TrashIcon class="h-4 w-4" />
                             </button>
                         </div>
@@ -163,20 +75,160 @@
                     </li>
                 </ol>
             </div>
-        </template>
-    </CardComponent>
+
+            <div class="border-accent/30 mt-4 space-y-3 border-t pt-4">
+                <div class="text-sm">
+                    <span class="text-secondary-content/60">Selected</span>
+                    <span class="ml-1 font-semibold">{{ configuringLabel }}</span>
+                    <span class="text-secondary-content/60 ml-1">
+                        (row {{ configuringIndex + 1 }})
+                    </span>
+                </div>
+
+                <div
+                    v-if="supportsModel(chain[configuringIndex]?.provider)"
+                    class="flex items-center gap-2">
+                    <div class="min-w-0 flex-1">
+                        <SelectComponent
+                            :ref="(el) => setModelSelectRef(configuringIndex, el)"
+                            :selected="chain[configuringIndex]?.model ?? ''"
+                            :options="modelOptions[configuringIndex] || []"
+                            :load-on-open="true"
+                            :sort-options="false"
+                            placeholder="Select model..."
+                            :no-options="modelError[configuringIndex] || 'Loading models...'"
+                            @update:selected="(value: string) => setModel(configuringIndex, value)"
+                            @fetch-options="() => loadModels(configuringIndex, false)" />
+                    </div>
+                    <ButtonComponent
+                        variant="ghost"
+                        size="xs"
+                        title="Refresh models"
+                        @click="loadModels(configuringIndex, true)">
+                        Refresh
+                    </ButtonComponent>
+                </div>
+
+                <div
+                    v-if="supportsInstructions(chain[configuringIndex]?.provider)"
+                    class="grid gap-2 rounded-md border border-accent/20 bg-primary/35 p-2 sm:grid-cols-2">
+                    <label>
+                        <span class="mb-1 block text-xs font-semibold text-primary-content/65">
+                            System prompt
+                        </span>
+                        <select
+                            :value="chain[configuringIndex]?.systemPromptProfileId ?? ''"
+                            class="w-full rounded-md border border-accent bg-secondary px-2 py-2 text-sm text-primary-content"
+                            @change="
+                                setPromptProfile(
+                                    configuringIndex,
+                                    'system',
+                                    ($event.target as HTMLSelectElement).value
+                                )
+                            ">
+                            <option value="">Default · {{ activeSystemProfileName }}</option>
+                            <option
+                                v-for="profile in systemProfiles"
+                                :key="profile.id"
+                                :value="profile.id">
+                                {{ profile.name }} · v{{ profile.currentVersionNumber ?? 'draft' }}
+                            </option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="mb-1 block text-xs font-semibold text-primary-content/65">
+                            Context prompt
+                        </span>
+                        <select
+                            :value="chain[configuringIndex]?.contextPromptProfileId ?? ''"
+                            class="w-full rounded-md border border-accent bg-secondary px-2 py-2 text-sm text-primary-content"
+                            @change="
+                                setPromptProfile(
+                                    configuringIndex,
+                                    'context',
+                                    ($event.target as HTMLSelectElement).value
+                                )
+                            ">
+                            <option value="">Default · {{ activeContextProfileName }}</option>
+                            <option
+                                v-for="profile in contextProfiles"
+                                :key="profile.id"
+                                :value="profile.id">
+                                {{ profile.name }} · v{{ profile.currentVersionNumber ?? 'draft' }}
+                            </option>
+                        </select>
+                    </label>
+                    <router-link
+                        :to="{ name: 'translation-prompts-settings' }"
+                        class="text-xs text-accent underline sm:col-span-2">
+                        Manage prompt profiles
+                    </router-link>
+                </div>
+
+                <DynamicPluginForm
+                    v-if="
+                        credentialsManifest &&
+                        credentialsManifest.provider.toLowerCase() ===
+                            chain[configuringIndex]?.provider?.toLowerCase()
+                    "
+                    :key="credentialsManifest.provider"
+                    :manifest="credentialsManifest"
+                    @save="saveNotification?.show()" />
+                <p v-else-if="manifestError" class="text-sm text-red-500">{{ manifestError }}</p>
+
+                <div v-if="configuringManifest?.hasRequestTemplate" class="flex flex-col gap-3">
+                    <div class="flex flex-col space-x-2">
+                        <span class="font-semibold">Customize request template and prompts</span>
+                        Adjust the AI request body, system prompt and context for translations.
+                    </div>
+                    <ButtonComponent
+                        variant="primary"
+                        size="md"
+                        @click="
+                            router.push({
+                                name: 'request-template-settings',
+                                params: { service: chain[configuringIndex]?.provider }
+                            })
+                        ">
+                        Open Request Settings
+                        <ArrowRight class="mt-1 ml-1 h-4 w-4" />
+                    </ButtonComponent>
+                </div>
+            </div>
+            </template>
+        </CardComponent>
+        <ProviderHealthPanel class="translation-setup-span min-w-0" />
+    </div>
 </template>
 
+<style>
+.translation-setup-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (min-width: 640px) {
+    .translation-setup-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .translation-setup-grid > .translation-setup-span {
+        grid-column: 1 / -1;
+    }
+}
+</style>
+
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSettingStore } from '@/store/setting'
 import {
-    ENCRYPTED_SETTINGS,
-    IEncryptedSettings,
-    INPUT_TYPE,
-    PLUGIN_SETTING_TYPE,
+    IPluginManifest,
     IPluginSummary,
     IPromptProfile,
+    PLUGIN_SETTING_TYPE,
     SETTINGS,
     SERVICE_TYPE,
     SelectComponentExpose
@@ -185,10 +237,11 @@ import servicesApi from '@/services'
 import CardComponent from '@/components/common/CardComponent.vue'
 import SelectComponent from '@/components/common/SelectComponent.vue'
 import ButtonComponent from '@/components/common/ButtonComponent.vue'
-import InputComponent from '@/components/common/InputComponent.vue'
 import SaveNotification from '@/components/common/SaveNotification.vue'
-import CaretUpIcon from '@/components/icons/CaretUpIcon.vue'
-import CaretDownIcon from '@/components/icons/CaretDownIcon.vue'
+import DynamicPluginForm from '@/components/features/settings/DynamicPluginForm.vue'
+import LanguageSettings from '@/components/features/settings/LanguageSettings.vue'
+import ProviderHealthPanel from '@/components/features/providerHealth/ProviderHealthPanel.vue'
+import ArrowRight from '@/components/icons/ArrowRight.vue'
 import TrashIcon from '@/components/icons/TrashIcon.vue'
 import PlusIcon from '@/components/icons/PlusIcon.vue'
 
@@ -198,6 +251,13 @@ export type ChainEntry = {
     model?: string | null
     systemPromptProfileId?: number | null
     contextPromptProfileId?: number | null
+}
+
+function newRowId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 const MODEL_PROVIDERS = new Set([
@@ -216,31 +276,18 @@ const MODEL_PROVIDERS = new Set([
     'mistral'
 ])
 
-/** Providers that use an encrypted API key setting. */
-const API_KEY_BY_PROVIDER: Record<string, keyof IEncryptedSettings> = {
-    openai: ENCRYPTED_SETTINGS.OPENAI_API_KEY as keyof IEncryptedSettings,
-    anthropic: ENCRYPTED_SETTINGS.ANTHROPIC_API_KEY as keyof IEncryptedSettings,
-    gemini: ENCRYPTED_SETTINGS.GEMINI_API_KEY as keyof IEncryptedSettings,
-    deepseek: ENCRYPTED_SETTINGS.DEEPSEEK_API_KEY as keyof IEncryptedSettings,
-    openrouter: ENCRYPTED_SETTINGS.OPENROUTER_API_KEY as keyof IEncryptedSettings,
-    zai: ENCRYPTED_SETTINGS.ZAI_API_KEY as keyof IEncryptedSettings,
-    'opencode-go': ENCRYPTED_SETTINGS.OPENCODE_GO_API_KEY as keyof IEncryptedSettings,
-    qwen: ENCRYPTED_SETTINGS.QWEN_API_KEY as keyof IEncryptedSettings,
-    'qwen-mt': ENCRYPTED_SETTINGS.QWEN_API_KEY as keyof IEncryptedSettings,
-    xai: ENCRYPTED_SETTINGS.XAI_API_KEY as keyof IEncryptedSettings,
-    mistral: ENCRYPTED_SETTINGS.MISTRAL_API_KEY as keyof IEncryptedSettings,
-    deepl: ENCRYPTED_SETTINGS.DEEPL_API_KEY as keyof IEncryptedSettings,
-    libretranslate: ENCRYPTED_SETTINGS.LIBRETRANSLATE_API_KEY as keyof IEncryptedSettings,
-    localai: ENCRYPTED_SETTINGS.LOCAL_AI_API_KEY as keyof IEncryptedSettings
-}
-
 const saveNotification = ref<InstanceType<typeof SaveNotification> | null>(null)
 const settingsStore = useSettingStore()
 
+const route = useRoute()
+const router = useRouter()
 const providerOptions = ref<{ value: string; label: string }[]>([])
-const chain = ref<ChainEntry[]>([
-    { id: crypto.randomUUID(), provider: SERVICE_TYPE.LIBRETRANSLATE }
-])
+const focusedProvider = ref('')
+const chain = ref<ChainEntry[]>([])
+const configuringIndex = ref(0)
+const configuringManifest = ref<IPluginManifest | null>(null)
+const manifestError = ref<string | null>(null)
+let manifestRequest = 0
 const promptProfiles = ref<IPromptProfile[]>([])
 const instructionProviders = ref(new Set<string>())
 const activeSystemProfileId = ref(0)
@@ -265,6 +312,126 @@ function supportsInstructions(provider?: string) {
     return !!provider && instructionProviders.value.has(provider.toLowerCase())
 }
 
+function isModelField(key: string, type: string): boolean {
+    if (type === PLUGIN_SETTING_TYPE.REMOTE_DROPDOWN) return true
+    const normalized = key.toLowerCase()
+    return normalized.endsWith('_model') || normalized.includes('_model') || normalized === 'model'
+}
+
+const dragFrom = ref<number | null>(null)
+const dropIndex = ref<number | null>(null)
+
+function rowClass(entry: ChainEntry, index: number) {
+    return {
+        'border-accent bg-accent/10': configuringIndex.value === index && dragFrom.value !== index,
+        'border-accent/30': configuringIndex.value !== index,
+        'ring-accent ring-2': focusedProvider.value.toLowerCase() === entry.provider.toLowerCase(),
+        'opacity-40': dragFrom.value === index,
+        'border-t-accent border-t-2': dropIndex.value === index && dragFrom.value !== index
+    }
+}
+
+function movedIndex(current: number, from: number, to: number): number {
+    if (current === from) return to
+    if (from < current && to >= current) return current - 1
+    if (from > current && to <= current) return current + 1
+    return current
+}
+
+function reindexReactive<T>(source: Record<number, T>, from: number, to: number, length: number) {
+    const order = Array.from({ length }, (_, index) => index)
+    const [moved] = order.splice(from, 1)
+    order.splice(to, 0, moved)
+    const snapshot: Record<number, T> = {}
+    order.forEach((oldIndex, newIndex) => {
+        if (Object.prototype.hasOwnProperty.call(source, oldIndex)) {
+            snapshot[newIndex] = source[oldIndex]
+        }
+    })
+    for (const key of Object.keys(source)) {
+        delete source[Number(key)]
+    }
+    Object.assign(source, snapshot)
+}
+
+function reorderLocal(from: number, to: number) {
+    if (from === to || to < 0 || to >= chain.value.length) return
+    const length = chain.value.length
+    const next = [...chain.value]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    chain.value = next
+    configuringIndex.value = movedIndex(configuringIndex.value, from, to)
+    reindexReactive(modelOptions, from, to, length)
+    reindexReactive(modelError, from, to, length)
+}
+
+function onDragStart(index: number, event: DragEvent) {
+    dragFrom.value = index
+    dropIndex.value = index
+    event.dataTransfer?.setData('text/plain', chain.value[index]?.id ?? String(index))
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragOver(index: number, event: DragEvent) {
+    const from = dragFrom.value
+    if (from === null) return
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    const row = event.currentTarget as HTMLElement
+    const rect = row.getBoundingClientRect()
+    const placeAfter = event.clientY > rect.top + rect.height / 2
+    let insertAt = index + (placeAfter ? 1 : 0)
+    if (from < insertAt) insertAt -= 1
+    dropIndex.value = insertAt
+}
+
+function onDrop() {
+    void finishDrag()
+}
+
+function onDragEnd() {
+    void finishDrag()
+}
+
+async function finishDrag() {
+    const from = dragFrom.value
+    const to = dropIndex.value
+    dragFrom.value = null
+    dropIndex.value = null
+    if (from === null || to === null || from === to) return
+    reorderLocal(from, to)
+    await save(chain.value)
+}
+
+function onHandleKeydown(index: number, event: KeyboardEvent) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const target = event.key === 'ArrowUp' ? index - 1 : index + 1
+    if (target < 0 || target >= chain.value.length) return
+    reorderLocal(index, target)
+    void save(chain.value)
+}
+
+function selectRow(index: number) {
+    configuringIndex.value = index
+}
+
+const credentialsManifest = computed<IPluginManifest | null>(() => {
+    const manifest = configuringManifest.value
+    if (!manifest) return null
+    const provider = chain.value[configuringIndex.value]?.provider
+    if (!supportsModel(provider)) return manifest
+    return {
+        ...manifest,
+        settings: manifest.settings.filter((field) => !isModelField(field.key, field.type))
+    }
+})
+
+const configuringLabel = computed(() => {
+    const value = chain.value[configuringIndex.value]?.provider
+    return providerOptions.value.find((option) => option.value === value)?.label ?? value
+})
+
 const systemProfiles = computed(() =>
     promptProfiles.value.filter(
         (profile) => profile.type === 'system' && profile.currentPublishedVersionId
@@ -286,42 +453,23 @@ const activeContextProfileName = computed(
         'None'
 )
 
-function apiKeySettingKey(provider?: string): keyof IEncryptedSettings | null {
-    if (!provider) return null
-    return API_KEY_BY_PROVIDER[provider.toLowerCase()] ?? null
-}
-
-function apiKeyValue(provider: string): string {
-    const key = apiKeySettingKey(provider)
-    if (!key) return ''
-    const stored = settingsStore.getEncryptedSetting(key)
-    return typeof stored === 'string' ? stored : ''
-}
-
-function setApiKey(provider: string, value: string) {
-    const key = apiKeySettingKey(provider)
-    if (!key) return
-    settingsStore.updateEncryptedSetting(key, value, true)
-    saveNotification.value?.show()
-}
-
 function parseChain(raw: unknown): ChainEntry[] {
     try {
         const text = (raw as string) ?? '[]'
         if (!text.trim().startsWith('[')) {
             return [
                 {
-                    id: crypto.randomUUID(),
+                    id: newRowId(),
                     provider: text.trim() || SERVICE_TYPE.LIBRETRANSLATE
                 }
             ]
         }
         const parsed = JSON.parse(text) as unknown[]
         if (!Array.isArray(parsed) || parsed.length === 0) {
-            return [{ id: crypto.randomUUID(), provider: SERVICE_TYPE.LIBRETRANSLATE }]
+            return [{ id: newRowId(), provider: SERVICE_TYPE.LIBRETRANSLATE }]
         }
         return parsed.map((item) => {
-            if (typeof item === 'string') return { id: crypto.randomUUID(), provider: item }
+            if (typeof item === 'string') return { id: newRowId(), provider: item }
             const obj = item as {
                 id?: string
                 provider?: string
@@ -331,7 +479,7 @@ function parseChain(raw: unknown): ChainEntry[] {
                 contextPromptProfileId?: number
             }
             return {
-                id: obj.id || crypto.randomUUID(),
+                id: obj.id || newRowId(),
                 provider: obj.provider || obj.service || SERVICE_TYPE.LIBRETRANSLATE,
                 model: obj.model || null,
                 systemPromptProfileId: obj.systemPromptProfileId ?? null,
@@ -339,7 +487,7 @@ function parseChain(raw: unknown): ChainEntry[] {
             }
         })
     } catch {
-        return [{ id: crypto.randomUUID(), provider: SERVICE_TYPE.LIBRETRANSLATE }]
+        return [{ id: newRowId(), provider: SERVICE_TYPE.LIBRETRANSLATE }]
     }
 }
 
@@ -402,6 +550,7 @@ function setProvider(index: number, value: string) {
               }
             : e
     )
+    configuringIndex.value = index
     save(next)
     loadModels(index, false)
 }
@@ -427,23 +576,37 @@ function addRow() {
         providerOptions.value.find((o) => o.value === 'microsoft')?.value ||
         providerOptions.value[0]?.value ||
         SERVICE_TYPE.LIBRETRANSLATE
-    save([...chain.value, { id: crypto.randomUUID(), provider: preferred }])
+    const next = [...chain.value, { id: newRowId(), provider: preferred }]
+    configuringIndex.value = next.length - 1
+    save(next)
 }
 
 function removeRow(index: number) {
     if (index === 0 || chain.value.length <= 1) return
     const next = chain.value.filter((_, i) => i !== index)
+    configuringIndex.value = Math.min(configuringIndex.value, next.length - 1)
     save(next)
 }
 
-function moveRow(index: number, delta: number) {
-    const target = index + delta
-    if (target < 0 || target >= chain.value.length) return
-    const next = [...chain.value]
-    const tmp = next[index]
-    next[index] = next[target]
-    next[target] = tmp
-    save(next)
+async function loadManifest(provider: string) {
+    const request = ++manifestRequest
+    const selected = () => chain.value[configuringIndex.value]?.provider?.toLowerCase()
+    if (selected() !== provider.toLowerCase()) return
+    configuringManifest.value = null
+    manifestError.value = null
+    try {
+        const manifest = await servicesApi.plugin.getManifest(provider)
+        if (request !== manifestRequest || selected() !== provider.toLowerCase()) return
+        await settingsStore.setPluginSettings(manifest.settings)
+        if (request !== manifestRequest || selected() !== provider.toLowerCase()) return
+        configuringManifest.value = manifest
+        manifestError.value = null
+    } catch (error) {
+        if (request !== manifestRequest) return
+        console.error('Failed to load manifest', error)
+        configuringManifest.value = null
+        manifestError.value = `No manifest available for ${provider}.`
+    }
 }
 
 async function loadModels(index: number, refresh: boolean) {
@@ -476,8 +639,26 @@ watch(
     }
 )
 
+const focusProviderFromHash = async () => {
+    const hash = route.hash
+    if (!hash.startsWith('#service-')) return
+    const provider = decodeURIComponent(hash.slice('#service-'.length))
+    focusedProvider.value = provider
+    const index = chain.value.findIndex(
+        (entry) => entry.provider.toLowerCase() === provider.toLowerCase()
+    )
+    if (index >= 0) configuringIndex.value = index
+    await nextTick()
+    const row = document.getElementById(`service-${provider}`)
+    const target = row ?? document.getElementById('translation-services')
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+watch(() => route.hash, focusProviderFromHash)
+
 onMounted(async () => {
     chain.value = parseChain(settingsStore.getSetting(SETTINGS.SERVICE_TYPE))
+    await focusProviderFromHash()
     try {
         const summaries: IPluginSummary[] = await servicesApi.plugin.list()
         instructionProviders.value = new Set(
@@ -486,6 +667,7 @@ onMounted(async () => {
                 .map((summary) => summary.provider.toLowerCase())
         )
         providerOptions.value = summaries
+            .filter((summary) => summary.isBuiltIn || summary.capabilities?.includes('translation'))
             .map((s) => ({ value: s.provider, label: s.displayName }))
             .sort((a, b) => a.label.localeCompare(b.label))
     } catch (error) {
@@ -503,30 +685,16 @@ onMounted(async () => {
     } catch (error) {
         console.error('Failed to load prompt profiles', error)
     }
-    // Ensure encrypted keys for providers on the chain are loaded into the store.
-    const keys = [
-        ...new Set(
-            chain.value
-                .map((e) => apiKeySettingKey(e.provider))
-                .filter((k): k is keyof IEncryptedSettings => !!k)
-        )
-    ]
-    if (keys.length) {
-        try {
-            await settingsStore.setPluginSettings(
-                keys.map((key) => ({
-                    key,
-                    label: key,
-                    type: PLUGIN_SETTING_TYPE.SECRET,
-                    required: false
-                })) as any
-            )
-        } catch {
-            /* store may already hold keys from global load */
-        }
-    }
     chain.value.forEach((e, i) => {
         if (supportsModel(e.provider)) loadModels(i, false)
     })
 })
+
+watch(
+    () => chain.value[configuringIndex.value]?.provider,
+    (provider) => {
+        if (provider) loadManifest(provider)
+    },
+    { immediate: true }
+)
 </script>

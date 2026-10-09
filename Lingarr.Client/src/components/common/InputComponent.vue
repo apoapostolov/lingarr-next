@@ -14,6 +14,7 @@
                 :type="type == INPUT_TYPE.PASSWORD ? (showPassword ? 'text' : 'password') : type"
                 :class="inputClasses"
                 :placeholder="placeholder"
+                :disabled="disabled"
                 @input="handleInput" />
             <ValidationIcon
                 v-if="validationType"
@@ -62,10 +63,12 @@ const props = withDefaults(
         size?: 'sm' | 'md' | 'lg'
         validationType?: InputValidationType
         debounce?: number
+        disabled?: boolean
     }>(),
     {
         size: 'md',
-        debounce: 1000
+        debounce: 1000,
+        disabled: false
     }
 )
 
@@ -88,7 +91,8 @@ const inputClasses = computed(() => [
     { 'border-green-500': props.validationType && isValid.value },
     { 'border-red-500': props.validationType && isInvalid.value },
     { 'border-accent': !props.validationType || (!isValid.value && !isInvalid.value) },
-    { 'pr-10': props.type === 'password' }
+    { 'pr-10': props.type === 'password' },
+    { 'cursor-not-allowed': props.disabled }
 ])
 
 const emitValue = (event: Event) => {
@@ -104,6 +108,9 @@ const emitValue = (event: Event) => {
 const debouncedValue = useDebounce(emitValue, props.debounce)
 
 const handleInput = (event: Event) => {
+    if (props.disabled) {
+        return
+    }
     if (props.debounce > 0) {
         debouncedValue(event)
     } else {

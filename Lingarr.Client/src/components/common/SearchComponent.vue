@@ -3,7 +3,7 @@
         <input
             :value="modelValue.searchQuery"
             type="text"
-            placeholder="Search media..."
+            placeholder="Search media"
             class="placeholder-primary/60 outline-hidden block w-full rounded-md border border-accent bg-primary px-8 py-1 text-sm text-primary-content"
             @input="search" />
         <SearchIcon

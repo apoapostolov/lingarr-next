@@ -1,8 +1,7 @@
 ﻿<template>
     <CardComponent title="Indexing">
         <template #description>
-            The media indexing schedule controls the iteration with which Lingarr Next should sync with
-            Sonarr and Radarr.
+            Syncs the media library with Radarr and Sonarr on a schedule.
         </template>
         <template #content>
             <SaveNotification ref="saveNotification" />
@@ -10,14 +9,14 @@
                 <span class="font-semibold">Set movie indexer:</span>
                 <InputComponent
                     v-model="movieSchedule"
-                    label="Cron format: minute hour day month weekday (e.g., '0 * * * *' for hourly)"
+                    label="Cron expression (UTC)"
                     :placeholder="'0 * * * *'"
                     :validation-type="INPUT_VALIDATION_TYPE.CRON"
                     @update:validation="(val) => (movieScheduleIsValid = val)" />
                 <span class="font-semibold">Set tv show indexer:</span>
                 <InputComponent
                     v-model="showSchedule"
-                    label="Cron format: minute hour day month weekday (e.g., '0 * * * *' for hourly)"
+                    label="Cron expression (UTC)"
                     :placeholder="'0 * * * *'"
                     :validation-type="INPUT_VALIDATION_TYPE.CRON"
                     @update:validation="(val) => (showScheduleIsValid = val)" />
@@ -27,11 +26,7 @@
 
     <CardComponent title="Library disk scan">
         <template #description>
-            The daily translation check uses Plex, Radarr, and Sonarr. It skips
-            an item that already has the source and target languages. It opens
-            a folder only for a new import that is still missing a language.
-            This switch is the full drive walk, used only when none of those
-            three are connected. Leave it paused.
+            Scans all library folders when Plex, Radarr, and Sonarr are unavailable.
         </template>
         <template #content>
             <div class="flex items-center space-x-2">
@@ -47,8 +42,7 @@
 
     <CardComponent title="Automation">
         <template #description>
-            Set up automation. Note that if automation is implemented, you also need to configure
-            the necessary
+            Runs scheduled translations for eligible media using the configured
             <a
                 class="cursor-pointer underline"
                 @click="router.push({ name: 'translation-setup-settings' })">
@@ -70,34 +64,33 @@
                 <span class="font-semibold">Set translation schedule:</span>
                 <InputComponent
                     v-model="translationSchedule"
-                    label="Once a day at 02:00 UTC. Cron: minute hour day month weekday."
+                    label="Cron expression (UTC)"
                     :placeholder="'0 2 * * *'"
                     :validation-type="INPUT_VALIDATION_TYPE.CRON"
                     @update:validation="(val) => (translationScheduleIsValid = val)" />
 
-                <span class="font-semibold">Limits:</span>
                 <InputComponent
                     v-model="maxTranslationsPerRun"
                     :type="INPUT_TYPE.NUMBER"
                     :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
                     :min-length="0"
-                    label="Limit the amount of translations per schedule"
+                    label="Maximum translations per run"
                     @update:validation="(val) => (maxTranslationsPerRunIsValid = val)" />
 
-                <span class="font-semibold">Default file age delay for translation:</span>
+                <span class="font-semibold">Global file age delay:</span>
                 <InputComponent
                     v-model="movieAgeThreshold"
                     :type="INPUT_TYPE.NUMBER"
                     :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
                     :min-length="0"
-                    label="Movie file age delay in 'hours'"
+                    label="Movie file age delay (hours)"
                     @update:validation="(val) => (movieAgeThresholdIsValid = val)" />
                 <InputComponent
                     v-model="showAgeThreshold"
                     :type="INPUT_TYPE.NUMBER"
                     :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
                     :min-length="0"
-                    label="TV Show file age delay in 'hours'"
+                    label="Episode file age delay (hours)"
                     @update:validation="(val) => (showAgeThresholdIsValid = val)" />
             </div>
         </template>
@@ -131,7 +124,7 @@
                 <span class="font-semibold">Housekeeping schedule:</span>
                 <InputComponent
                     v-model="subtitleMaintenanceSchedule"
-                    label="Cron format. Default is Sunday 03:00 UTC."
+                    label="Cron expression (UTC)"
                     :placeholder="'0 3 * * 0'"
                     :validation-type="INPUT_VALIDATION_TYPE.CRON"
                     @update:validation="(val) => (subtitleMaintenanceScheduleIsValid = val)" />

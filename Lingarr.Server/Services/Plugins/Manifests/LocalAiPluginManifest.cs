@@ -11,7 +11,7 @@ public sealed class LocalAiPluginManifest : IPluginManifest
     public string DisplayName => "LocalAI / Ollama";
 
     public string? Description =>
-        "Self-hosted OpenAI-compatible or Ollama-compatible deployments. The endpoint determines whether the chat/completions or the generate protocol is used; the API key is optional. Addresses usually consist of a path such as <code>/v1/chat/completions</code> or <code>/api/generate</code> and should follow the <a href='https://platform.openai.com/docs/api-reference/chat/create' target='_blank' rel='noopener'>OpenAI API specification</a>.";
+        "Connect to an OpenAI-compatible or Ollama-compatible local deployment.";
 
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
@@ -25,7 +25,7 @@ public sealed class LocalAiPluginManifest : IPluginManifest
             Type = PluginSettingType.Url,
             Required = true,
             Default = "http://ollama:11434/v1/chat/completions",
-            Description = "Full URL to the chat/completions or generate endpoint. Ending in 'completions' selects the OpenAI-compatible path."
+            Description = "Use the deployment's full chat/completions or generate endpoint URL."
         },
         new()
         {
@@ -34,7 +34,7 @@ public sealed class LocalAiPluginManifest : IPluginManifest
             Type = PluginSettingType.Text,
             Required = true,
             Default = "aya-expanse",
-            Description = "Model identifier the deployment exposes."
+            Description = "Model name configured in the deployment."
         },
         new()
         {
@@ -42,7 +42,7 @@ public sealed class LocalAiPluginManifest : IPluginManifest
             Label = "API key (optional)",
             Type = PluginSettingType.Secret,
             Required = false,
-            Description = "Bearer token if the deployment requires authentication. Stored encrypted."
+            Description = "Optional bearer token for deployments that require authentication; stored encrypted."
         }
     ];
 }

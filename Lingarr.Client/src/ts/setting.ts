@@ -58,6 +58,7 @@ export const SETTINGS = {
     SHOW_AGE_THRESHOLD: 'show_age_threshold',
     FIX_OVERLAPPING_SUBTITLES: 'fix_overlapping_subtitles',
     STRIP_SUBTITLE_FORMATTING: 'strip_subtitle_formatting',
+    STRIP_SUBTITLE_HTML: 'strip_subtitle_html',
     PRESERVE_LINE_BREAKS: 'preserve_line_breaks',
     ADD_TRANSLATOR_INFO: 'add_translator_info',
     CUSTOM_AI_PARAMETERS: 'custom_ai_parameters',
@@ -77,6 +78,7 @@ export const SETTINGS = {
     MAX_BATCH_SIZE: 'max_batch_size',
     CACHE_CANCELLED_PROGRESS: 'cache_cancelled_progress',
     CACHE_CANCELLED_QUALITY_THRESHOLD: 'cache_cancelled_quality_threshold',
+    CLASSIFIER_PROVIDER: 'classifier_provider',
     JEV_SKIP_NON_DIALOGUE: 'jev_skip_non_dialogue',
     JEV_REJECT_UNTRANSLATED: 'jev_reject_untranslated',
     USE_SUBTITLE_TAGGING: 'use_subtitle_tagging',
@@ -115,6 +117,8 @@ export const SETTINGS = {
     XAI_OAUTH_REQUEST_TIMEOUT: 'xai_oauth_request_timeout',
     MISTRAL_REQUEST_TIMEOUT: 'mistral_request_timeout',
     MAX_RETRIES: 'max_retries',
+    PROVIDER_CANCEL_RETRY_COUNT: 'provider_cancel_retry_count',
+    PROVIDER_CANCEL_RETRY_HOURS: 'provider_cancel_retry_hours',
     RETRY_DELAY: 'retry_delay',
     RETRY_DELAY_MULTIPLIER: 'retry_delay_multiplier',
     AUTH_ENABLED: 'auth_enabled',
@@ -196,6 +200,7 @@ export interface ISettings {
     show_age_threshold: string
     fix_overlapping_subtitles: string
     strip_subtitle_formatting: string
+    strip_subtitle_html: string
     preserve_line_breaks: string
     add_translator_info: string
     theme: ITheme
@@ -216,6 +221,7 @@ export interface ISettings {
     max_batch_size: string
     cache_cancelled_progress: string
     cache_cancelled_quality_threshold: string
+    classifier_provider: string
     jev_skip_non_dialogue: string
     jev_reject_untranslated: string
     use_subtitle_tagging: string
@@ -254,6 +260,8 @@ export interface ISettings {
     xai_oauth_request_timeout: string
     mistral_request_timeout: string
     max_retries: string
+    provider_cancel_retry_count: string
+    provider_cancel_retry_hours: string
     retry_delay: string
     retry_delay_multiplier: string
     auth_enabled: string

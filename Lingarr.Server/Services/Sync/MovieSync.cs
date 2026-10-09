@@ -2,8 +2,10 @@
 using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Interfaces.Services.Sync;
 using Lingarr.Server.Models.Integrations;
+using Lingarr.Server.Services.Plugins;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lingarr.Server.Services.Sync;
@@ -14,17 +16,20 @@ public class MovieSync : IMovieSync
     private readonly PathConversionService _pathConversionService;
     private readonly ILogger<MovieSync> _logger;
     private readonly IImageSync _imageSync;
+    private readonly PluginShelf _shelf;
 
     public MovieSync(
         LingarrDbContext dbContext,
         PathConversionService pathConversionService,
         ILogger<MovieSync> logger,
-        IImageSync imageSync)
+        IImageSync imageSync,
+        PluginShelf shelf)
     {
         _dbContext = dbContext;
         _pathConversionService = pathConversionService;
         _logger = logger;
         _imageSync = imageSync;
+        _shelf = shelf;
     }
 
     /// <inheritdoc />
@@ -40,10 +45,16 @@ public class MovieSync : IMovieSync
             .Include(m => m.Images)
             .FirstOrDefaultAsync(m => m.RadarrId == movie.Id);
 
-        var moviePath = _pathConversionService.ConvertAndMapPath(
-            movie.MovieFile.Path ?? string.Empty,
-            MediaType.Movie
-        );
+        var moviePath = await _shelf.ResolvePathAsync(
+            _pathConversionService.ConvertAndMapPath(
+                movie.MovieFile.Path ?? string.Empty,
+                MediaType.Movie),
+            new LibraryQuery
+            {
+                Kind = "movie",
+                ExternalId = movie.Id.ToString(),
+                Title = movie.Title
+            });
 
         if (movieEntity == null)
         {

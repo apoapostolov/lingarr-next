@@ -11,7 +11,7 @@ public sealed class AnthropicPluginManifest : IPluginManifest
     public string DisplayName => "Anthropic";
 
     public string? Description =>
-        "Configure the translation client with your API key, version, and request template. AI translation can be expensive, use it only when you fully understand the costs, and keep automation disabled.";
+        "Anthropic API with model discovery and configurable request templates.";
 
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
@@ -24,7 +24,7 @@ public sealed class AnthropicPluginManifest : IPluginManifest
             Label = "API key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "Anthropic API key. Stored encrypted.",
+            Description = "Stored encrypted.",
             MinLength = 1,
             ValidationErrorMessage = "Value must not be empty"
         },
@@ -45,8 +45,7 @@ public sealed class AnthropicPluginManifest : IPluginManifest
             Label = "AI Model",
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
-            OptionsEndpoint = "/api/plugin/anthropic/models",
-            Description = "Select a model from your Anthropic catalogue."
+            OptionsEndpoint = "/api/plugin/anthropic/models"
         }
     ];
 }

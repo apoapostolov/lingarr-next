@@ -10,8 +10,7 @@ public sealed class QwenPluginManifest : IPluginManifest
     public string Provider => "qwen";
     public string DisplayName => "Qwen General AI";
     public string Description =>
-        "General Qwen chat models with Lingarr instruction profiles. " +
-        "Use Qwen Translation for the purpose-built subtitle translation models.";
+        "General-purpose Qwen chat models with instruction profile support.";
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
     public IReadOnlyList<PluginSettingField> Settings { get; } =
@@ -22,7 +21,7 @@ public sealed class QwenPluginManifest : IPluginManifest
             Label = "Model Studio API Key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "Alibaba Cloud Model Studio key. Stored encrypted."
+            Description = "Shared with Qwen Translation; stored encrypted."
         },
         new()
         {
@@ -31,7 +30,6 @@ public sealed class QwenPluginManifest : IPluginManifest
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
             OptionsEndpoint = "/api/plugin/qwen/models",
-            Description = "Recommended Qwen text models appear first, followed by your live catalogue."
         },
         new()
         {
@@ -41,7 +39,7 @@ public sealed class QwenPluginManifest : IPluginManifest
             Required = true,
             Default = QwenService.DefaultEndpoint,
             Description =
-                "Keys and endpoints are region-specific. The default is US (Virginia); paste the API Host supplied with your Model Studio key for another region."
+                "Use the API host issued with the Model Studio key. The key and endpoint must match regions."
         }
     ];
 }

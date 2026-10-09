@@ -9,8 +9,10 @@ using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
 using Lingarr.Core.Interfaces;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Models;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Models.FileSystem;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -88,7 +90,33 @@ public abstract class MediaSubtitleProcessorTestBase : IDisposable
             SubtitleServiceMock.Object,
             DbContext,
             bazarr.Object,
-            new Mock<IBackgroundJobClient>().Object);
+            new Mock<IBackgroundJobClient>().Object,
+            new PluginToolRunner(
+                Array.Empty<IExtractTool>(),
+                Array.Empty<ISubtitleSource>(),
+                SettingServiceMock.Object,
+                new Mock<ILogger<PluginToolRunner>>().Object),
+            new PluginSignals(
+                Array.Empty<IPluginNotifier>(),
+                Array.Empty<IMediaServerPlugin>(),
+                Array.Empty<IMediaAction>(),
+                Array.Empty<IMediaEventSink>(),
+                Array.Empty<IPluginHealthCheck>(),
+                Array.Empty<IDashboardWidget>(),
+                SettingServiceMock.Object,
+                new Mock<ILogger<PluginSignals>>().Object),
+            new PluginShelf(
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                SettingServiceMock.Object,
+                new Mock<ILogger<PluginShelf>>().Object));
 
         SettingServiceMock
             .Setup(s => s.GetSettings(It.IsAny<IEnumerable<string>>()))

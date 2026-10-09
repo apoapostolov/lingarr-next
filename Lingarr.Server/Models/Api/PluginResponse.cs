@@ -12,4 +12,9 @@ public sealed class PluginResponse
     public required IReadOnlyList<PluginSettingField> Settings { get; init; }
     public required bool HasRequestTemplate { get; init; }
     public required bool SupportsInstructionProfiles { get; init; }
+    public bool Enabled { get; init; } = true;
+    public int Order { get; init; } = 100;
+    public string FailurePolicy { get; init; } = "skip";
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
+    public IReadOnlyList<PluginPanelContribution> Panels { get; init; } = [];
 }

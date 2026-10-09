@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using Lingarr.Server.Services.Plugins;
 
 namespace Lingarr.Server.Providers
 {
@@ -80,14 +81,16 @@ namespace Lingarr.Server.Providers
                 return;
             }
 
+            var message = formatter(state, exception);
             InMemoryLogSink.AddLog(new LogEntry
             {
                 LogLevel = logLevel,
-                Message = formatter(state, exception),
+                Message = message,
                 ExceptionText = exception?.ToString(),
                 Timestamp = DateTime.UtcNow,
                 Category = _categoryName
             });
+            PluginLogHub.Publish(logLevel.ToString(), _categoryName, message);
         }
     }
 

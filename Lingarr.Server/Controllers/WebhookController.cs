@@ -1,9 +1,12 @@
 using Hangfire;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Attributes;
+using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Jobs;
 using Lingarr.Server.Models.Webhooks;
 using Lingarr.Server.Services.Integration.Jellyfin;
 using Lingarr.Server.Services.Integration.Plex;
+using Lingarr.Server.Services.Plugins;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lingarr.Server.Controllers;
@@ -14,13 +17,19 @@ namespace Lingarr.Server.Controllers;
 public class WebhookController : ControllerBase
 {
     private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly IEnumerable<IWebhookInbox> _inboxes;
+    private readonly ISettingService _settings;
     private readonly ILogger<WebhookController> _logger;
 
     public WebhookController(
         IBackgroundJobClient backgroundJobClient,
+        IEnumerable<IWebhookInbox> inboxes,
+        ISettingService settings,
         ILogger<WebhookController> logger)
     {
         _backgroundJobClient = backgroundJobClient;
+        _inboxes = inboxes;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -163,6 +172,68 @@ public class WebhookController : ControllerBase
             added.Item.Title,
             added.Item.RatingKey);
         return Ok(new { message = "Emby webhook received." });
+    }
+
+    [HttpPost("plugin/{provider}")]
+    public async Task<IActionResult> PluginWebhook(string provider)
+    {
+        var inbox = _inboxes.FirstOrDefault(item =>
+            string.Equals(item.Provider, provider, StringComparison.OrdinalIgnoreCase));
+        if (inbox == null)
+        {
+            return NotFound();
+        }
+
+        if (!PluginCatalog.IsEnabled(await _settings.GetSetting(PluginCatalog.EnabledKey(inbox.Provider))))
+        {
+            return Ok(new { message = "Plugin webhook ignored." });
+        }
+
+        using var reader = new StreamReader(Request.Body);
+        var json = await reader.ReadToEndAsync();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return BadRequest(new { message = "Plugin webhook payload is missing." });
+        }
+
+        WebhookInboxDecision decision;
+        try
+        {
+            decision = inbox.Read(json);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Plugin webhook payload was not JSON.");
+            return BadRequest(new { message = "Plugin webhook payload was not JSON." });
+        }
+
+        if (decision.Ignore || string.IsNullOrWhiteSpace(decision.Title))
+        {
+            return Ok(new { message = "Plugin webhook ignored." });
+        }
+
+        var item = new PlexAddedMovie
+        {
+            Kind = string.IsNullOrWhiteSpace(decision.Kind) ? "movie" : decision.Kind,
+            Title = decision.Title,
+            ShowTitle = decision.ShowTitle,
+            Year = decision.Year,
+            SeasonNumber = decision.SeasonNumber,
+            EpisodeNumber = decision.EpisodeNumber,
+            RatingKey = decision.ItemId
+        };
+        if (!string.IsNullOrWhiteSpace(decision.Tmdb))
+        {
+            item.Guids.Add("tmdb://" + decision.Tmdb);
+        }
+
+        if (!string.IsNullOrWhiteSpace(decision.Imdb))
+        {
+            item.Guids.Add("imdb://" + decision.Imdb);
+        }
+
+        _backgroundJobClient.Enqueue<WebhookJob>(job => job.ProcessPluginWebhook(inbox.Provider, item));
+        return Ok(new { message = "Plugin webhook received." });
     }
 
     private async Task<string?> ReadPlexPayload()

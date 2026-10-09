@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Lingarr.Server\Lingarr.Server.csproj" />
+    <ProjectReference Include="..\samples\StyleSample\StyleSample.csproj" />
     <ProjectReference Include="..\Lingarr.Core\Lingarr.Core.csproj" />
   </ItemGroup>
 </Project>

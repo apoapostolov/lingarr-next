@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Lingarr.Contracts.Exceptions;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Contracts.Translation;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
@@ -10,6 +11,8 @@ using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services;
+using Lingarr.Server.Services.Plugins;
+using Lingarr.Server.Services.Subtitle;
 using Lingarr.Server.Services.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
@@ -33,7 +36,9 @@ public class TranslationJob
     private readonly ITranslationQualityService _translationQuality;
     private readonly ITranslationPromptProfileService _promptProfiles;
     private readonly IPlexSubtitleSelector _plexSubtitles;
-    private readonly IJevSubtitleGate _jev;
+    private readonly IClassifierSubtitleGate _classifier;
+    private readonly SubtitlePostProcessRunner _postProcess;
+    private readonly PluginSignals _signals;
 
     public TranslationJob(
         ILogger<TranslationJob> logger,
@@ -50,7 +55,9 @@ public class TranslationJob
         ITranslationQualityService translationQuality,
         ITranslationPromptProfileService promptProfiles,
         IPlexSubtitleSelector plexSubtitles,
-        IJevSubtitleGate jev)
+        IClassifierSubtitleGate classifier,
+        SubtitlePostProcessRunner postProcess,
+        PluginSignals signals)
     {
         _logger = logger;
         _settings = settings;
@@ -66,7 +73,9 @@ public class TranslationJob
         _translationQuality = translationQuality;
         _promptProfiles = promptProfiles;
         _plexSubtitles = plexSubtitles;
-        _jev = jev;
+        _classifier = classifier;
+        _postProcess = postProcess;
+        _signals = signals;
     }
 
     [AutomaticRetry(Attempts = 0)]
@@ -83,15 +92,27 @@ public class TranslationJob
             await _scheduleService.UpdateJobState(jobName, JobStatus.Processing.GetDisplayName());
             cancellationToken.ThrowIfCancellationRequested();
 
-            var storedStatus = await _dbContext.TranslationRequests
+            var stored = await _dbContext.TranslationRequests
                 .Where(storedRequest => storedRequest.Id == translationRequest.Id)
-                .Select(storedRequest => (TranslationStatus?)storedRequest.Status)
+                .Select(storedRequest => new
+                {
+                    storedRequest.Status,
+                    storedRequest.ProviderCancelRetryPending
+                })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (storedStatus is null or TranslationStatus.Completed or TranslationStatus.Cancelled)
+            if (stored is null || stored.Status == TranslationStatus.Completed)
             {
                 _logger.LogInformation(
                     "Skipping translation job for request {RequestId}, it is no longer runnable ({Status}).",
-                    translationRequest.Id, storedStatus);
+                    translationRequest.Id, stored?.Status);
+                return;
+            }
+
+            if (stored.Status == TranslationStatus.Cancelled && !stored.ProviderCancelRetryPending)
+            {
+                _logger.LogInformation(
+                    "Skipping translation job for request {RequestId}, it was cancelled.",
+                    translationRequest.Id);
                 return;
             }
 
@@ -107,6 +128,7 @@ public class TranslationJob
                 SettingKeys.Translation.ServiceType,
                 SettingKeys.Translation.FixOverlappingSubtitles,
                 SettingKeys.Translation.StripSubtitleFormatting,
+                SettingKeys.Translation.StripSubtitleHtml,
                 SettingKeys.Translation.PreserveLineBreaks,
                 SettingKeys.Translation.AddTranslatorInfo,
 
@@ -128,7 +150,9 @@ public class TranslationJob
             ]);
             var chain = TranslationChain.Parse(settings[SettingKeys.Translation.ServiceType], _logger);
             await _promptProfiles.ResolveChainAsync(chain, request.Id, cancellationToken);
+            TranslationChain.StampLanguages(chain, request.SourceLanguage, request.TargetLanguage);
             var stripSubtitleFormatting = settings[SettingKeys.Translation.StripSubtitleFormatting] == "true";
+            var stripSubtitleHtml = SubtitleHtml.Enabled(settings.GetValueOrDefault(SettingKeys.Translation.StripSubtitleHtml));
             var preserveLineBreaks = settings[SettingKeys.Translation.PreserveLineBreaks] == "true";
             var addTranslatorInfo = settings[SettingKeys.Translation.AddTranslatorInfo] == "true";
             var validateSubtitles = settings[SettingKeys.SubtitleValidation.ValidateSubtitles] != "false";
@@ -209,8 +233,15 @@ public class TranslationJob
                 _logger,
                 _progressService,
                 _providerHealth,
-                _jev);
+                _classifier);
             var subtitles = await _subtitleService.ReadSubtitles(request.SubtitleToTranslate);
+            if (stripSubtitleHtml)
+            {
+                foreach (var subtitle in subtitles)
+                {
+                    SubtitleHtml.Strip(subtitle);
+                }
+            }
 
             // subtitle already carries a translation from an earlier prior run.
             // Group by Position and keep the most recent row in case the same position was used more than once.
@@ -277,6 +308,14 @@ public class TranslationJob
                 );
             }
 
+            if (stripSubtitleHtml)
+            {
+                foreach (var subtitle in translatedSubtitles)
+                {
+                    SubtitleHtml.StripTranslated(subtitle);
+                }
+            }
+
             if (settings[SettingKeys.Translation.FixOverlappingSubtitles] == "true")
             {
                 translatedSubtitles = _subtitleService.FixOverlappingSubtitles(translatedSubtitles);
@@ -307,11 +346,29 @@ public class TranslationJob
             }
 
             await WriteSubtitles(request, translatedSubtitles, stripSubtitleFormatting, subtitleTag, removeLanguageTag);
+            if (!string.IsNullOrWhiteSpace(request.TranslatedSubtitle))
+            {
+                await _postProcess.RunAsync(new SubtitlePostProcessJob
+                {
+                    SourcePath = request.SubtitleToTranslate ?? string.Empty,
+                    TargetPath = request.TranslatedSubtitle,
+                    SourceLanguage = request.SourceLanguage,
+                    TargetLanguage = request.TargetLanguage
+                }, cancellationToken);
+            }
+
             await ApplyPlexSafely(request, cancellationToken);
+            await _signals.SelectOnServersAsync(ItemRef(request), cancellationToken);
             await EvaluateQualitySafely(request.Id, cancellationToken);
             await _statisticsService.UpdateTranslationStatisticsFromSubtitles(
                 request, serviceType, translationService.ModelName, newlyTranslatedSubtitles);
             await HandleCompletion(jobName, request, cancellationToken);
+            await _signals.NotifyAsync(new PluginNotice
+            {
+                Succeeded = true,
+                Title = NoticeTitle(request),
+                Path = request.TranslatedSubtitle
+            }, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -331,9 +388,26 @@ public class TranslationJob
             await _scheduleService.UpdateJobState(jobName, JobStatus.Failed.GetDisplayName());
             await _translationRequestService.UpdateActiveCount();
             await _progressService.Emit(translationRequest, 0);
+            await _signals.NotifyAsync(new PluginNotice
+            {
+                Succeeded = false,
+                Title = NoticeTitle(translationRequest),
+                Detail = ex.Message
+            }, CancellationToken.None);
             throw;
         }
     }
+
+    private static string NoticeTitle(TranslationRequest request) =>
+        Path.GetFileName(request.TranslatedSubtitle ?? request.SubtitleToTranslate) ?? "Subtitle";
+
+    private static MediaItemRef ItemRef(TranslationRequest request) => new()
+    {
+        Title = NoticeTitle(request),
+        Path = request.TranslatedSubtitle,
+        SubtitlePath = request.TranslatedSubtitle,
+        Language = request.TargetLanguage
+    };
 
     private async Task ApplyPlexSafely(TranslationRequest request, CancellationToken cancellationToken)
     {
@@ -416,18 +490,67 @@ public class TranslationJob
             await _dbContext.TranslationRequests.FirstOrDefaultAsync(translationRequest =>
                 translationRequest.Id == request.Id);
 
-        if (translationRequest != null)
+        if (translationRequest == null)
         {
-            translationRequest.CompletedAt = DateTime.UtcNow;
-            translationRequest.Status = TranslationStatus.Cancelled;
+            return;
+        }
+
+        if (translationRequest.Status == TranslationStatus.Cancelled
+            && !translationRequest.ProviderCancelRetryPending
+            && translationRequest.ProviderCancelAttempts == 0)
+        {
+            await _scheduleService.UpdateJobState(jobName, JobStatus.Cancelled.GetDisplayName());
+            return;
+        }
+
+        var settings = await _settings.GetSettings([
+            SettingKeys.Translation.ProviderCancelRetryCount,
+            SettingKeys.Translation.ProviderCancelRetryHours
+        ]);
+        var max = ProviderCancelRetry.Count(
+            settings.GetValueOrDefault(SettingKeys.Translation.ProviderCancelRetryCount));
+        var hours = ProviderCancelRetry.Hours(
+            settings.GetValueOrDefault(SettingKeys.Translation.ProviderCancelRetryHours));
+        var plan = ProviderCancelRetry.Plan(translationRequest.ProviderCancelAttempts, max);
+
+        translationRequest.CompletedAt = DateTime.UtcNow;
+        translationRequest.Status = TranslationStatus.Cancelled;
+        translationRequest.ProviderCancelAttempts = plan.Attempt;
+        translationRequest.ProviderCancelRetryMax = plan.Max;
+        translationRequest.ProviderCancelRetryPending = false;
+
+        if (!plan.Retry)
+        {
             translationRequest.ErrorMessage = "Translation was cancelled";
             await _dbContext.SaveChangesAsync();
-            await _eventService.LogEvent(translationRequest.Id, TranslationStatus.Cancelled, "Translation was cancelled");
-
+            await _eventService.LogEvent(
+                translationRequest.Id,
+                TranslationStatus.Cancelled,
+                "Translation was cancelled");
             await _translationRequestService.ClearMediaHash(translationRequest);
             await _translationRequestService.UpdateActiveCount();
             await _progressService.Emit(translationRequest, 0);
             await _scheduleService.UpdateJobState(jobName, JobStatus.Cancelled.GetDisplayName());
+            return;
         }
+
+        translationRequest.ProviderCancelRetryPending = true;
+        translationRequest.ErrorMessage =
+            $"The provider cancelled this translation. Lingarr will try again ({plan.Attempt}/{plan.Max}).";
+        await _dbContext.SaveChangesAsync();
+
+        var scheduledId = BackgroundJob.Schedule<TranslationJob>(
+            job => job.Execute(translationRequest, CancellationToken.None),
+            TimeSpan.FromHours(hours));
+        translationRequest.JobId = scheduledId;
+        await _dbContext.SaveChangesAsync();
+        await _eventService.LogEvent(
+            translationRequest.Id,
+            TranslationStatus.Cancelled,
+            translationRequest.ErrorMessage);
+        await _translationRequestService.ClearMediaHash(translationRequest);
+        await _translationRequestService.UpdateActiveCount();
+        await _progressService.Emit(translationRequest, translationRequest.CachedProgress ?? 0);
+        await _scheduleService.UpdateJobState(jobName, JobStatus.Cancelled.GetDisplayName());
     }
 }

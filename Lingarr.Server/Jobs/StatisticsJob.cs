@@ -3,8 +3,10 @@ using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Filters;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Services.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
 
@@ -16,6 +18,7 @@ public class StatisticsJob
     private readonly ISubtitleService _subtitleService;
     private readonly IScheduleService _scheduleService;
     private readonly ISettingService _settings;
+    private readonly PluginShelf _shelf;
     private readonly ILogger<StatisticsJob> _logger;
 
     public StatisticsJob(
@@ -23,12 +26,14 @@ public class StatisticsJob
         ISubtitleService subtitleService,
         IScheduleService scheduleService,
         ISettingService settings,
+        PluginShelf shelf,
         ILogger<StatisticsJob> logger)
     {
         _dbContext = dbContext;
         _subtitleService = subtitleService;
         _scheduleService = scheduleService;
         _settings = settings;
+        _shelf = shelf;
         _logger = logger;
     }
 
@@ -176,6 +181,12 @@ public class StatisticsJob
         }
         stats.SubtitlesByLanguage = byLanguage;
         await _dbContext.SaveChangesAsync();
+        await _shelf.ExportAsync(new StatisticsSnapshot
+        {
+            Movies = stats.TotalMovies,
+            Episodes = stats.TotalEpisodes,
+            SubtitleFiles = stats.TotalSubtitles
+        });
         await _scheduleService.UpdateJobState(jobName, JobStatus.Succeeded.GetDisplayName());
     }
 

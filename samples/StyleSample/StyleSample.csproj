@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Lingarr.Plugin.StyleSample</AssemblyName>
+    <RootNamespace>Lingarr.Plugin.StyleSample</RootNamespace>
+    <Version>0.0.0-dev</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Lingarr.Contracts\Lingarr.Contracts.csproj" />
+  </ItemGroup>
+</Project>

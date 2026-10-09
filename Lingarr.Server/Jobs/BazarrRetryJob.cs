@@ -7,6 +7,7 @@ using Lingarr.Core.Interfaces;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Integration.Bazarr;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,7 @@ public class BazarrRetryJob
     private readonly IBazarrService _bazarr;
     private readonly IMediaSubtitleProcessor _processor;
     private readonly IBackgroundJobClient _jobs;
+    private readonly PluginShelf _shelf;
     private readonly ILogger<BazarrRetryJob> _logger;
 
     public BazarrRetryJob(
@@ -34,6 +36,7 @@ public class BazarrRetryJob
         IBazarrService bazarr,
         IMediaSubtitleProcessor processor,
         IBackgroundJobClient jobs,
+        PluginShelf shelf,
         ILogger<BazarrRetryJob> logger)
     {
         _dbContext = dbContext;
@@ -42,6 +45,7 @@ public class BazarrRetryJob
         _bazarr = bazarr;
         _processor = processor;
         _jobs = jobs;
+        _shelf = shelf;
         _logger = logger;
     }
 
@@ -99,17 +103,23 @@ public class BazarrRetryJob
             return;
         }
 
-        ScheduleNext(media, mediaType, policy, foundAt, now);
+        await ScheduleNext(media, mediaType, policy, foundAt, now);
     }
 
-    private void ScheduleNext(
+    private async Task ScheduleNext(
         IMedia media,
         MediaType mediaType,
         BazarrRetryPolicy policy,
         DateTime? foundAt,
         DateTime now)
     {
-        var delay = policy.NextDelay(foundAt, now);
+        var delay = await _shelf.AdjustDelayAsync(
+            policy.NextDelay(foundAt, now),
+            "bazarr-miss",
+            media.FileName,
+            foundAt,
+            now,
+            policy.TimeoutHours);
         if (delay == null || delay <= TimeSpan.Zero || !TryMark(media.Id, mediaType))
         {
             return;

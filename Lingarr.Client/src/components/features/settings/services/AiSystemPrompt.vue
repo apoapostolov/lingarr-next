@@ -6,16 +6,16 @@
         :placeholders="[
             {
                 placeholder: '{sourceLanguage}',
-                placeholderText: 'insert {sourceLanguage}',
+                placeholderText: 'Insert {sourceLanguage}',
                 title: 'Source Language',
-                description: 'The language the provided subtitle line is in',
+                description: 'Source subtitle language',
                 required: true
             },
             {
                 placeholder: '{targetLanguage}',
-                placeholderText: 'insert {targetLanguage}',
+                placeholderText: 'Insert {targetLanguage}',
                 title: 'Target Language',
-                description: 'The language the provided subtitle line needs to be translated to',
+                description: 'Target language',
                 required: true
             }
         ]"

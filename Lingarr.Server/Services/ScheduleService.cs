@@ -4,7 +4,9 @@ using Lingarr.Core.Configuration;
 using Lingarr.Core.Enum;
 using Lingarr.Server.Hubs;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Contracts.Plugins;
 using Lingarr.Server.Jobs;
+using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.OpenApi.Extensions;
@@ -91,6 +93,22 @@ public class ScheduleService : IScheduleService
             job => job.Execute(),
             Cron.Hourly,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        foreach (var task in scope.ServiceProvider.GetServices<IPluginTask>())
+        {
+            var jobId = "plugin-" + task.Provider;
+            if (!PluginCatalog.IsEnabled(await settingService.GetSetting(PluginCatalog.EnabledKey(task.Provider))))
+            {
+                RecurringJob.RemoveIfExists(jobId);
+                continue;
+            }
+
+            RecurringJob.AddOrUpdate<PluginTaskJob>(
+                jobId,
+                job => job.Execute(task.Provider),
+                task.Cron,
+                new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+        }
 
         var subtitleSchedule = await settingService.GetSetting(SettingKeys.Automation.SubtitleMaintenanceSchedule);
         RecurringJob.AddOrUpdate<SubtitleMaintenanceJob>(

@@ -13,14 +13,17 @@
             <LoaderCircleIcon class="text-primary-content/50 h-8 w-8 animate-spin" />
         </div>
 
-        <div v-else-if="detail" class="grid grid-flow-row auto-rows-max grid-cols-1 gap-4 p-4">
-            <CardComponent :title="detail.title">
+        <div v-else-if="detail" class="grid grid-flow-row auto-rows-max grid-cols-1 gap-4 p-4 lg:grid-cols-2">
+            <CardComponent :title="detail.title" class="lg:col-span-2">
                 <template #content>
                     <div class="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-4">
                         <div>
                             <span class="font-semibold">Status</span>
                             <div class="mt-1">
-                                <TranslationStatus :translation-status="detail.status" />
+                                <TranslationStatus
+                                    :translation-status="detail.status"
+                                    :retry-attempt="detail.providerCancelAttempts"
+                                    :retry-max="detail.providerCancelRetryMax" />
                             </div>
                         </div>
                         <div>
@@ -92,8 +95,7 @@
                 v-if="canRevise"
                 title="Revise with AI">
                 <template #description>
-                    Send this completed subtitle back through an AI provider in your
-                    chain. Good lines stay. Only lines that look wrong get rewritten.
+                    Reviews and revises flagged lines using the first AI provider in the chain.
                 </template>
                 <template #content>
                     <ButtonComponent
@@ -104,8 +106,7 @@
                         Revise subtitle
                     </ButtonComponent>
                     <p class="mt-3 text-sm text-primary-content/60">
-                        Uses the first chat model in the chain. Scrapers such as
-                        Microsoft cannot revise a file on their own.
+                        Requires an AI chat model in the translation chain.
                     </p>
                     <p v-if="reviseError" class="mt-2 text-sm text-red-400">
                         {{ reviseError }}
@@ -118,7 +119,7 @@
                 :request-id="detail.id"
                 @focus-line="focusLine" />
 
-            <CardComponent v-if="reversedLines.length > 0" title="Translated Lines">
+            <CardComponent v-if="reversedLines.length > 0" title="Translated Lines" class="lg:col-span-2">
                 <template #content>
                     <div class="border-accent hidden border-b font-bold md:grid md:grid-cols-12">
                         <div class="col-span-1 px-4 py-2 text-sm">#</div>

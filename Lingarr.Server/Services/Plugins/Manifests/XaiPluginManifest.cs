@@ -9,7 +9,7 @@ public sealed class XaiPluginManifest : IPluginManifest
     public string Provider => "xai";
     public string DisplayName => "xAI API";
     public string Description =>
-        "Official xAI API using an API key and API credits. Token usage is included in translation statistics.";
+        "Official xAI API using a developer API key.";
     public bool HasRequestTemplate => true;
     public bool SupportsInstructionProfiles => true;
     public IReadOnlyList<PluginSettingField> Settings { get; } =
@@ -20,7 +20,7 @@ public sealed class XaiPluginManifest : IPluginManifest
             Label = "xAI API Key",
             Type = PluginSettingType.Secret,
             Required = true,
-            Description = "Key from the xAI developer console. Stored encrypted."
+            Description = "Stored encrypted."
         },
         new()
         {
@@ -28,8 +28,7 @@ public sealed class XaiPluginManifest : IPluginManifest
             Label = "Grok Model",
             Type = PluginSettingType.RemoteDropdown,
             Required = true,
-            OptionsEndpoint = "/api/plugin/xai/models",
-            Description = "Language-capable Grok models available to this API key."
+            OptionsEndpoint = "/api/plugin/xai/models"
         }
     ];
 }

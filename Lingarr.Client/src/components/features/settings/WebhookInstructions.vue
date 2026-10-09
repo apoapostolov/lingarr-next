@@ -1,8 +1,7 @@
 <template>
     <CardComponent title="Webhook">
         <template #description>
-            A new movie or episode is queued when a source subtitle is already beside the file
-            and a target subtitle is missing.
+            Configure media server webhooks to queue new translations.
         </template>
         <template #content>
             <div class="flex flex-col space-y-2">

@@ -10,7 +10,7 @@ public sealed class GoogleTranslatePluginManifest : IPluginManifest
     public string DisplayName => "Google Translate";
 
     public string? Description =>
-        "Google Translate through the GTranslate library. No API key required, but without rate limiting it may cause failures.";
+        "Uses the GTranslate library; availability depends on the upstream service.";
 
     public IReadOnlyList<PluginSettingField> Settings { get; } = [];
 }

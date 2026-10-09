@@ -6,6 +6,7 @@ using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
 using Lingarr.Core.Interfaces;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Services.Plugins;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lingarr.Server.Services.Integration.Bazarr;
@@ -20,19 +21,22 @@ public class BazarrService : IBazarrService
     private readonly ISubtitleService _subtitles;
     private readonly LingarrDbContext _db;
     private readonly ILogger<BazarrService> _logger;
+    private readonly PluginShelf _shelf;
 
     public BazarrService(
         ISettingService settings,
         IHttpClientFactory http,
         ISubtitleService subtitles,
         LingarrDbContext db,
-        ILogger<BazarrService> logger)
+        ILogger<BazarrService> logger,
+        PluginShelf shelf)
     {
         _settings = settings;
         _http = http;
         _subtitles = subtitles;
         _db = db;
         _logger = logger;
+        _shelf = shelf;
     }
 
     public async Task<bool> IsEnabled()
@@ -108,7 +112,7 @@ public class BazarrService : IBazarrService
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(PollDelay, cancellationToken);
-            var found = await _subtitles.GetSubtitles(media.Path, media.FileName);
+            var found = await _shelf.FilterCaptionsAsync(await _subtitles.GetSubtitles(media.Path, media.FileName));
             if (_subtitles.SelectSourceSubtitle(found, sourceLanguages.ToHashSet(), "false") != null)
             {
                 _logger.LogInformation("Bazarr saved a source subtitle for {File}.", media.FileName);

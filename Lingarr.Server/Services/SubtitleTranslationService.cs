@@ -20,7 +20,7 @@ public class SubtitleTranslationService
     private readonly IReadOnlyList<TranslationServiceEntry> _services;
     private readonly IProgressService? _progressService;
     private readonly IProviderHealthService? _providerHealth;
-    private readonly IJevSubtitleGate? _jev;
+    private readonly IClassifierSubtitleGate? _classifier;
     private readonly ILogger _logger;
     private readonly Dictionary<int, (string Service, LanguagePair Pair)> _translationByPosition = [];
     private readonly HashSet<string> _loggedSkips = [];
@@ -32,7 +32,7 @@ public class SubtitleTranslationService
         ILogger logger,
         IProgressService? progressService = null,
         IProviderHealthService? providerHealth = null,
-        IJevSubtitleGate? jevGate = null)
+        IClassifierSubtitleGate? classifierGate = null)
     {
         if (services.Count == 0)
         {
@@ -41,7 +41,7 @@ public class SubtitleTranslationService
         _services = services;
         _progressService = progressService;
         _providerHealth = providerHealth;
-        _jev = jevGate;
+        _classifier = classifierGate;
         _logger = logger;
     }
 
@@ -172,9 +172,9 @@ public class SubtitleTranslationService
 
             var sourceText = string.Join(" ", contentLines);
             var translatedText = string.Join(" ", subtitle.TranslatedLines);
-            if (_jev != null && await _jev.RejectEnabled(cancellationToken))
+            if (_classifier != null && await _classifier.RejectEnabled(cancellationToken))
             {
-                var rejected = await _jev.PositionsToReject(
+                var rejected = await _classifier.PositionsToReject(
                     [(subtitle.Position, sourceText, translatedText)],
                     translationRequest.SourceLanguage,
                     translationRequest.TargetLanguage,
@@ -184,7 +184,7 @@ public class SubtitleTranslationService
                     subtitle.TranslatedLines = contentLines.ToList();
                     translatedText = sourceText;
                     _logger.LogInformation(
-                        "Jev left position {Position} untranslated because the result was not a translation.",
+                        "Classifier left position {Position} untranslated because the result was not a translation.",
                         subtitle.Position);
                 }
             }
@@ -415,9 +415,9 @@ public class SubtitleTranslationService
 
             if (newlyTranslated.Count > 0)
             {
-                if (_jev != null && await _jev.RejectEnabled(cancellationToken))
+                if (_classifier != null && await _classifier.RejectEnabled(cancellationToken))
                 {
-                    var rejected = await _jev.PositionsToReject(
+                    var rejected = await _classifier.PositionsToReject(
                         newlyTranslated.Select(subtitle => (
                             subtitle.Position,
                             string.Join(" ", stripSubtitleFormatting ? subtitle.PlaintextLines : subtitle.Lines),
@@ -640,7 +640,7 @@ public class SubtitleTranslationService
         bool stripSubtitleFormatting,
         CancellationToken cancellationToken)
     {
-        if (_jev == null || !await _jev.SkipEnabled(cancellationToken))
+        if (_classifier == null || !await _classifier.SkipEnabled(cancellationToken))
         {
             return [];
         }
@@ -665,7 +665,7 @@ public class SubtitleTranslationService
             return [];
         }
 
-        return (await _jev.PositionsToSkip(pending, cancellationToken)).ToHashSet();
+        return (await _classifier.PositionsToSkip(pending, cancellationToken)).ToHashSet();
     }
 
     /// <summary>

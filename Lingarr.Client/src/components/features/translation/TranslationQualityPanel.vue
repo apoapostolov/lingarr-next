@@ -1,13 +1,12 @@
 <template>
-    <CardComponent title="Subtitle quality">
+    <CardComponent title="Subtitle Quality">
         <template #description>
-            Automatic checks highlight suspicious lines. They never block or delete a completed
-            subtitle.
+            Rule-based checks flag subtitle issues for review.
         </template>
         <template #content>
             <div v-if="loading" class="flex items-center gap-2 py-4 text-primary-content/60">
                 <LoaderCircleIcon class="h-4 w-4 animate-spin" />
-                Checking the saved assessment…
+                Loading subtitle assessment…
             </div>
 
             <div v-else-if="quality?.summary" class="space-y-5">
@@ -36,7 +35,7 @@
                         size="sm"
                         :loading="reEvaluating"
                         @click="reEvaluate">
-                        Check again
+                        Re-evaluate
                     </ButtonComponent>
                 </div>
 
@@ -121,20 +120,20 @@
                 <div
                     v-else
                     class="rounded-md border border-green-500/35 bg-green-500/10 p-4 text-sm text-green-200">
-                    No suspicious results were found by the current rules.
+                    No quality findings for this subtitle.
                 </div>
             </div>
 
             <div v-else class="flex flex-wrap items-center justify-between gap-3 py-2">
                 <p class="text-sm text-primary-content/65">
-                    This older translation has not been checked yet.
+                    No quality assessment is available.
                 </p>
                 <ButtonComponent
                     variant="secondary"
                     size="sm"
                     :loading="reEvaluating"
                     @click="reEvaluate">
-                    Check subtitle
+                    Run assessment
                 </ButtonComponent>
             </div>
         </template>

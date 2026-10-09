@@ -17,6 +17,7 @@ import {
     IPluginOptionsResponse,
     IPluginStatus,
     IPluginSummary,
+    IPluginUi,
     IXaiOAuthDevice,
     IXaiOAuthPoll,
     IXaiOAuthStatus,
@@ -83,6 +84,14 @@ export interface IPluginService {
     getManifest(provider: string): Promise<IPluginManifest>
     getStatus(provider: string): Promise<IPluginStatus>
     getOptions(endpoint: string): Promise<IPluginOptionsResponse>
+    ui(): Promise<IPluginUi>
+    values(provider: string): Promise<Record<string, string>>
+    saveValues(provider: string, values: Record<string, string>): Promise<string>
+    saveHost(
+        provider: string,
+        host: { enabled: boolean; order: number; failurePolicy: string }
+    ): Promise<string>
+    runAction(provider: string, action: string): Promise<string>
 }
 
 export interface IXaiOAuthService {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Lingarr.Contracts.Models;
@@ -15,6 +16,7 @@ using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Jev;
+using Lingarr.Server.Services.Classification;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -31,7 +33,7 @@ public class JevLineBenefitTests
     [InlineData("other", 0.99, false)]
     public void ShouldSkip_OnlyConfidentNonDialogue(string choice, double confidence, bool skip)
     {
-        Assert.Equal(skip, JevLinePolicy.ShouldSkip(choice, confidence));
+        Assert.Equal(skip, ClassifierLinePolicy.ShouldSkip(choice, confidence));
     }
 
     [Theory]
@@ -41,7 +43,7 @@ public class JevLineBenefitTests
     [InlineData(0.90, false)]
     public void ShouldReject_OnlyWhenTheResultIsUnlikelyToBeATranslation(double probability, bool reject)
     {
-        Assert.Equal(reject, JevLinePolicy.ShouldReject(probability));
+        Assert.Equal(reject, ClassifierLinePolicy.ShouldReject(probability));
     }
 
     [Fact]
@@ -57,16 +59,27 @@ public class JevLineBenefitTests
             }
             """);
         var client = new JevClient(new HttpClient(handler));
-        var decision = await client.Ask("test-key", "state", new Dictionary<string, object>(), CancellationToken.None);
+        var decision = await client.Ask("test-key", "state", [
+            new ClassifierQuestion("p1", "choice", "Classify the line", new Dictionary<string, string>
+            {
+                ["sound"] = "Sound cue", ["dialogue"] = "Spoken words"
+            }),
+            new ClassifierQuestion("p2", "predicate", "Is this a real translation?")
+        ], CancellationToken.None);
 
         Assert.NotNull(decision);
         Assert.Equal("sound", decision!.Choices["p1"].Choice);
         Assert.Equal(0.96, decision.Choices["p1"].Confidence);
-        Assert.Equal(0.12, decision.Nouls["p2"]);
+        Assert.Equal(0.12, decision.Predicates["p2"]);
         Assert.Contains("Bearer test-key", handler.Authorization);
         Assert.Contains("jev-latest", handler.Body);
-        Assert.True(JevLinePolicy.ShouldSkip(decision.Choices["p1"].Choice, decision.Choices["p1"].Confidence));
-        Assert.True(JevLinePolicy.ShouldReject(decision.Nouls["p2"]));
+        using var request = JsonDocument.Parse(handler.Body);
+        var questions = request.RootElement.GetProperty("questions");
+        Assert.Equal("choice", questions.GetProperty("p1").GetProperty("type").GetString());
+        Assert.Equal("Sound cue", questions.GetProperty("p1").GetProperty("criteria").GetProperty("sound").GetString());
+        Assert.Equal("noul", questions.GetProperty("p2").GetProperty("type").GetString());
+        Assert.True(ClassifierLinePolicy.ShouldSkip(decision.Choices["p1"].Choice, decision.Choices["p1"].Confidence));
+        Assert.True(ClassifierLinePolicy.ShouldReject(decision.Predicates["p2"]));
     }
 
     [Fact]
@@ -141,7 +154,7 @@ public class JevLineBenefitTests
         PlaintextLines = [text]
     };
 
-    private static SubtitleTranslationService CreateHarness(Func<string, string> translate, IJevSubtitleGate? gate)
+    private static SubtitleTranslationService CreateHarness(Func<string, string> translate, IClassifierSubtitleGate? gate)
     {
         var translation = new Mock<ITranslationService>();
         translation
@@ -172,10 +185,10 @@ public class JevLineBenefitTests
             [new TranslationServiceEntry("test", translation.Object, null)],
             NullLogger.Instance,
             progress.Object,
-            jevGate: gate);
+            classifierGate: gate);
     }
 
-    private sealed class ScriptedGate : IJevSubtitleGate
+    private sealed class ScriptedGate : IClassifierSubtitleGate
     {
         private readonly HashSet<int> _skip;
         private readonly HashSet<int> _reject;

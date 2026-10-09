@@ -9,7 +9,7 @@ Lingarr Next provides multi-architecture Docker images that automatically select
 | Tag | Description | Architectures |
 |-----|-------------|---------------|
 | `latest` | Latest stable release | `amd64` `arm64` |
-| `1.1.5` | A specific release | `amd64` `arm64` |
+| `1.1.6` | A specific release | `amd64` `arm64` |
 | `main` | Development build from the `main` branch | `amd64` `arm64` |
 
 Note: As of 1.0.3 all images support both AMD64 (Intel/AMD) and ARM64 (Raspberry Pi, Apple Silicon) architectures. Docker will automatically pull the correct architecture for your system.

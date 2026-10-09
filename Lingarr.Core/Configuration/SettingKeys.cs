@@ -163,6 +163,7 @@ public static class SettingKeys
         public const string ActiveContextPromptProfileId = "active_context_prompt_profile_id";
         public const string FixOverlappingSubtitles = "fix_overlapping_subtitles";
         public const string StripSubtitleFormatting = "strip_subtitle_formatting";
+        public const string StripSubtitleHtml = "strip_subtitle_html";
         public const string PreserveLineBreaks = "preserve_line_breaks";
         public const string AddTranslatorInfo = "add_translator_info";
         public const string UseBatchTranslation = "use_batch_translation";
@@ -179,6 +180,8 @@ public static class SettingKeys
             return $"{provider.Trim().ToLowerInvariant().Replace("-", "_")}_request_timeout";
         }
         public const string MaxRetries = "max_retries";
+        public const string ProviderCancelRetryCount = "provider_cancel_retry_count";
+        public const string ProviderCancelRetryHours = "provider_cancel_retry_hours";
         public const string RetryDelay = "retry_delay";
         public const string RetryDelayMultiplier = "retry_delay_multiplier";
         public const string NavigateToDetailsOnRequest = "navigate_to_details_on_request";
@@ -188,6 +191,7 @@ public static class SettingKeys
         /// <summary>Minimum partial quality score, 0-100, required to continue a cancelled request.</summary>
         public const string CacheCancelledQualityThreshold = "cache_cancelled_quality_threshold";
         public const string TypesafeApiKey = "typesafe_api_key";
+        public const string ClassifierProvider = "classifier_provider";
         public const string JevSkipNonDialogue = "jev_skip_non_dialogue";
         public const string JevRejectUntranslated = "jev_reject_untranslated";
     }
