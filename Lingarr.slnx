@@ -29,7 +29,6 @@
   <Folder Name="/Lingarr.Root/.github/workflows/">
     <File Path=".github/workflows/ci.yml" />
     <File Path=".github/workflows/docker-build.yml" />
-    <File Path=".github/workflows/docs.yml" />
     <File Path=".github/workflows/pr-comment.yml" />
   </Folder>
   <Folder Name="/Lingarr.Root/samples/" />
