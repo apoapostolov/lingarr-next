@@ -58,6 +58,13 @@ public interface IPlexClient
         string ratingKey,
         CancellationToken cancellationToken);
 
+    Task RefreshSectionAsync(
+        string baseUrl,
+        string token,
+        string clientId,
+        string sectionId,
+        CancellationToken cancellationToken);
+
     Task RefreshSectionPathAsync(
         string baseUrl,
         string token,

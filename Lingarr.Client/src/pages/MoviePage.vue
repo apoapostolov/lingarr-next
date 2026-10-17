@@ -54,11 +54,12 @@
 
         <div class="w-full px-4">
             <div class="border-accent hidden border-b font-bold md:grid md:grid-cols-12">
-                <div :class="isSelectMode ? 'col-span-4' : 'col-span-5'" class="px-4 py-2">
+                <div :class="isSelectMode ? 'col-span-3' : 'col-span-4'" class="px-4 py-2">
                     Title
                 </div>
-                <div class="col-span-4 px-4 py-2">Subtitles</div>
-                <div class="col-span-1 px-4 py-2">Include</div>
+                <div class="col-span-3 px-4 py-2">Subtitles</div>
+                <div class="col-span-2 flex items-center justify-center px-4 py-2">Translate</div>
+                <div class="col-span-1 flex items-center justify-center px-4 py-2">Include</div>
                 <div class="col-span-2 px-4 py-2">Delay</div>
                 <div
                     v-if="isSelectMode"
@@ -72,7 +73,7 @@
                 <div
                     class="border-accent hover:bg-accent/5 flex flex-wrap items-center gap-x-3 gap-y-2 border-b py-3 transition-colors md:grid md:grid-cols-12 md:gap-0 md:py-0">
                     <div
-                        :class="isSelectMode ? 'md:col-span-4' : 'md:col-span-5'"
+                        :class="isSelectMode ? 'md:col-span-3' : 'md:col-span-4'"
                         class="flex w-full items-center gap-2 md:w-auto md:px-4 md:py-2">
                         <span>{{ item.title }}</span>
                         <ActiveTranslationBadge
@@ -88,7 +89,7 @@
                     </div>
                     <div
                         :class="getSubtitles(item).length ? 'flex' : 'hidden md:flex'"
-                        class="w-full flex-wrap items-center gap-2 md:col-span-4 md:w-auto md:px-4 md:py-2">
+                        class="w-full flex-wrap items-center gap-2 md:col-span-3 md:w-auto md:px-4 md:py-2">
                         <ContextMenu
                             v-for="(subtitle, index) in getSubtitles(item)"
                             :key="`${index}-${subtitle.fileName}`"
@@ -104,7 +105,16 @@
                             </BadgeComponent>
                         </ContextMenu>
                     </div>
-                    <div class="flex items-center gap-2 md:col-span-1 md:px-4 md:py-2">
+                    <div
+                        class="flex items-center gap-2 md:col-span-2 md:justify-center md:px-4 md:py-2">
+                        <ForceTranslateControls
+                            :media-id="item.id"
+                            :media-type="MEDIA_TYPE.MOVIE"
+                            :has-source="hasSource(item)"
+                            @done="movieStore.fetch()" />
+                    </div>
+                    <div
+                        class="flex items-center gap-2 md:col-span-1 md:justify-center md:px-4 md:py-2">
                         <ToggleButton
                             v-model="item.includeInTranslation"
                             size="small"
@@ -162,7 +172,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, ComputedRef } from 'vue'
-import { IFilter, ILanguage, IMovie, INPUT_TYPE, INPUT_VALIDATION_TYPE, IPagedResult, MEDIA_TYPE, SETTINGS } from '@/ts'
+import { IFilter, ILanguage, IMovie, ISubtitle, INPUT_TYPE, INPUT_VALIDATION_TYPE, IPagedResult, MEDIA_TYPE, SETTINGS } from '@/ts'
 import useDebounce from '@/composables/useDebounce'
 import { useMovieStore } from '@/store/movie'
 import { useSettingStore } from '@/store/setting'
@@ -180,6 +190,7 @@ import InputComponent from '@/components/common/InputComponent.vue'
 import CheckboxComponent from '@/components/common/CheckboxComponent.vue'
 import ButtonComponent from '@/components/common/ButtonComponent.vue'
 import ActiveTranslationBadge from '@/components/common/ActiveTranslationBadge.vue'
+import ForceTranslateControls from '@/components/common/ForceTranslateControls.vue'
 
 const movieStore = useMovieStore()
 const settingStore = useSettingStore()
@@ -210,6 +221,27 @@ const getSubtitles = (movie: IMovie) =>
         )
         .slice()
         .sort((a, b) => a.language.localeCompare(b.language))
+
+const sourceCodes = (): string[] => {
+    const raw = settingStore.getSettings.source_languages
+    if (Array.isArray(raw)) {
+        return raw.map((language: ILanguage) => language.code)
+    }
+    return []
+}
+
+const matchesSource = (subtitles: ISubtitle[]): boolean => {
+    const codes = sourceCodes()
+    return subtitles.some((subtitle) => {
+        const token = (subtitle.language || '').split(':')[0].trim().toLowerCase()
+        return codes.some((code) => {
+            const wanted = code.toLowerCase()
+            return token === wanted || token.startsWith(wanted) || wanted.startsWith(token)
+        })
+    })
+}
+
+const hasSource = (movie: IMovie) => matchesSource(getSubtitles(movie))
 const filter: ComputedRef<IFilter> = computed({
     get: () => movieStore.getFilter,
     set: useDebounce((value: IFilter) => {

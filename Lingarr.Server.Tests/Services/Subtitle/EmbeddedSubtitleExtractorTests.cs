@@ -7,6 +7,50 @@ namespace Lingarr.Server.Tests.Services.Subtitle;
 public class EmbeddedSubtitleExtractorTests
 {
     [Fact]
+    public void SelectTextTrack_PicksBulgarianDialogue()
+    {
+        var streams = new List<EmbeddedSubtitleStream>
+        {
+            new(2, "subrip", "eng", "English"),
+            new(3, "ass", "bul", "Signs"),
+            new(4, "ass", "bul", "Dialogue")
+        };
+
+        var plan = EmbeddedSubtitleExtractor.SelectTextTrack(streams, "bg", "Movie");
+
+        Assert.NotNull(plan);
+        Assert.Equal(4, plan!.StreamIndex);
+        Assert.Equal("Movie.bg.srt", plan.DestinationFileName);
+    }
+
+    [Fact]
+    public void SelectTextTracks_PlansSourceAndTarget()
+    {
+        var streams = new List<EmbeddedSubtitleStream>
+        {
+            new(2, "subrip", "eng", "English"),
+            new(3, "subrip", "bul", "Bulgarian")
+        };
+
+        var plans = EmbeddedSubtitleExtractor.SelectTextTracks(streams, ["en", "bg"], "Movie");
+
+        Assert.Equal(2, plans.Count);
+        Assert.Contains(plans, plan => plan.DestinationFileName == "Movie.en.srt" && plan.StreamIndex == 2);
+        Assert.Contains(plans, plan => plan.DestinationFileName == "Movie.bg.srt" && plan.StreamIndex == 3);
+    }
+
+    [Fact]
+    public void SelectTextTrack_SkipsEnglishWhenWantedIsBulgarian()
+    {
+        var streams = new List<EmbeddedSubtitleStream>
+        {
+            new(2, "subrip", "eng", "English")
+        };
+
+        Assert.Null(EmbeddedSubtitleExtractor.SelectTextTrack(streams, "bg", "Movie"));
+    }
+
+    [Fact]
     public void SelectEnglishTextTrack_PrefersDialogueOverSigns()
     {
         var streams = new List<EmbeddedSubtitleStream>

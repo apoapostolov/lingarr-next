@@ -5,7 +5,8 @@ import {
     IPlexServer,
     IPlexService,
     IPlexStatus,
-    IPlexTest
+    IPlexTest,
+    IPlexLibraries
 } from '@/ts'
 
 export const plexService = (http: AxiosStatic, resource = '/api/plex'): IPlexService => ({
@@ -46,5 +47,15 @@ export const plexService = (http: AxiosStatic, resource = '/api/plex'): IPlexSer
     },
     logout(): Promise<void> {
         return http.delete(`${resource}/session`).then(() => undefined)
+    },
+    libraries(): Promise<IPlexLibraries> {
+        return http
+            .get(`${resource}/libraries`)
+            .then((response: AxiosResponse<IPlexLibraries>) => response.data)
+    },
+    refreshLibrary(key: string): Promise<IPlexTest> {
+        return http
+            .post(`${resource}/libraries/${encodeURIComponent(key)}/refresh`)
+            .then((response: AxiosResponse<IPlexTest>) => response.data)
     }
 })

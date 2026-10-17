@@ -231,6 +231,32 @@ public static class PlexMatcher
         }
     }
 
+    private static (long PartId, string? Directory, IReadOnlyList<PlexSubtitleStream> Subtitles)? FirstPart(
+        JsonElement mediaList)
+    {
+        foreach (var media in Enumerate(mediaList))
+        {
+            if (!media.TryGetProperty("Part", out var parts))
+            {
+                continue;
+            }
+
+            foreach (var part in Enumerate(parts))
+            {
+                var partId = ReadLong(part, "id");
+                if (partId == null)
+                {
+                    continue;
+                }
+
+                var file = ReadString(part, "file");
+                return (partId.Value, DirectoryOf(file ?? ""), ReadSubtitles(part));
+            }
+        }
+
+        return null;
+    }
+
     private static (long PartId, string? Directory, IReadOnlyList<PlexSubtitleStream> Subtitles)? FirstUsablePart(
         JsonElement mediaList,
         string fileStem)
@@ -268,6 +294,89 @@ public static class PlexMatcher
         }
 
         return count == 1 ? only : null;
+    }
+
+    public static (IReadOnlyList<string> RatingKeys, int ItemCount, int? TotalSize) ReadLibraryPage(string pageJson)
+    {
+        using var document = JsonDocument.Parse(pageJson);
+        var root = document.RootElement;
+        if (root.TryGetProperty("MediaContainer", out var container))
+        {
+            root = container;
+        }
+
+        var keys = new List<string>();
+        foreach (var metadata in EnumerateMetadata(document.RootElement))
+        {
+            var ratingKey = ReadString(metadata, "ratingKey");
+            if (!string.IsNullOrWhiteSpace(ratingKey))
+            {
+                keys.Add(ratingKey);
+            }
+        }
+
+        return (keys, keys.Count, ReadLong(root, "totalSize") is long total ? (int)total : null);
+    }
+
+    public static PlexPartMatch? PrimaryPart(string metadataJson)
+    {
+        using var document = JsonDocument.Parse(metadataJson);
+        foreach (var metadata in EnumerateMetadata(document.RootElement))
+        {
+            var ratingKey = ReadString(metadata, "ratingKey");
+            if (string.IsNullOrWhiteSpace(ratingKey) || !metadata.TryGetProperty("Media", out var mediaList))
+            {
+                continue;
+            }
+
+            var part = FirstPart(mediaList);
+            if (part == null)
+            {
+                continue;
+            }
+
+            var sectionId = ReadString(metadata, "librarySectionID");
+            if (string.IsNullOrWhiteSpace(sectionId)
+                && document.RootElement.TryGetProperty("MediaContainer", out var container))
+            {
+                sectionId = ReadString(container, "librarySectionID");
+            }
+
+            return new PlexPartMatch
+            {
+                RatingKey = ratingKey,
+                PartId = part.Value.PartId,
+                PartCount = CountParts(mediaList),
+                LibrarySectionId = sectionId,
+                PlexDirectory = part.Value.Directory,
+                Subtitles = part.Value.Subtitles
+            };
+        }
+
+        return null;
+    }
+
+    public static PlexSubtitleStream? PickSubtitle(
+        IReadOnlyList<PlexSubtitleStream> streams,
+        string targetLanguage)
+    {
+        var matches = streams.Where(stream => StreamMatchesLanguage(stream, targetLanguage)).ToList();
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var already = matches.FirstOrDefault(stream => stream.Selected);
+        if (already != null)
+        {
+            return already;
+        }
+
+        var nonForced = matches.Where(stream => !stream.Forced).ToList();
+        var pool = nonForced.Count > 0 ? nonForced : matches;
+        var external = pool.Where(IsExternal).ToList();
+        var ranked = external.Count > 0 ? external : pool;
+        return ranked.OrderByDescending(stream => stream.Id).First();
     }
 
     public static PlexSubtitleStream? PickNewSubtitle(

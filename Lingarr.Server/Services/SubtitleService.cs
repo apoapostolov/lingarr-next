@@ -6,6 +6,7 @@ using Lingarr.Server.Interfaces.Services.Subtitle;
 using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
+using Lingarr.Server.Services.SubtitleDownload;
 using SubtitleValidationOptions = Lingarr.Server.Models.SubtitleValidationOptions;
 
 namespace Lingarr.Server.Services;
@@ -178,9 +179,7 @@ public class SubtitleService : ISubtitleService
             foreach (var file in files)
             {
                 var parsed = ParseSubtitleFile(file);
-                if (fileName != null
-                    && !parsed.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase)
-                    && !parsed.FileName.StartsWith(fileName + ".", StringComparison.OrdinalIgnoreCase))
+                if (fileName != null && !MatchesMediaFile(fileName, parsed))
                 {
                     continue;
                 }
@@ -221,6 +220,18 @@ public class SubtitleService : ISubtitleService
     {
         var value = extension.Trim().ToLowerInvariant();
         return value.StartsWith('.') ? value : "." + value;
+    }
+
+    private static bool MatchesMediaFile(string mediaFileName, Subtitles sidecar)
+    {
+        if (sidecar.FileName.Equals(mediaFileName, StringComparison.OrdinalIgnoreCase)
+            || sidecar.FileName.StartsWith(mediaFileName + ".", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var parsed = SubtitleNaming.ParseSidecar(Path.GetFileName(sidecar.Path));
+        return SubtitleNaming.ScoreMatch(mediaFileName, parsed) >= SubtitleNaming.MinimumAcceptScore;
     }
 
     private Subtitles ParseSubtitleFile(string file)
@@ -631,9 +642,7 @@ public class SubtitleService : ISubtitleService
             // Match only sidecars for this media file — no full-tree materialization.
             var matches = EnumerateSubtitlePaths(path)
                 .Select(ParseSubtitleFile)
-                .Where(s =>
-                    s.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
-                    s.FileName.StartsWith(fileName + ".", StringComparison.OrdinalIgnoreCase))
+                .Where(s => MatchesMediaFile(fileName, s))
                 .ToList();
             await AddCodecFiles(path, fileName, matches);
             return matches;
@@ -653,7 +662,10 @@ public class SubtitleService : ISubtitleService
         HashSet<string> sourceCodes,
         string ignoreCaptions)
     {
-        var availableLanguages = matchingSubtitles
+        var usable = matchingSubtitles
+            .Where(s => SubtitleBytes.IsUsableSidecar(s.Path, s.Language))
+            .ToList();
+        var availableLanguages = usable
             .Select(s => s.Language.ToLowerInvariant())
             .ToHashSet();
 
@@ -663,7 +675,7 @@ public class SubtitleService : ISubtitleService
             return null;
         }
 
-        var pool = matchingSubtitles.Where(s => s.Language == sourceLanguage).ToList();
+        var pool = usable.Where(s => s.Language == sourceLanguage).ToList();
         var sourceSubtitle = ignoreCaptions == "true"
             ? pool.FirstOrDefault(s => string.IsNullOrEmpty(s.Caption))
                 ?? pool.FirstOrDefault(s => !SubtitleNaming.IsOcr(s.Caption))

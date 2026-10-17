@@ -77,6 +77,11 @@ const routes: RouteRecordRaw[] = [
                         component: () => import('@/pages/settings/ServicesPage.vue')
                     },
                     {
+                        path: 'translation/providers',
+                        name: 'translation-providers-settings',
+                        component: () => import('@/pages/settings/SubtitleProvidersPage.vue')
+                    },
+                    {
                         path: 'translation/subtitles',
                         name: 'translation-subtitles-settings',
                         component: () => import('@/pages/settings/SubtitlePage.vue')

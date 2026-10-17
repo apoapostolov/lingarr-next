@@ -28,6 +28,17 @@ public static class SettingKeys
         public const string BazarrReplaceOcr = "bazarr_replace_ocr";
     }
 
+    public static class SubtitleDownload
+    {
+        public const string Enabled = "subtitle_downloaders_enabled";
+        public const string Providers = "subtitle_download_providers";
+        public const string MissingEnglishStatus = "subtitle_dl_missing_en_status";
+        public const string MissingEnglishSummary = "subtitle_dl_missing_en_summary";
+
+        public static string FieldKey(string provider, string field) =>
+            $"subtitle_dl_{provider}_{field}";
+    }
+
     public static class Translation
     {
         public const string ServiceType = "service_type";
@@ -236,6 +247,8 @@ public static class SettingKeys
         public const string PlexTranslateOnLibraryNew = "plex_translate_on_library_new";
         public const string PlexTranslateMoviesOnLibraryNew = "plex_translate_movies_on_library_new";
         public const string PlexTranslateEpisodesOnLibraryNew = "plex_translate_episodes_on_library_new";
+        public const string PlexLibraryRefreshKeys = "plex_library_refresh_keys";
+        public const string PlexLibraryRefreshSchedule = "plex_library_refresh_schedule";
         public const string JellyfinUrl = "jellyfin_url";
         public const string JellyfinToken = "jellyfin_token";
     }

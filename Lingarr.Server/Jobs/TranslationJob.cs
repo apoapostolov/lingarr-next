@@ -235,6 +235,12 @@ public class TranslationJob
                 _providerHealth,
                 _classifier);
             var subtitles = await _subtitleService.ReadSubtitles(request.SubtitleToTranslate);
+            if (subtitles.Count == 0)
+            {
+                throw new TranslationException(
+                    "Lingarr could not read subtitle lines from the source file.");
+            }
+
             if (stripSubtitleHtml)
             {
                 foreach (var subtitle in subtitles)

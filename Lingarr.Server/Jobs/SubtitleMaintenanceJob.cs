@@ -5,9 +5,12 @@ using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
 using Lingarr.Core.Enum;
 using Lingarr.Core.Interfaces;
+using Lingarr.Contracts.Models;
 using Lingarr.Server.Filters;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Models;
 using Lingarr.Server.Services;
+using Lingarr.Server.Services.Integration.Bazarr;
 using Lingarr.Server.Services.Subtitle;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
@@ -85,7 +88,7 @@ public class SubtitleMaintenanceJob
 
         if (extractEnabled)
         {
-            extracted = await ExtractMissingEnglishAsync(maxExtracts, touchedFolders, CancellationToken.None);
+            extracted = await ExtractMissingLanguagesAsync(maxExtracts, touchedFolders, CancellationToken.None);
         }
 
         if (touchedFolders.Count > 0)
@@ -182,7 +185,7 @@ public class SubtitleMaintenanceJob
         return true;
     }
 
-    private async Task<int> ExtractMissingEnglishAsync(
+    private async Task<int> ExtractMissingLanguagesAsync(
         int maxExtracts,
         HashSet<string> touchedFolders,
         CancellationToken cancellationToken)
@@ -195,6 +198,21 @@ public class SubtitleMaintenanceJob
         {
             picturePolicy = picturePolicy.TextOnly();
         }
+
+        var sourceLanguages = (await _settings.GetSettingAsJson<SourceLanguage>(SettingKeys.Translation.SourceLanguages))
+            .Select(language => language.Code)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var targetLanguages = (await _settings.GetSettingAsJson<TargetLanguage>(SettingKeys.Translation.TargetLanguages))
+            .Select(language => language.Code)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var wanted = sourceLanguages.Concat(targetLanguages).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0)
+        {
+            wanted.Add("en");
+        }
+
         var movies = await _dbContext.Movies.AsTracking().ToListAsync(cancellationToken);
         var episodes = await _dbContext.Episodes.AsTracking().ToListAsync(cancellationToken);
 
@@ -214,7 +232,11 @@ public class SubtitleMaintenanceJob
             }
 
             var matching = await _subtitleService.GetSubtitles(directory, fileName);
-            if (matching.Any(subtitle => SubtitleNaming.NormalizeLanguage(subtitle.Language) == "en"))
+            var missing = wanted
+                .Where(language => !matching.Any(subtitle =>
+                    BazarrSubtitleChoice.LanguageMatches(subtitle.Language, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { language })))
+                .ToList();
+            if (missing.Count == 0)
             {
                 continue;
             }
@@ -227,11 +249,25 @@ public class SubtitleMaintenanceJob
 
             try
             {
-                if (!await EmbeddedSubtitleExtractor.TryExtractEnglish(
+                var wroteText = await EmbeddedSubtitleExtractor.TryExtractTextLanguages(
+                    directory,
+                    fileName,
+                    missing,
+                    matching.Select(subtitle => subtitle.Language),
+                    cancellationToken);
+                var wroteEnglish = false;
+                if (!wroteText
+                    && missing.Any(language => BazarrSubtitleChoice.LanguageMatches("en", new HashSet<string>(StringComparer.OrdinalIgnoreCase) { language }))
+                    && await EmbeddedSubtitleExtractor.TryExtractEnglish(
                         directory,
                         fileName,
                         cancellationToken,
                         picturePolicy))
+                {
+                    wroteEnglish = true;
+                }
+
+                if (!wroteText && !wroteEnglish)
                 {
                     continue;
                 }
@@ -239,7 +275,7 @@ public class SubtitleMaintenanceJob
                 media.MediaHash = string.Empty;
                 touchedFolders.Add(directory);
                 extracted++;
-                _logger.LogInformation("Extracted an English subtitle for {File}", fileName);
+                _logger.LogInformation("Extracted embedded subtitles for {File}", fileName);
             }
             catch (IOException exception)
             {

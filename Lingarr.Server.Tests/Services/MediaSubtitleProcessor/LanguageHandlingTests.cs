@@ -1,10 +1,16 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Lingarr.Contracts.Models;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Enum;
+using Lingarr.Core.Interfaces;
 using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
+using Lingarr.Server.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -112,5 +118,68 @@ public class LanguageHandlingTests : MediaSubtitleProcessorTestBase
                 t.TargetLanguage == "en" &&
                 t.SubtitlePath.Contains("test.movie.hi.srt"))),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessMedia_HtmlEnglishSidecar_DownloadsSource()
+    {
+        var movie = await CreateTestMovie();
+        var folder = Directory.CreateTempSubdirectory();
+        try
+        {
+            var html = Path.Combine(folder.FullName, "test.movie.en.srt");
+            File.WriteAllText(
+                html,
+                "<!DOCTYPE html>\n<html lang=\"bg\"><head><title>Субтитри BG</title></head><body>download</body></html>");
+            SubtitleServiceMock
+                .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync(
+                [
+                    new Subtitles
+                    {
+                        Path = html,
+                        FileName = "test.movie.en",
+                        Language = "en",
+                        Caption = "",
+                        Format = ".srt"
+                    }
+                ]);
+            SetupStandardSettings();
+            UseRealSelectSourceSubtitle();
+
+            var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+            Assert.False(result);
+            SubtitleDownloadServiceMock.Verify(
+                service => service.DownloadLanguagesAsync(
+                    It.IsAny<IMedia>(),
+                    MediaType.Movie,
+                    It.Is<IReadOnlyCollection<string>>(languages => languages.Contains("en")),
+                    It.IsAny<IReadOnlyList<Subtitles>>(),
+                    false,
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+            TranslationRequestServiceMock.Verify(
+                s => s.CreateRequest(It.IsAny<TranslateAbleSubtitle>()),
+                Times.Never);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    private void UseRealSelectSourceSubtitle()
+    {
+        var real = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+        SubtitleServiceMock
+            .Setup(s => s.SelectSourceSubtitle(
+                It.IsAny<List<Subtitles>>(),
+                It.IsAny<HashSet<string>>(),
+                It.IsAny<string>()))
+            .Returns((List<Subtitles> subs, HashSet<string> sources, string ignoreCaptions) =>
+                real.SelectSourceSubtitle(subs, sources, ignoreCaptions));
     }
 }

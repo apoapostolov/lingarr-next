@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Lingarr.Server.Services.Integration.Bazarr;
 
 namespace Lingarr.Server.Services.Subtitle;
 
@@ -83,10 +84,23 @@ public static class EmbeddedSubtitleExtractor
 
     public static EmbeddedExtractPlan? SelectEnglishTextTrack(
         IReadOnlyList<EmbeddedSubtitleStream> streams,
+        string mediaFileName) =>
+        SelectTextTrack(streams, "en", mediaFileName);
+
+    public static EmbeddedExtractPlan? SelectTextTrack(
+        IReadOnlyList<EmbeddedSubtitleStream> streams,
+        string language,
         string mediaFileName)
     {
+        var wanted = Wanted(language);
+        if (wanted.Count == 0)
+        {
+            return null;
+        }
+
         var candidates = streams
-            .Where(stream => IsEnglish(stream) && TextCodecs.Contains(stream.Codec))
+            .Where(stream => TextCodecs.Contains(stream.Codec))
+            .Where(stream => StreamMatchesLanguage(stream.Language, language))
             .Where(stream => !IsSignsOnly(stream))
             .ToList();
         if (candidates.Count == 0)
@@ -95,7 +109,32 @@ public static class EmbeddedSubtitleExtractor
         }
 
         var preferred = candidates.FirstOrDefault(stream => !IsSdh(stream)) ?? candidates[0];
-        return Plan(preferred, mediaFileName, EmbeddedSubtitleKind.Text);
+        return Plan(preferred, mediaFileName, EmbeddedSubtitleKind.Text, SidecarLanguage(language));
+    }
+
+    public static IReadOnlyList<EmbeddedExtractPlan> SelectTextTracks(
+        IReadOnlyList<EmbeddedSubtitleStream> streams,
+        IEnumerable<string> languages,
+        string mediaFileName)
+    {
+        var plans = new List<EmbeddedExtractPlan>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var language in languages)
+        {
+            var sidecar = SidecarLanguage(language);
+            if (string.IsNullOrWhiteSpace(sidecar) || !seen.Add(sidecar))
+            {
+                continue;
+            }
+
+            var plan = SelectTextTrack(streams, language, mediaFileName);
+            if (plan != null)
+            {
+                plans.Add(plan);
+            }
+        }
+
+        return plans;
     }
 
     public static EmbeddedExtractPlan? SelectEnglishSourceTrack(
@@ -117,14 +156,14 @@ public static class EmbeddedSubtitleExtractor
             && policy.Allows(stream.Codec)));
         if (picture != null)
         {
-            return Plan(picture, mediaFileName, EmbeddedSubtitleKind.Image);
+            return Plan(picture, mediaFileName, EmbeddedSubtitleKind.Image, "en");
         }
 
         var caption = streams.FirstOrDefault(stream =>
             CaptionCodecs.Contains(stream.Codec)
             && policy.Allows(stream.Codec)
             && (string.IsNullOrWhiteSpace(stream.Language) || IsEnglish(stream)));
-        return caption == null ? null : Plan(caption, mediaFileName, EmbeddedSubtitleKind.Caption);
+        return caption == null ? null : Plan(caption, mediaFileName, EmbeddedSubtitleKind.Caption, "en");
     }
 
     private static EmbeddedSubtitleStream? PreferDialogue(IEnumerable<EmbeddedSubtitleStream> streams)
@@ -136,19 +175,103 @@ public static class EmbeddedSubtitleExtractor
     private static EmbeddedExtractPlan Plan(
         EmbeddedSubtitleStream stream,
         string mediaFileName,
-        EmbeddedSubtitleKind kind) =>
+        EmbeddedSubtitleKind kind,
+        string language) =>
         new(
             stream.Index,
             SubtitleNaming.BuildDestinationFileName(
                 mediaFileName,
-                "en",
+                language,
                 kind == EmbeddedSubtitleKind.Image ? SubtitleCaption.Ocr : SubtitleCaption.None,
                 ".srt"),
             kind);
 
+    private static HashSet<string> Wanted(string language)
+    {
+        var token = language.Trim();
+        return token.Length == 0
+            ? []
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { token };
+    }
+
+    private static string SidecarLanguage(string language)
+    {
+        var token = language.Trim();
+        return SubtitleNaming.NormalizeLanguage(token)
+               ?? token.Split('-', ':')[0].ToLowerInvariant();
+    }
+
+    private static bool StreamMatchesLanguage(string? streamLanguage, string wanted)
+    {
+        var streamCode = SubtitleNaming.NormalizeLanguage(streamLanguage)
+                         ?? streamLanguage?.Split('-', ':')[0].Trim().ToLowerInvariant();
+        var wantedCode = SidecarLanguage(wanted);
+        if (!string.IsNullOrWhiteSpace(streamCode)
+            && string.Equals(streamCode, wantedCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return BazarrSubtitleChoice.LanguageMatches(streamLanguage, Wanted(wanted))
+               || BazarrSubtitleChoice.LanguageMatches(streamLanguage, Wanted(wantedCode));
+    }
+
     public static bool HasOnlyImageSubtitles(IReadOnlyList<EmbeddedSubtitleStream> streams) =>
         streams.Count > 0
         && streams.All(stream => ImageCodecs.Contains(stream.Codec));
+
+    public static async Task<bool> TryExtractTextLanguages(
+        string directory,
+        string fileName,
+        IEnumerable<string> languages,
+        IEnumerable<string> existingLanguages,
+        CancellationToken cancellationToken)
+    {
+        var existing = existingLanguages.ToList();
+        var missing = languages
+            .Where(language => !string.IsNullOrWhiteSpace(language))
+            .Where(language => !existing.Any(present =>
+                BazarrSubtitleChoice.LanguageMatches(present, Wanted(language))))
+            .ToList();
+        if (missing.Count == 0)
+        {
+            return false;
+        }
+
+        var videoPath = FindVideo(directory, fileName);
+        if (videoPath == null)
+        {
+            return false;
+        }
+
+        var probe = await Run(
+            BuildProbeCommand(videoPath),
+            TimeSpan.FromSeconds(45),
+            cancellationToken);
+        if (probe.ExitCode != 0)
+        {
+            return false;
+        }
+
+        var streams = ParseProbeJson(probe.StandardOutput);
+        var wrote = false;
+        foreach (var plan in SelectTextTracks(streams, missing, fileName))
+        {
+            var destination = Path.Combine(directory, plan.DestinationFileName);
+            if (File.Exists(destination))
+            {
+                wrote = true;
+                continue;
+            }
+
+            if (await ExtractText(videoPath, plan, destination, cancellationToken))
+            {
+                wrote = true;
+            }
+        }
+
+        return wrote;
+    }
 
     public static async Task<bool> TryExtractEnglish(
         string directory,

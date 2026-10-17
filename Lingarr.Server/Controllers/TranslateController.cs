@@ -9,6 +9,7 @@ using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Models.Api;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Subtitle;
+using Lingarr.Server.Services.SubtitleDownload;
 using Lingarr.Server.Services.Translation;
 
 namespace Lingarr.Server.Controllers;
@@ -20,6 +21,7 @@ public class TranslateController : ControllerBase
 {
     private readonly ITranslationServiceFactory _translationServiceFactory;
     private readonly ITranslationRequestService _translationRequestService;
+    private readonly IForceTranslationService _forceTranslation;
     private readonly ISettingService _settings;
     private readonly LanguageCodeService _languageCodeService;
     private readonly ILogger<TranslateController> _logger;
@@ -29,6 +31,7 @@ public class TranslateController : ControllerBase
     public TranslateController(
         ITranslationServiceFactory translationServiceFactory,
         ITranslationRequestService translationRequestService,
+        IForceTranslationService forceTranslation,
         ISettingService settings,
         LanguageCodeService languageCodeService,
         IProviderHealthService providerHealth,
@@ -37,6 +40,7 @@ public class TranslateController : ControllerBase
     {
         _translationServiceFactory = translationServiceFactory;
         _translationRequestService = translationRequestService;
+        _forceTranslation = forceTranslation;
         _settings = settings;
         _languageCodeService = languageCodeService;
         _providerHealth = providerHealth;
@@ -78,6 +82,39 @@ public class TranslateController : ControllerBase
         {
             return StatusCode(500, new { Error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Queues translation or retranslation for one movie or episode from a
+    /// source sidecar already on disk. Subtitle providers stay on Download.
+    /// </summary>
+    [HttpPost("force")]
+    public async Task<ActionResult<ForceTranslateResult>> Force(
+        [FromBody] ForceTranslateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _forceTranslation.ForceAsync(
+            request.MediaId,
+            request.MediaType,
+            request.Overwrite,
+            cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Downloads missing source and target subtitles from configured providers.
+    /// If only a source file is placed, translation is queued for the missing targets.
+    /// </summary>
+    [HttpPost("download")]
+    public async Task<ActionResult<ForceTranslateResult>> Download(
+        [FromBody] ForceTranslateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _forceTranslation.DownloadAsync(
+            request.MediaId,
+            request.MediaType,
+            cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>

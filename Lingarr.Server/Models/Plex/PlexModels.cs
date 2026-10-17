@@ -50,7 +50,7 @@ public sealed class PlexPartMatch
     public string MatchReason { get; init; } = "path";
 }
 
-public sealed record PlexLibrarySection(string Key, string Type, string Title);
+public sealed record PlexLibrarySection(string Key, string Type, string Title, bool Refreshing = false);
 
 public sealed record ResolvedPlexCredentials(
     string? Url,

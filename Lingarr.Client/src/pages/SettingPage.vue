@@ -69,6 +69,7 @@ const menuItems: MenuItem[] = [
         icon: LanguageIcon,
         route: 'translation-setup-settings',
         children: [
+            'translation-providers-settings',
             'translation-subtitles-settings',
             'translation-advanced-settings',
             'request-template-settings'

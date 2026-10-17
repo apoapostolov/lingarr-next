@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -75,6 +77,40 @@ public class SubtitleServiceEnumerationTests
     }
 
     [Fact]
+    public async Task GetSubtitles_MatchesReleaseNameDrift()
+    {
+        var root = Directory.CreateTempSubdirectory();
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(root.FullName, "A Spark Story (2021) WEBRip-1080p.eng.srt"),
+                "1\n00:00:01,000 --> 00:00:02,000\nHello.\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(root.FullName, "Show.S01E02.WEBRip-1080p.eng.srt"),
+                "1\n00:00:01,000 --> 00:00:02,000\nOther episode.\n");
+
+            var service = new SubtitleService(
+                NullLogger<SubtitleService>.Instance,
+                new LanguageCodeService());
+
+            var movie = await service.GetSubtitles(
+                root.FullName,
+                "A Spark Story (2021) {tmdb-852724} [WEBDL-1080p][EAC3 5.1][h264]-KOGi");
+            Assert.Single(movie);
+            Assert.EndsWith("A Spark Story (2021) WEBRip-1080p.eng.srt", movie[0].Path);
+
+            var episode = await service.GetSubtitles(
+                root.FullName,
+                "Show.S01E01.WEBDL-1080p");
+            Assert.Empty(episode);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task GetAllSubtitles_UsesUnknownWhenTheFileNameHasNoLanguage()
     {
         var root = Directory.CreateTempSubdirectory();
@@ -90,6 +126,94 @@ public class SubtitleServiceEnumerationTests
 
             Assert.Single(all);
             Assert.Equal("unknown", all[0].Language);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SelectSourceSubtitle_SkipsHtmlSidecar()
+    {
+        var root = Directory.CreateTempSubdirectory();
+        try
+        {
+            var htmlEn = Path.Combine(root.FullName, "Movie.en.srt");
+            File.WriteAllText(
+                htmlEn,
+                "<!DOCTYPE html>\n<html lang=\"bg\"><head><title>Субтитри BG</title></head><body>download</body></html>");
+            var htmlBg = Path.Combine(root.FullName, "Movie.bg.srt");
+            File.WriteAllText(
+                htmlBg,
+                "<!DOCTYPE html>\n<html lang=\"bg\"><head><title>Субтитри BG</title></head><body>download</body></html>");
+            var realEn = Path.Combine(root.FullName, "Movie.real.en.srt");
+            File.WriteAllText(
+                realEn,
+                "1\n00:00:01,000 --> 00:00:02,000\nStay quiet.\n\n2\n00:00:03,000 --> 00:00:04,000\nThe night nurse is here.\n\n3\n00:00:05,000 --> 00:00:06,000\nYou don't have to get up.\n\n4\n00:00:07,000 --> 00:00:08,000\nI have to see my new client.\n");
+
+            var service = new SubtitleService(
+                NullLogger<SubtitleService>.Instance,
+                new LanguageCodeService());
+            var sources = new HashSet<string> { "en" };
+
+            Assert.Null(service.SelectSourceSubtitle(
+                [
+                    new Subtitles
+                    {
+                        Path = htmlEn,
+                        FileName = "Movie.en",
+                        Language = "en",
+                        Format = ".srt"
+                    }
+                ],
+                sources,
+                "true"));
+
+            var withReal = service.SelectSourceSubtitle(
+                [
+                    new Subtitles
+                    {
+                        Path = htmlEn,
+                        FileName = "Movie.en",
+                        Language = "en",
+                        Format = ".srt"
+                    },
+                    new Subtitles
+                    {
+                        Path = realEn,
+                        FileName = "Movie.real.en",
+                        Language = "en",
+                        Format = ".srt"
+                    }
+                ],
+                sources,
+                "true");
+            Assert.NotNull(withReal);
+            Assert.Equal(realEn, withReal.Subtitle.Path);
+
+            var htmlTarget = service.SelectSourceSubtitle(
+                [
+                    new Subtitles
+                    {
+                        Path = realEn,
+                        FileName = "Movie.real.en",
+                        Language = "en",
+                        Format = ".srt"
+                    },
+                    new Subtitles
+                    {
+                        Path = htmlBg,
+                        FileName = "Movie.bg",
+                        Language = "bg",
+                        Format = ".srt"
+                    }
+                ],
+                sources,
+                "true");
+            Assert.NotNull(htmlTarget);
+            Assert.DoesNotContain("bg", htmlTarget.AvailableLanguages);
+            Assert.Contains("en", htmlTarget.AvailableLanguages);
         }
         finally
         {
