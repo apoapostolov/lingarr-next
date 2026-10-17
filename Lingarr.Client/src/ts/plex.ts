@@ -39,3 +39,15 @@ export interface IPlexTest {
     ok: boolean
     message?: string | null
 }
+
+export interface IPlexLibrary {
+    key: string
+    type: string
+    title: string
+    scheduled: boolean
+}
+
+export interface IPlexLibraries {
+    libraries: IPlexLibrary[]
+    running: boolean
+}

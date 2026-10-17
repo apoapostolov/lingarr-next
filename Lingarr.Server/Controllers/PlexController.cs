@@ -1,6 +1,9 @@
+using Hangfire;
 using Lingarr.Server.Attributes;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Jobs;
 using Lingarr.Server.Models.Api;
+using Lingarr.Server.Services.Integration.Plex;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lingarr.Server.Controllers;
@@ -11,10 +14,17 @@ namespace Lingarr.Server.Controllers;
 public sealed class PlexController : ControllerBase
 {
     private readonly IPlexAuthService _auth;
+    private readonly PlexLibraryRefreshService _libraries;
+    private readonly IBackgroundJobClient _jobs;
 
-    public PlexController(IPlexAuthService auth)
+    public PlexController(
+        IPlexAuthService auth,
+        PlexLibraryRefreshService libraries,
+        IBackgroundJobClient jobs)
     {
         _auth = auth;
+        _libraries = libraries;
+        _jobs = jobs;
     }
 
     [HttpGet("status")]
@@ -72,5 +82,55 @@ public sealed class PlexController : ControllerBase
     {
         await _auth.LogoutAsync(cancellationToken);
         return NoContent();
+    }
+
+    [HttpGet("libraries")]
+    public async Task<ActionResult<PlexLibrariesResponse>> GetLibraries(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _libraries.ListAsync(cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(502, new { detail = "Lingarr could not list Plex libraries." });
+        }
+    }
+
+    [HttpPost("libraries/{key}/refresh")]
+    public async Task<ActionResult<PlexTestResponse>> RefreshLibrary(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        if (PlexLibraryRefreshJob.IsBusy())
+        {
+            return Conflict(new { detail = "Plex library refresh is already running." });
+        }
+
+        try
+        {
+            var listed = await _libraries.ListAsync(cancellationToken);
+            var library = listed.Libraries.FirstOrDefault(item =>
+                string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (library == null)
+            {
+                return NotFound(new { detail = "Plex has no library with that key." });
+            }
+
+            _jobs.Enqueue<PlexLibraryRefreshJob>(job => job.ExecuteSection(library.Key));
+            return new PlexTestResponse
+            {
+                Ok = true,
+                Message = $"Plex library refresh started for {library.Title}."
+            };
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { detail = exception.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(502, new { detail = "Lingarr could not start the Plex library refresh." });
+        }
     }
 }

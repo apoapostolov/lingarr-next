@@ -35,8 +35,36 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.1.6](https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6).
+Current release: [1.2.0](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.2.0 — Download First (2026-10-16)
+
+- New movies and episodes extract embedded source and target text tracks
+  from the video before downloaders or translation.
+- Settings → Connections lists each Plex library with a refresh control and
+  a schedule switch. One cron runs enabled libraries in turn, waits 15
+  minutes between libraries, then selects the configured subtitle when that
+  sidecar is on the item.
+- Movies and TV episodes have Download, Translate, and Retranslate. Download
+  searches configured subtitle providers for a missing source and for target
+  languages. If only a source file is placed, Lingarr queues translation.
+  Translate and Retranslate queue from a source sidecar on disk.
+- Settings → Translation → Providers can download a subtitle before
+  translation. A matching target is placed and the media server is notified.
+  The tab switch is on by default.
+- Settings → Translation → Providers can download a missing English subtitle
+  for every movie and episode. The run does not translate.
+- A subtitle provider that sends an unknown character set is treated as a
+  miss, and Lingarr keeps walking the rest of the chain.
+- An empty sidecar, a web page saved as a subtitle, or a file in the wrong
+  language does not count as that language. Download searches providers for
+  it. Translation fails when the source file has no subtitle lines.
+- Subtitle search uses the year from the file name and ignores punctuation
+  in a title. HTML providers follow a result page to a real subtitle file.
+  OpenSubtitles retries without a file hash when the hash search is empty.
+- A short title such as Box or 9 must stand as its own words next to the
+  year. A downloaded sidecar is named from the video file.
 
 ### 1.1.6 — Infinitely Extendable (2026-10-05)
 
@@ -204,6 +232,15 @@ The first Lingarr Next release. It is its own version line, not an upstream
 - When no source subtitle is on disk, Lingarr can ask Bazarr. That switch
   starts off. A miss is tried again for up to 7 days, and a downloaded file
   can replace one Lingarr made by OCR.
+- Settings → Translation → Providers can download a source or target subtitle
+  from configured sites before translation. A matching target is placed and
+  the media server is notified. Download, Translate, and Retranslate sit on
+  each movie and episode.
+
+<p align="center">
+  <img src="docs/images/movies-download.png" alt="Movies list with Download, Translate, and Retranslate, plus subtitle language badges" width="48%" />
+  <img src="docs/images/translations.png" alt="Translations list with source and target languages, completion status, and quality scores" width="48%" />
+</p>
 
 ### Translation providers
 
@@ -245,8 +282,8 @@ device-login connection for SuperGrok / Premium+ accounts.
   same way a Plex library.new event does. Radarr and Sonarr webhooks stay.
 - System logs open on the newest lines. Older lines load as you scroll up. A
   warning or error includes a short next step.
-- Translation has local **Setup**, **Subtitles**, **Prompts**, and **Advanced**
-  tabs.
+- Translation has local **Setup**, **Providers**, **Subtitles**, **Prompts**,
+  and **Advanced** tabs.
 - Translation Services are placed before Languages and retain the familiar
   Lingarr Next card and field vocabulary.
 - Save notifications use a visible theme-aligned toast with restrained spring
@@ -256,7 +293,23 @@ device-login connection for SuperGrok / Premium+ accounts.
   repository.
 
 <p align="center">
-  <img src="docs/images/translation-settings.png" alt="Lingarr Next Translation settings with local tabs, provider fallback chain, language selection, and provider health" width="100%" />
+  <img src="docs/images/translation-settings.png" alt="Translation Setup with languages, a draggable provider chain, and provider health" width="48%" />
+  <img src="docs/images/subtitle-providers.png" alt="Settings → Translation → Providers with a download chain of subtitle sites" width="48%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/translation-subtitles.png" alt="Picture and caption subtitle settings with Subtitle Edit OCR and CCExtractor" width="48%" />
+  <img src="docs/images/translation-advanced.png" alt="Translation Advanced with cancelled-request resume and the TypeSafe Jev classifier" width="48%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/connections-media.png" alt="Connections with Radarr, Sonarr, Plex sign-in, and Bazarr source download" width="48%" />
+  <img src="docs/images/plugins.png" alt="Settings → Plugins with one card per plugin and an off switch in the upper right" width="48%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/automation.png" alt="Automation settings with scheduled translation, library disk scan paused, and housekeeping" width="48%" />
+  <img src="docs/images/system-logs.png" alt="System logs with newest lines, a Following switch, and a next step on warnings" width="48%" />
 </p>
 
 ### Reliability

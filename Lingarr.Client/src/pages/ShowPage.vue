@@ -58,7 +58,7 @@
                 <div :class="isSelectMode ? 'col-span-7' : 'col-span-8'" class="px-4 py-2">
                     Title
                 </div>
-                <div class="col-span-1 px-4 py-2">Include</div>
+                <div class="col-span-1 flex items-center justify-center px-4 py-2">Include</div>
                 <div class="col-span-3 px-4 py-2">Delay</div>
                 <div
                     v-if="isSelectMode"
@@ -84,7 +84,9 @@
                                 @change="showStore.toggleSelect(item)" />
                         </span>
                     </div>
-                    <div class="flex items-center gap-2 md:col-span-1 md:px-4 md:py-2" @click.stop>
+                    <div
+                        class="flex items-center gap-2 md:col-span-1 md:justify-center md:px-4 md:py-2"
+                        @click.stop>
                         <ToggleButton
                             v-model="item.includeInTranslation"
                             size="small"

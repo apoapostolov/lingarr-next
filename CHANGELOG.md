@@ -5,6 +5,54 @@ All notable changes to Lingarr Next are documented here.
 Lingarr Next uses an independent version line. Its versions are not intended
 to sort before or after versions published by upstream Lingarr.
 
+## [Unreleased]
+
+## [1.2.0] - 2026-10-16 — Download First
+
+Lingarr can download a subtitle that already exists on a provider before it
+translates.
+
+- New movies and episodes extract embedded source and target text tracks
+  from the video before downloaders or translation.
+- Settings → Connections lists each Plex library with a refresh control and
+  a schedule switch. One cron runs enabled libraries in turn, waits 15
+  minutes between libraries, then selects the configured subtitle when that
+  sidecar is on the item.
+- Movies and TV episodes have Download, Translate, and Retranslate controls.
+  Download searches configured subtitle providers for a missing source and
+  for target languages. If only a source file is placed, Lingarr queues
+  translation for the rest. Translate and Retranslate queue from a source
+  sidecar already on disk and stay inactive until that file exists.
+- Settings → Translation → Providers downloads subtitles from Bazarr's
+  provider list before translation. A matching target file is placed and the
+  media server is notified. Lingarr translates only the languages still
+  missing. The tab switch is on by default. Providers Bazarr marks as
+  removed, broken, captcha-gated, AniDB-backed, private-tracker, Whisper,
+  embedded-extract, or hash-only workaround stay out of the list.
+- Settings → Translation → Providers can download a missing English subtitle
+  for every movie and episode. The run does not translate. Each miss is a
+  warning in System logs, and the page shows placed, no-match, and failed
+  counts.
+- A subtitle provider that sends an unknown character set such as iso-8859-15
+  is treated as a miss, and Lingarr keeps walking the rest of the chain.
+- An empty sidecar, a web page saved as a subtitle, or a file in the wrong
+  language does not count as that language. Download searches providers for
+  it. Translation fails when the source file has no subtitle lines.
+- A subtitle in Arabic or another non-Latin script does not count as English.
+  Lingarr then tries the next file from that provider.
+- Subtitle search uses the year from the file name. HTML providers follow a
+  result page to a real subtitle file, including relative `subs/` links, and
+  keep spaces and brackets encoded on that follow. OpenSubtitles retries
+  without a file hash when the hash search is empty.
+- Subtitle search ignores punctuation in a title, so a colon, ampersand, or
+  accent still matches provider pages that use dots or spaces.
+- A short title such as Box or 9 must stand as its own words next to the
+  year, so Black Box or District 9 do not steal that search.
+- A downloaded sidecar is named from the video file, not from a leftover
+  `.shifted` subtitle sitting in the folder.
+- Translate and Include sit in the center of those columns on movie, show,
+  season, and episode tables.
+
 ## [1.1.6] - 2026-10-05 — Infinitely Extendable
 
 A plugin can extend Lingarr without a fork. Drop a DLL in `PLUGINS_PATH` and
@@ -425,6 +473,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0
 [1.1.6]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6
 [1.1.5]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5
 [1.1.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.4

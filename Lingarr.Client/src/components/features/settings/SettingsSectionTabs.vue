@@ -64,6 +64,11 @@ const sections: Record<SettingsSection, { label: string; items: SettingsTab[] }>
                 activeRoutes: ['translation-setup-settings']
             },
             {
+                label: 'Providers',
+                route: 'translation-providers-settings',
+                activeRoutes: ['translation-providers-settings']
+            },
+            {
                 label: 'Subtitles',
                 route: 'translation-subtitles-settings',
                 activeRoutes: ['translation-subtitles-settings']

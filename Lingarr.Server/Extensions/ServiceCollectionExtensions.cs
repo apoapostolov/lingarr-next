@@ -29,6 +29,7 @@ using Lingarr.Server.Services.Integration;
 using Lingarr.Server.Services.Integration.Plex;
 using Lingarr.Server.Services.Plugins.Manifests;
 using Lingarr.Server.Services.Subtitle;
+using Lingarr.Server.Services.SubtitleDownload;
 using Lingarr.Server.Services.Sync;
 using Lingarr.Server.Services.Translation;
 using Lingarr.Migrations;
@@ -70,11 +71,17 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(120);
         });
+        builder.Services.AddHttpClient("subtitle-download", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
         builder.Services.AddScoped<MediaLibraryRefreshService>();
         builder.Services.AddScoped<IPlexClient, PlexClient>();
         builder.Services.AddScoped<IPlexAuthService, PlexAuthService>();
         builder.Services.AddScoped<IPlexSubtitleSelector, PlexSubtitleSelector>();
+        builder.Services.AddScoped<PlexLibraryRefreshService>();
         builder.Services.AddSingleton(new PlexPollOptions());
+        builder.Services.AddSingleton(new PlexLibraryRefreshOptions());
 
         builder.ConfigureSwagger();
         builder.ConfigureLogging();
@@ -193,6 +200,10 @@ public static class ServiceCollectionExtensions
         builder.Services.AddScoped<ITranslationQualityService, TranslationQualityService>();
         builder.Services.AddScoped<IClassifierSubtitleGate, ClassifierSubtitleGate>();
         builder.Services.AddScoped<IMediaSubtitleProcessor, MediaSubtitleProcessor>();
+        builder.Services.AddScoped<ISubtitleDownloadGateway, SubtitleDownloadGateway>();
+        builder.Services.AddScoped<ISubtitlePlacementService, SubtitlePlacementService>();
+        builder.Services.AddScoped<ISubtitleDownloadService, SubtitleDownloadService>();
+        builder.Services.AddScoped<IForceTranslationService, ForceTranslationService>();
         builder.Services.AddScoped<ILibraryLightDiscovery, LibraryLightDiscovery>();
         builder.Services.AddScoped<IDirectoryService, DirectoryService>();
         builder.Services.AddScoped<IMappingService, MappingService>();

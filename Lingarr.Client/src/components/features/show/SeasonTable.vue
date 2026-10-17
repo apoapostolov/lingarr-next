@@ -3,8 +3,8 @@
         <div
             class="grid grid-cols-12 border-b-2 border-secondary bg-primary font-bold text-secondary-content">
             <div class="col-span-6 px-4 py-2 md:col-span-3">Season</div>
-            <div class="col-span-6 flex justify-between px-4 py-2 md:col-span-8">
-                <span>Episodes</span>
+            <div class="col-span-5 px-4 py-2 md:col-span-8">Episodes</div>
+            <div class="col-span-1 flex items-center justify-center px-4 py-2">
                 <span class="hidden md:block">Include</span>
                 <span class="block md:hidden">✓</span>
             </div>
@@ -27,30 +27,33 @@
                     <span v-if="season.seasonNumber == 0">Specials</span>
                     <span v-else>Season {{ season.seasonNumber }}</span>
                 </div>
-                <div class="col-span-6 flex select-none justify-between px-4 py-2 md:col-span-8">
+                <div class="col-span-5 flex select-none items-center px-4 py-2 md:col-span-8">
                     <span>
                         {{ season.episodes.length }}
                         episodes
                     </span>
-                    <span @click.stop>
-                        <ToggleButton
-                            v-model="season.includeInTranslation"
-                            size="small"
-                            @toggle:update="
-                                () =>
-                                    showStore.include(
-                                        MEDIA_TYPE.SEASON,
-                                        season.id,
-                                        season.includeInTranslation
-                                    )
-                            " />
-                    </span>
+                </div>
+                <div
+                    class="col-span-1 flex select-none items-center justify-center px-4 py-2"
+                    @click.stop>
+                    <ToggleButton
+                        v-model="season.includeInTranslation"
+                        size="small"
+                        @toggle:update="
+                            () =>
+                                showStore.include(
+                                    MEDIA_TYPE.SEASON,
+                                    season.id,
+                                    season.includeInTranslation
+                                )
+                        " />
                 </div>
             </div>
             <EpisodeTable
                 v-if="expandedSeason?.id === season.id"
                 :subtitles="subtitles"
-                :episodes="season.episodes" />
+                :episodes="season.episodes"
+                @translated="collectSubtitles" />
         </div>
     </div>
 </template>

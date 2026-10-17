@@ -224,7 +224,7 @@ public sealed class PlexClient : IPlexClient
                 continue;
             }
 
-            sections.Add(new PlexLibrarySection(key, type, title ?? type));
+            sections.Add(new PlexLibrarySection(key, type, title ?? type, ReadBool(directory, "refreshing")));
         }
 
         return sections;
@@ -254,6 +254,17 @@ public sealed class PlexClient : IPlexClient
     {
         var url = Join(baseUrl, $"/library/metadata/{Uri.EscapeDataString(ratingKey)}/refresh");
         return SendEmptyAsync(HttpMethod.Put, url, token, clientId, cancellationToken);
+    }
+
+    public Task RefreshSectionAsync(
+        string baseUrl,
+        string token,
+        string clientId,
+        string sectionId,
+        CancellationToken cancellationToken)
+    {
+        var url = Join(baseUrl, $"/library/sections/{Uri.EscapeDataString(sectionId)}/refresh");
+        return SendEmptyAsync(HttpMethod.Get, url, token, clientId, cancellationToken);
     }
 
     public Task RefreshSectionPathAsync(

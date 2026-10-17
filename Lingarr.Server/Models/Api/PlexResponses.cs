@@ -60,3 +60,17 @@ public sealed class PlexTestResponse
     public bool Ok { get; set; }
     public string? Message { get; set; }
 }
+
+public sealed class PlexLibrariesResponse
+{
+    public required List<PlexLibraryResponse> Libraries { get; set; }
+    public bool Running { get; set; }
+}
+
+public sealed class PlexLibraryResponse
+{
+    public required string Key { get; set; }
+    public required string Type { get; set; }
+    public required string Title { get; set; }
+    public bool Scheduled { get; set; }
+}

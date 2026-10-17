@@ -5,11 +5,10 @@
                 <span class="hidden lg:block">Episodes</span>
                 <span class="block lg:hidden">#</span>
             </div>
-            <div class="col-span-5 px-4 py-2">Title</div>
-            <div class="col-span-5 flex justify-between py-2 pr-4">
-                <span>Subtitles</span>
-                <span>Include</span>
-            </div>
+            <div class="col-span-4 px-4 py-2">Title</div>
+            <div class="col-span-4 px-4 py-2">Subtitles</div>
+            <div class="col-span-1 flex items-center justify-center px-4 py-2">Include</div>
+            <div class="col-span-2 flex items-center justify-center px-4 py-2">Translate</div>
         </div>
         <div
             v-for="episode in episodes"
@@ -18,12 +17,13 @@
             <div class="hidden px-4 py-2 md:col-span-1 md:block">
                 {{ episode.episodeNumber }}
             </div>
-            <div class="flex w-full items-center gap-2 md:col-span-5 md:w-auto md:px-4 md:py-2">
+            <div class="flex w-full items-center gap-2 md:col-span-4 md:w-auto md:px-4 md:py-2">
                 <span class="text-primary-content/50 md:hidden">{{ episode.episodeNumber }}.</span>
                 <span>{{ episode.title }}</span>
                 <ActiveTranslationBadge :media-id="episode.id" :media-type="MEDIA_TYPE.EPISODE" />
             </div>
-            <div class="flex w-full items-center justify-between md:col-span-5 md:w-auto md:pr-4">
+            <div
+                class="flex w-full flex-wrap items-center gap-2 md:col-span-4 md:w-auto md:px-4 md:py-2">
                 <div v-if="episode?.fileName" class="flex flex-wrap items-center gap-2">
                     <ContextMenu
                         v-for="(subtitle, jndex) in getSubtitle(episode.fileName)"
@@ -39,40 +39,55 @@
                         </BadgeComponent>
                     </ContextMenu>
                 </div>
-                <div class="ml-auto flex items-center gap-2 px-1 md:py-2">
-                    <ToggleButton
-                        v-model="episode.includeInTranslation"
-                        size="small"
-                        @toggle:update="
-                            () =>
-                                showStore.include(
-                                    MEDIA_TYPE.EPISODE,
-                                    episode.id,
-                                    episode.includeInTranslation
-                                )
-                        " />
-                    <span
-                        class="text-primary-content/50 text-xs font-semibold tracking-wide uppercase md:hidden">
-                        Include
-                    </span>
-                </div>
+            </div>
+            <div
+                class="flex items-center gap-2 md:col-span-1 md:justify-center md:px-4 md:py-2">
+                <ToggleButton
+                    v-model="episode.includeInTranslation"
+                    size="small"
+                    @toggle:update="
+                        () =>
+                            showStore.include(
+                                MEDIA_TYPE.EPISODE,
+                                episode.id,
+                                episode.includeInTranslation
+                            )
+                    " />
+                <span
+                    class="text-primary-content/50 text-xs font-semibold tracking-wide uppercase md:hidden">
+                    Include
+                </span>
+            </div>
+            <div
+                class="flex items-center md:col-span-2 md:justify-center md:px-4 md:py-2">
+                <ForceTranslateControls
+                    :media-id="episode.id"
+                    :media-type="MEDIA_TYPE.EPISODE"
+                    :has-source="hasSource(episode)"
+                    @done="emit('translated')" />
             </div>
         </div>
     </div>
 </template>
 <script setup lang="ts">
-import { IEpisode, ISubtitle, MEDIA_TYPE } from '@/ts'
+import { IEpisode, ILanguage, ISubtitle, MEDIA_TYPE } from '@/ts'
 import BadgeComponent from '@/components/common/BadgeComponent.vue'
 import ContextMenu from '@/components/layout/ContextMenu.vue'
 import ToggleButton from '@/components/common/ToggleButton.vue'
 import ActiveTranslationBadge from '@/components/common/ActiveTranslationBadge.vue'
+import ForceTranslateControls from '@/components/common/ForceTranslateControls.vue'
 import { useShowStore } from '@/store/show'
+import { useSettingStore } from '@/store/setting'
 
 const props = defineProps<{
     episodes: IEpisode[]
     subtitles: ISubtitle[]
 }>()
+const emit = defineEmits<{
+    translated: []
+}>()
 const showStore = useShowStore()
+const settingStore = useSettingStore()
 
 const getSubtitle = (fileName: string | null) => {
     if (!fileName) return null
@@ -85,5 +100,25 @@ const getSubtitle = (fileName: string | null) => {
         )
         .slice()
         .sort((a, b) => a.language.localeCompare(b.language))
+}
+
+const sourceCodes = (): string[] => {
+    const raw = settingStore.getSettings.source_languages
+    if (Array.isArray(raw)) {
+        return raw.map((language: ILanguage) => language.code)
+    }
+    return []
+}
+
+const hasSource = (episode: IEpisode) => {
+    const codes = sourceCodes()
+    const found = getSubtitle(episode.fileName ?? null) ?? []
+    return found.some((subtitle) => {
+        const token = (subtitle.language || '').split(':')[0].trim().toLowerCase()
+        return codes.some((code) => {
+            const wanted = code.toLowerCase()
+            return token === wanted || token.startsWith(wanted) || wanted.startsWith(token)
+        })
+    })
 }
 </script>

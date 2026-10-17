@@ -131,6 +131,54 @@
             <p class="text-secondary-content text-sm">
                 Lingarr uploads the sidecar if Plex does not detect it after refresh.
             </p>
+
+            <div v-if="status?.connected && status.serverUrl && !pin" class="space-y-3">
+                <p class="text-primary-content text-sm font-medium">Libraries</p>
+                <p class="text-secondary-content text-sm">
+                    Refresh a library now, or include it in the schedule. Lingarr refreshes
+                    one enabled library at a time and waits 15 minutes before the next.
+                    After each scan it selects the configured subtitle when that sidecar
+                    is on the item.
+                </p>
+                <p v-if="librariesError" class="text-error text-sm" role="alert">{{ librariesError }}</p>
+                <p
+                    v-else-if="librariesLoaded && libraries.length === 0"
+                    class="text-secondary-content text-sm">
+                    Plex returned no libraries.
+                </p>
+                <div
+                    v-for="library in libraries"
+                    :key="library.key"
+                    class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-primary-content truncate text-sm font-medium">{{ library.title }}</p>
+                        <p class="text-secondary-content text-xs">{{ libraryTypeLabel(library.type) }}</p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <button
+                            type="button"
+                            class="text-accent hover:bg-accent/10 rounded-md p-1 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="busy || refreshRunning || refreshingKey === library.key"
+                            :aria-label="`Refresh ${library.title} now`"
+                            @click="refreshLibrary(library)">
+                            <ReloadIcon
+                                class="h-5 w-5"
+                                :class="{ 'animate-spin': refreshingKey === library.key }" />
+                        </button>
+                        <ToggleButton
+                            :model-value="library.scheduled"
+                            :aria-label="`Include ${library.title} in the scheduled Plex refresh`"
+                            @update:model-value="(value) => saveLibrarySchedule(library, value)" />
+                    </div>
+                </div>
+                <InputComponent
+                    v-model="refreshSchedule"
+                    label="Cron expression (UTC)"
+                    :placeholder="'0 4 * * 0'"
+                    :validation-type="INPUT_VALIDATION_TYPE.CRON"
+                    @update:validation="(value) => (refreshScheduleValid = value)" />
+            </div>
+
             <ToggleButton
                 :model-value="translateMoviesOnAdd"
                 aria-label="Translate when Plex adds a movie"
@@ -165,7 +213,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import services from '@/services'
-import { INPUT_TYPE, INPUT_VALIDATION_TYPE, IPlexPin, IPlexServer, IPlexStatus, SETTINGS } from '@/ts'
+import { INPUT_TYPE, INPUT_VALIDATION_TYPE, IPlexLibrary, IPlexPin, IPlexServer, IPlexStatus, SETTINGS } from '@/ts'
 import { useSettingStore } from '@/store/setting'
 import { useTranslateStore } from '@/store/translate'
 import { resolveUrl } from '@/utils/baseUrl'
@@ -175,6 +223,7 @@ import CodeSnippet from '@/components/common/CodeSnippet.vue'
 import InputComponent from '@/components/common/InputComponent.vue'
 import SelectComponent from '@/components/common/SelectComponent.vue'
 import ToggleButton from '@/components/common/ToggleButton.vue'
+import ReloadIcon from '@/components/icons/ReloadIcon.vue'
 
 const plexWebhookUrl = resolveUrl('/api/webhook/plex')
 
@@ -191,6 +240,12 @@ const tokenValid = ref(false)
 const busy = ref(false)
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
+const libraries = ref<IPlexLibrary[]>([])
+const librariesLoaded = ref(false)
+const librariesError = ref<string | null>(null)
+const refreshingKey = ref<string | null>(null)
+const refreshRunning = ref(false)
+const refreshScheduleValid = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const language = computed(
@@ -211,6 +266,13 @@ const authEnabled = computed(
 const languageOptions = computed(() =>
     translateStore.getLanguages.map((item) => ({ value: item.code, label: item.name }))
 )
+const refreshSchedule = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.PLEX_LIBRARY_REFRESH_SCHEDULE) as string) || '0 4 * * 0',
+    set: (value: string): void => {
+        void saveRefreshSchedule(value)
+    }
+})
 
 function clearPoll() {
     if (pollTimer) {
@@ -234,6 +296,85 @@ async function refreshStatus() {
     status.value = await services.plex.status()
     if (status.value.serverUrl) {
         manualUrl.value = status.value.serverUrl
+    }
+    await loadLibraries()
+}
+
+function libraryTypeLabel(type: string) {
+    switch (type.toLowerCase()) {
+        case 'movie':
+            return 'Movies'
+        case 'show':
+            return 'TV'
+        default:
+            return type
+    }
+}
+
+async function loadLibraries() {
+    if (!status.value?.connected || !status.value.serverUrl || pin.value) {
+        libraries.value = []
+        librariesLoaded.value = false
+        refreshRunning.value = false
+        return
+    }
+
+    librariesError.value = null
+    try {
+        const result = await services.plex.libraries()
+        libraries.value = result.libraries
+        refreshRunning.value = result.running
+        librariesLoaded.value = true
+    } catch (response: any) {
+        libraries.value = []
+        librariesLoaded.value = true
+        librariesError.value = detail(response, 'Lingarr could not list Plex libraries.')
+    }
+}
+
+async function refreshLibrary(library: IPlexLibrary) {
+    error.value = null
+    notice.value = null
+    librariesError.value = null
+    refreshingKey.value = library.key
+    busy.value = true
+    try {
+        const result = await services.plex.refreshLibrary(library.key)
+        notice.value = result.message || `Plex library refresh started for ${library.title}.`
+        refreshRunning.value = true
+    } catch (response: any) {
+        error.value = detail(response, 'Lingarr could not start the Plex library refresh.')
+    } finally {
+        busy.value = false
+        refreshingKey.value = null
+    }
+}
+
+async function saveLibrarySchedule(library: IPlexLibrary, value: string | boolean) {
+    const on = String(value) === 'true'
+    library.scheduled = on
+    const keys = libraries.value.filter((item) => item.scheduled).map((item) => item.key)
+    const json = JSON.stringify(keys)
+    error.value = null
+    try {
+        await services.setting.setSetting(SETTINGS.PLEX_LIBRARY_REFRESH_KEYS, json)
+        settingsStore.storeSetting(SETTINGS.PLEX_LIBRARY_REFRESH_KEYS, json)
+    } catch (response: any) {
+        library.scheduled = !on
+        error.value = detail(response, 'Could not save the Plex library schedule.')
+    }
+}
+
+async function saveRefreshSchedule(value: string) {
+    if (!refreshScheduleValid.value) {
+        return
+    }
+    error.value = null
+    try {
+        await services.setting.setSetting(SETTINGS.PLEX_LIBRARY_REFRESH_SCHEDULE, value)
+        settingsStore.storeSetting(SETTINGS.PLEX_LIBRARY_REFRESH_SCHEDULE, value)
+    } catch (response: any) {
+        error.value = detail(response, 'Could not save the Plex library schedule.')
     }
 }
 
@@ -259,6 +400,7 @@ async function chooseServer(server: IPlexServer) {
             connection.uri
         )
         servers.value = []
+        await loadLibraries()
         notice.value = `Using ${server.name}.`
     } catch (response: any) {
         error.value = detail(response, 'Lingarr could not open that Plex server.')
@@ -328,6 +470,7 @@ async function saveToken() {
         status.value = await services.plex.saveToken(manualUrl.value, manualToken.value)
         manualToken.value = ''
         showTokenForm.value = false
+        await loadLibraries()
         notice.value = 'Plex token saved.'
     } catch (response: any) {
         error.value = detail(response, 'Lingarr could not use that Plex token.')
@@ -363,6 +506,8 @@ async function logout() {
         await services.plex.logout()
         pin.value = null
         servers.value = []
+        libraries.value = []
+        librariesLoaded.value = false
         await refreshStatus()
         notice.value = 'Signed out of Plex.'
     } catch (response: any) {

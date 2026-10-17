@@ -26,6 +26,7 @@ import {
     IPlexServer,
     IPlexStatus,
     IPlexTest,
+    IPlexLibraries,
     IProviderHealth,
     IProviderProbe,
     ITranslationQualityDetail,
@@ -110,6 +111,8 @@ export interface IPlexService {
     saveToken(url: string, token: string): Promise<IPlexStatus>
     test(): Promise<IPlexTest>
     logout(): Promise<void>
+    libraries(): Promise<IPlexLibraries>
+    refreshLibrary(key: string): Promise<IPlexTest>
 }
 
 export interface IAuthService {
@@ -170,7 +173,16 @@ export interface ITranslateService {
         mediaType: MediaType
     ): Promise<T>
     bulkTranslate<T>(mediaIds: number[], targetLanguage: string, mediaType: MediaType): Promise<T>
+    force<T>(mediaId: number, mediaType: MediaType, overwrite: boolean): Promise<T>
+    download<T>(mediaId: number, mediaType: MediaType): Promise<T>
     getLanguages<T>(): Promise<T>
+}
+
+export interface IForceTranslateResult {
+    sourceMissing?: boolean
+    requestIds?: number[]
+    downloaded?: string[]
+    message: string
 }
 
 export interface ITranslationRequestService {

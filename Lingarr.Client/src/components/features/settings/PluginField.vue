@@ -3,6 +3,24 @@
         <XaiOAuthConnection
             v-if="field.type === PLUGIN_SETTING_TYPE.OAUTH"
             @save="emit('save')" />
+        <div
+            v-else-if="field.type === PLUGIN_SETTING_TYPE.TOGGLE"
+            class="flex items-center space-x-2">
+            <span class="text-sm font-semibold">
+                {{ field.label }}
+                <span v-if="field.required" class="text-red-500" aria-hidden="true">*</span>
+            </span>
+            <ToggleButton
+                :model-value="fieldValue"
+                :aria-label="field.label"
+                @update:model-value="
+                    fieldValue = $event === true || $event === 'true' ? 'true' : 'false'
+                ">
+                <span class="text-primary-content text-sm font-medium">
+                    {{ fieldValue === 'true' ? 'On' : 'Off' }}
+                </span>
+            </ToggleButton>
+        </div>
         <template v-else-if="field.type === PLUGIN_SETTING_TYPE.REMOTE_DROPDOWN">
             <label class="mb-1 block text-sm font-semibold" :for="field.key">
                 {{ field.label }}
@@ -53,6 +71,7 @@ import services from '@/services'
 import { useSettingStore } from '@/store/setting'
 import InputComponent from '@/components/common/InputComponent.vue'
 import SelectComponent from '@/components/common/SelectComponent.vue'
+import ToggleButton from '@/components/common/ToggleButton.vue'
 import XaiOAuthConnection from '@/components/features/settings/XaiOAuthConnection.vue'
 
 const props = defineProps<{

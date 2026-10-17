@@ -117,6 +117,20 @@ public class ScheduleService : IScheduleService
             string.IsNullOrWhiteSpace(subtitleSchedule) ? "0 3 * * 0" : subtitleSchedule,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
+        var plexLibrarySchedule = await settingService.GetSetting(SettingKeys.MediaServers.PlexLibraryRefreshSchedule);
+        if (string.IsNullOrWhiteSpace(plexLibrarySchedule))
+        {
+            RecurringJob.RemoveIfExists("PlexLibraryRefreshJob");
+        }
+        else
+        {
+            RecurringJob.AddOrUpdate<PlexLibraryRefreshJob>(
+                "PlexLibraryRefreshJob",
+                job => job.ExecuteScheduled(),
+                plexLibrarySchedule,
+                new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+        }
+
         _logger.LogInformation("Cleaning up orphaned processing jobs.");
         var monitor = JobStorage.Current.GetMonitoringApi();
         var processingJobs = monitor.ProcessingJobs(0, int.MaxValue);

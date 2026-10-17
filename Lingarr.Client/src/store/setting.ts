@@ -18,10 +18,23 @@ export const useSettingStore = defineStore('setting', {
     }),
     getters: {
         getSettings: (state: IUseSettingStore): ISettings => {
+            const parseLanguages = (value: unknown) => {
+                if (Array.isArray(value)) {
+                    return value
+                }
+                if (typeof value === 'string' && value.trim()) {
+                    try {
+                        return JSON.parse(value)
+                    } catch {
+                        return []
+                    }
+                }
+                return []
+            }
             return {
                 ...state.settings,
-                source_languages: JSON.parse(state.settings.source_languages as string),
-                target_languages: JSON.parse(state.settings.target_languages as string)
+                source_languages: parseLanguages(state.settings.source_languages),
+                target_languages: parseLanguages(state.settings.target_languages)
             }
         },
         getSetting: (state: IUseSettingStore) => (key: keyof ISettings) => state.settings[key],

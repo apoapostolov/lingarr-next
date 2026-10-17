@@ -150,6 +150,39 @@ public class PlexIntegrationTests
     }
 
     [Fact]
+    public async Task RefreshSection_GetsTheLibraryRefreshUrl()
+    {
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var client = CreateClient(handler);
+
+        await client.RefreshSectionAsync("http://plex:32400", "token", "client-1", "2", CancellationToken.None);
+
+        Assert.Equal(
+            "http://plex:32400/library/sections/2/refresh",
+            handler.Requests[0].Request.RequestUri!.ToString());
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Request.Method);
+        Assert.DoesNotContain("X-Plex-Token=token", handler.Requests[0].Request.RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task GetLibraries_ReadsRefreshing()
+    {
+        var handler = new RecordingHandler(_ => Json(
+            HttpStatusCode.OK,
+            """{"MediaContainer":{"Directory":[{"key":"1","type":"movie","title":"Movies","refreshing":true}]}}"""));
+        var client = CreateClient(handler);
+
+        var sections = await client.GetLibrariesAsync(
+            "http://plex:32400",
+            "token",
+            "client-1",
+            CancellationToken.None);
+
+        Assert.Equal("1", sections[0].Key);
+        Assert.True(sections[0].Refreshing);
+    }
+
+    [Fact]
     public async Task UploadSubtitle_PostsTheFileWithAnExplicitLanguageAndNoTokenInTheUrl()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
@@ -613,6 +646,13 @@ public class PlexIntegrationTests
             string token,
             string clientId,
             string ratingKey,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task RefreshSectionAsync(
+            string baseUrl,
+            string token,
+            string clientId,
+            string sectionId,
             CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task RefreshSectionPathAsync(

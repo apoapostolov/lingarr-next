@@ -30,6 +30,7 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
     private readonly PluginToolRunner _tools;
     private readonly PluginSignals _signals;
     private readonly PluginShelf _shelf;
+    private readonly ISubtitleDownloadService _downloads;
     private string _hash = string.Empty;
     private IMedia _media = null!;
     private MediaType _mediaType;
@@ -44,7 +45,8 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         IBackgroundJobClient jobs,
         PluginToolRunner tools,
         PluginSignals signals,
-        PluginShelf shelf)
+        PluginShelf shelf,
+        ISubtitleDownloadService downloads)
     {
         _translationRequestService = translationRequestService;
         _settingService = settingService;
@@ -55,6 +57,7 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         _tools = tools;
         _signals = signals;
         _shelf = shelf;
+        _downloads = downloads;
         _logger = logger;
     }
 
@@ -79,25 +82,34 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         }
         
         var sourceLanguages = await GetLanguagesSetting<SourceLanguage>(SettingKeys.Translation.SourceLanguages);
+        var targetLanguages = await GetLanguagesSetting<TargetLanguage>(SettingKeys.Translation.TargetLanguages);
         var subtitles = await _subtitleService.GetSubtitles(media.Path, media.FileName);
+        subtitles = await TryExtractConfiguredText(media, subtitles, sourceLanguages, targetLanguages);
         var bazarrPolicy = BazarrRetryPolicy.From(await _settingService.GetSettings(BazarrRetryPolicy.Keys));
         if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
         {
-            var extractFirst = BazarrSourceOrder.ExtractFirst(
-                await _settingService.GetSetting(SettingKeys.Integration.BazarrExtractFirst));
+            var englishSource = BazarrSourceOrder.SourceIncludesEnglish(sourceLanguages);
+            var picturePolicyEarly = NonTextSubtitlePolicy.From(
+                await _settingService.GetSettings(NonTextSubtitlePolicy.Keys)
+                ?? new Dictionary<string, string>());
+            if (englishSource && !picturePolicyEarly.LastResort)
+            {
+                subtitles = await TryExtractSource(media, subtitles, sourceLanguages, picturePolicyEarly, nonTextOnly: true);
+            }
+        }
+
+        subtitles = await TryDownloadLanguages(media, mediaType, subtitles, targetLanguages, overwrite: false);
+        if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+        {
+            subtitles = await TryDownloadLanguages(media, mediaType, subtitles, sourceLanguages, overwrite: false);
+        }
+
+        if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
+        {
             var englishSource = BazarrSourceOrder.SourceIncludesEnglish(sourceLanguages);
             var picturePolicy = NonTextSubtitlePolicy.From(
                 await _settingService.GetSettings(NonTextSubtitlePolicy.Keys)
                 ?? new Dictionary<string, string>());
-            if (extractFirst && englishSource)
-            {
-                var beforeBazarr = picturePolicy.LastResort ? picturePolicy.TextOnly() : picturePolicy;
-                subtitles = await TryExtractSource(media, subtitles, sourceLanguages, beforeBazarr, nonTextOnly: false);
-            }
-            else if (!picturePolicy.LastResort && englishSource)
-            {
-                subtitles = await TryExtractSource(media, subtitles, sourceLanguages, picturePolicy, nonTextOnly: true);
-            }
 
             var bazarrMissed = false;
             if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr)
@@ -173,7 +185,6 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             return false;
         }
 
-        var targetLanguages = await GetLanguagesSetting<TargetLanguage>(SettingKeys.Translation.TargetLanguages);
         var ignoreCaptions = await _settingService.GetSetting(SettingKeys.Translation.IgnoreCaptions) ?? "false";
 
         _media = media;
@@ -187,6 +198,33 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         
         _logger.LogInformation("Initiating subtitle processing.");
         return await ProcessSubtitles(subtitles, sourceLanguages, targetLanguages, ignoreCaptions);
+    }
+
+    private async Task<List<Subtitles>> TryDownloadLanguages(
+        IMedia media,
+        MediaType mediaType,
+        List<Subtitles> subtitles,
+        HashSet<string> languages,
+        bool overwrite)
+    {
+        if (languages.Count == 0 || media.Path == null || media.FileName == null)
+        {
+            return subtitles;
+        }
+
+        var placed = await _downloads.DownloadLanguagesAsync(
+            media,
+            mediaType,
+            languages,
+            subtitles,
+            overwrite,
+            CancellationToken.None);
+        if (placed.Count == 0)
+        {
+            return subtitles;
+        }
+
+        return await _subtitleService.GetSubtitles(media.Path, media.FileName);
     }
 
     private static bool NeedsRealSource(
@@ -221,6 +259,44 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         }
 
         return await _subtitleService.GetSubtitles(media.Path!, media.FileName!);
+    }
+
+    private async Task<List<Subtitles>> TryExtractConfiguredText(
+        IMedia media,
+        List<Subtitles> subtitles,
+        HashSet<string> sourceLanguages,
+        HashSet<string> targetLanguages)
+    {
+        var wanted = sourceLanguages
+            .Concat(targetLanguages)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0 || media.Path == null || media.FileName == null)
+        {
+            return subtitles;
+        }
+
+        try
+        {
+            if (await EmbeddedSubtitleExtractor.TryExtractTextLanguages(
+                    media.Path,
+                    media.FileName,
+                    wanted,
+                    subtitles.Select(subtitle => subtitle.Language),
+                    CancellationToken.None))
+            {
+                _logger.LogInformation(
+                    "Extracted embedded source or target subtitles from {File}.",
+                    media.FileName);
+                return await _subtitleService.GetSubtitles(media.Path, media.FileName);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or System.ComponentModel.Win32Exception)
+        {
+            _logger.LogInformation(exception, "Could not extract embedded subtitles from {File}.", media.FileName);
+        }
+
+        return subtitles;
     }
 
     private async Task<List<Subtitles>> TryExtractSource(

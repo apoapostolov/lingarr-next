@@ -70,6 +70,11 @@ public class SettingChangedListener
                 ])
             },
             {
+                "plexLibraryRefresh", ("Action", "PlexLibraryRefresh", [
+                    SettingKeys.MediaServers.PlexLibraryRefreshSchedule
+                ])
+            },
+            {
                 "serviceType", ("Action", "ServiceType", [
                     SettingKeys.Translation.ServiceType
                 ])
@@ -228,6 +233,24 @@ public class SettingChangedListener
                         "SyncShowJob",
                         job => job.Execute(),
                         settings[SettingKeys.Automation.ShowSchedule]);
+                    break;
+
+                case "PlexLibraryRefresh":
+                    var plexLibraryJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+                    var plexLibrarySchedule = settings.GetValueOrDefault(
+                        SettingKeys.MediaServers.PlexLibraryRefreshSchedule,
+                        "0 4 * * 0");
+                    if (string.IsNullOrWhiteSpace(plexLibrarySchedule))
+                    {
+                        plexLibraryJobManager.RemoveIfExists("PlexLibraryRefreshJob");
+                    }
+                    else
+                    {
+                        plexLibraryJobManager.AddOrUpdate<PlexLibraryRefreshJob>(
+                            "PlexLibraryRefreshJob",
+                            job => job.ExecuteScheduled(),
+                            plexLibrarySchedule);
+                    }
                     break;
 
                 case "ServiceType":

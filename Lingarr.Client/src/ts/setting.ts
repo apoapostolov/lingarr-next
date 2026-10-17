@@ -142,7 +142,11 @@ export const SETTINGS = {
     PLEX_DEFAULT_SUBTITLE_LANGUAGE: 'plex_default_subtitle_language',
     PLEX_TRANSLATE_ON_LIBRARY_NEW: 'plex_translate_on_library_new',
     PLEX_TRANSLATE_MOVIES_ON_LIBRARY_NEW: 'plex_translate_movies_on_library_new',
-    PLEX_TRANSLATE_EPISODES_ON_LIBRARY_NEW: 'plex_translate_episodes_on_library_new'
+    PLEX_TRANSLATE_EPISODES_ON_LIBRARY_NEW: 'plex_translate_episodes_on_library_new',
+    PLEX_LIBRARY_REFRESH_KEYS: 'plex_library_refresh_keys',
+    PLEX_LIBRARY_REFRESH_SCHEDULE: 'plex_library_refresh_schedule',
+    SUBTITLE_DOWNLOADERS_ENABLED: 'subtitle_downloaders_enabled',
+    SUBTITLE_DOWNLOAD_PROVIDERS: 'subtitle_download_providers'
 } as const
 
 export interface ISettings {
@@ -286,6 +290,10 @@ export interface ISettings {
     plex_translate_on_library_new: string
     plex_translate_movies_on_library_new: string
     plex_translate_episodes_on_library_new: string
+    plex_library_refresh_keys: string
+    plex_library_refresh_schedule: string
+    subtitle_downloaders_enabled: string
+    subtitle_download_providers: string
 }
 
 export const ENCRYPTED_SETTINGS = {
