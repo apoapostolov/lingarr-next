@@ -44,6 +44,9 @@ docker run --rm --network=host \
 | `Services/DashboardActivityServiceTests.cs` | Bounded recent-work metrics and deterministic progress prose |
 | `Services/ProviderHealthServiceTests.cs` | Provider status precedence, recovery, and safe event classification |
 | `Services/ClassifierProviderTests.cs` | Selected classifier key, OpenAI Decisions request and answers, Jev fallback, and fail-open behavior |
+| `Services/SubtitleDownload/SubtitleDownloadReliabilityTests.cs` | Missing folders skip providers; placement I/O/permission errors stop only this item; cancellation propagates |
+| `Services/SubtitleDownload/SubtitleDownloadHttpTests.cs` | HTTP-mocked HTML headers, cookie origin, encoded links, JSON endpoint queries/relative downloads, and safe failure logs |
+| `Services/Integration/BazarrReliabilityTests.cs` | Bazarr HTTP errors are warnings rather than empty results; unavailable folders defer retries without a search |
 
 ### Upstream coverage already present
 

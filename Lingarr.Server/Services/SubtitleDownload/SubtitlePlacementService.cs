@@ -63,7 +63,13 @@ public sealed class SubtitlePlacementService : ISubtitlePlacementService
             return null;
         }
 
-        Directory.CreateDirectory(media.Path);
+        cancellationToken.ThrowIfCancellationRequested();
+        // The media directory is owned by the library. Never recreate it on a
+        // disconnected mount or after the media has been removed.
+        if (!Directory.Exists(media.Path))
+        {
+            throw new DirectoryNotFoundException($"Media directory unavailable at {media.Path}.");
+        }
         var original = Path.Combine(media.Path, media.FileName + ".srt");
         var outputPath = _subtitles.CreateFilePath(original, language, "");
         if (!string.IsNullOrWhiteSpace(hit.Extension))

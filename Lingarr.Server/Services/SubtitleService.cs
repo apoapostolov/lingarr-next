@@ -54,8 +54,8 @@ public class SubtitleService : ISubtitleService
     {
         if (!Directory.Exists(path))
         {
-            _logger.LogInformation(
-                "Failed to collect subtitles in path |Red|{Path}|/Red|. Try reindexing or verify that the media is correctly set up in the source system.",
+            _logger.LogWarning(
+                "Subtitle collection skipped: media directory unavailable at {Path}.",
                 path);
             return [];
         }
@@ -68,7 +68,7 @@ public class SubtitleService : ISubtitleService
             await AddCodecFiles(path, null, subtitles);
             return subtitles;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex,
                 "Failed to enumerate subtitles under |Red|{Path}|/Red| (I/O or memory pressure). Returning empty list.",
@@ -631,8 +631,8 @@ public class SubtitleService : ISubtitleService
 
         if (!Directory.Exists(path))
         {
-            _logger.LogInformation(
-                "Failed to collect subtitles in path |Red|{Path}|/Red|. Try reindexing or verify that the media is correctly set up in the source system.",
+            _logger.LogWarning(
+                "Subtitle collection skipped: media directory unavailable at {Path}.",
                 path);
             return [];
         }
@@ -647,7 +647,7 @@ public class SubtitleService : ISubtitleService
             await AddCodecFiles(path, fileName, matches);
             return matches;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex,
                 "Failed to collect subtitles for |Red|{FileName}|/Red| under |Red|{Path}|/Red|.",

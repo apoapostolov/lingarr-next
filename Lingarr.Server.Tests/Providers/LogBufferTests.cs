@@ -121,6 +121,15 @@ public class LogBufferTests
         Assert.True(logger.IsEnabled(LogLevel.Warning));
     }
 
+    [Fact]
+    public void Hint_DistinguishesStorageAndSubtitleProviders()
+    {
+        Assert.Contains("media drive", LogHints.For(LogLevel.Warning,
+            "Subtitle downloads stopped: media directory unavailable.", "No such device"));
+        Assert.Contains("Translation → Providers", LogHints.For(LogLevel.Warning,
+            "Subtitle provider Example search failed: HTTP 401.", null));
+    }
+
     private static LogEntry Line(LogLevel level, string message, DateTime? timestamp = null) => new()
     {
         LogLevel = level,

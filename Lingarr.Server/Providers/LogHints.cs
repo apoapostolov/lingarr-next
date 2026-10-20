@@ -15,6 +15,12 @@ public static class LogHints
             return null;
         }
 
+        if (text.Contains("media directory unavailable", StringComparison.Ordinal)
+            || text.Contains("no such device", StringComparison.Ordinal))
+        {
+            return "Check that the media drive is connected and readable inside Lingarr, then verify the folder mapping under Settings → Connections → Path mapping.";
+        }
+
         if (text.Contains("directory not found", StringComparison.Ordinal))
         {
             return "Check the folder mapping for this library under Settings → Connections → Path mapping.";
@@ -47,6 +53,11 @@ public static class LogHints
         if (text.Contains("api settings are not configured", StringComparison.Ordinal))
         {
             return "Choose a translation service and save its address and key under Settings → Services.";
+        }
+
+        if (text.Contains("subtitle provider", StringComparison.Ordinal))
+        {
+            return "Check this provider's credentials and availability under Settings → Translation → Providers.";
         }
 
         if (text.Contains("401", StringComparison.Ordinal)

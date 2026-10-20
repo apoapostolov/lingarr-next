@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Lingarr.Core.Configuration;
@@ -106,6 +107,7 @@ public class SubtitleDownloadServiceTests
     [Fact]
     public async Task DownloadLanguages_PlacesMissingTarget()
     {
+        using var folder = new TempFolder();
         var settings = new Mock<ISettingService>();
         settings.Setup(service => service.GetSetting(SettingKeys.SubtitleDownload.Enabled))
             .ReturnsAsync("true");
@@ -146,7 +148,7 @@ public class SubtitleDownloadServiceTests
             Id = 1,
             RadarrId = 1,
             Title = "Test Movie",
-            Path = "/movies/test",
+            Path = folder.Path,
             FileName = "test.movie",
             DateAdded = System.DateTime.UtcNow
         };
@@ -178,5 +180,12 @@ public class SubtitleDownloadServiceTests
                 "ro",
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    private sealed class TempFolder : System.IDisposable
+    {
+        private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory();
+        public string Path => _directory.FullName;
+        public void Dispose() => _directory.Delete(true);
     }
 }

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
@@ -86,6 +87,12 @@ public class BazarrService : IBazarrService
         }
 
         var minimum = await MinimumScore();
+        if (!Directory.Exists(media.Path))
+        {
+            _logger.LogWarning("Bazarr search skipped: media directory unavailable at {Path}.", media.Path);
+            return false;
+        }
+
         var (url, key) = await Credentials();
         try
         {
@@ -102,9 +109,13 @@ public class BazarrService : IBazarrService
                 return false;
             }
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        catch (Exception exception) when (
+            exception is HttpRequestException or JsonException or InvalidOperationException
+            || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation(exception, "Bazarr could not search subtitles for {File}.", media.FileName);
+            _logger.LogWarning("Bazarr subtitle search failed for {File}: {Failure} (HTTP {Status}).",
+                media.FileName, exception.GetType().Name,
+                exception is HttpRequestException http ? (int?)http.StatusCode : null);
             return false;
         }
 
@@ -205,8 +216,9 @@ public class BazarrService : IBazarrService
         using var response = await Client().SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogInformation("Bazarr {Path} answered {Status}.", path, (int)response.StatusCode);
-            return default;
+            // A failed search is not an empty catalogue or a score-floor miss.
+            throw new HttpRequestException($"Bazarr search returned HTTP {(int)response.StatusCode}.",
+                null, response.StatusCode);
         }
 
         return await response.Content.ReadFromJsonAsync<T>(cancellationToken);

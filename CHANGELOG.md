@@ -12,6 +12,26 @@ to sort before or after versions published by upstream Lingarr.
 Lingarr can download a subtitle that already exists on a provider before it
 translates.
 
+### Reliability update — 2026-10-20
+
+- Subtitle downloads skip unavailable media folders and stop cleanly after a
+  write or permission failure; they no longer recreate missing library folders.
+  Bazarr retries wait for the folder to return within the existing retry window.
+- Subtitle collection reports an unavailable folder with a storage/mapping hint.
+  Bazarr HTTP failures are reported as search failures instead of empty results.
+- HTML subtitle providers retain configured cookies and User-Agent through
+  result and download pages, with cookies restricted to the provider's origin.
+  HTML-encoded link query separators are decoded before following a link.
+- JSON subtitle providers preserve endpoint query parameters (including Titlovi
+  credentials) and resolve relative download links against the search endpoint.
+- Provider HTTP failures and timeouts are warnings with provider/status details;
+  diagnostic messages omit request URLs and credential-bearing exceptions.
+- No new migrations or settings are required. Existing provider order and version
+  metadata remain unchanged. Validation: 570 server tests and 19 API smoke checks
+  passed; the Docker image was rebuilt and deployed.
+
+### Download First features
+
 - New movies and episodes extract embedded source and target text tracks
   from the video before downloaders or translation.
 - Settings → Connections lists each Plex library with a refresh control and

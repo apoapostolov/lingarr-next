@@ -26,6 +26,26 @@ Optional. Only runs when no matching English sidecar exists.
 
 Requires `ffmpeg` in the image.
 
+## Subtitle download reliability
+
+Collection reads existing media folders. An absent or inaccessible folder is
+reported as unavailable, not as an empty provider search. Check the storage
+mount and path mapping before reindexing. A healthy API does not confirm that
+the media mount is readable.
+
+Built-in downloaders check the destination folder before searching and never
+create a missing media folder. A placement I/O or permission error stops further
+languages for that item while allowing the library job to continue. Bazarr
+retries defer unavailable folders using the existing interval and deadline.
+HTTP errors and malformed Bazarr responses are search failures, not score-floor
+misses. Cancellation still propagates to the caller.
+
+HTML providers carry configured User-Agent and same-origin cookies through
+search, detail, and download requests. HTML query separators are decoded. JSON
+providers retain existing endpoint queries and resolve relative download URLs
+against the search endpoint. Provider warnings name the failure type and HTTP
+status without printing credential-bearing request URLs or exception text.
+
 ## Media servers
 
 After changes, the job asks Jellyfin (`/Library/Media/Updated`) and Plex

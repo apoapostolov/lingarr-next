@@ -81,6 +81,13 @@ public class BazarrRetryJob
         }
 
         var policy = BazarrRetryPolicy.From(await _settings.GetSettings(BazarrRetryPolicy.Keys));
+        if (!Directory.Exists(media.Path))
+        {
+            _logger.LogWarning("Bazarr retry deferred: media directory unavailable at {Path}.", media.Path);
+            await ScheduleNext(media, mediaType, policy, NonTextSubtitlePolicy.FoundAt(media), DateTime.UtcNow);
+            return;
+        }
+
         if (await HasRealSource(media, sourceLanguages, policy.ReplaceOcr))
         {
             await AdoptAndQueue(media, mediaType, policy.ReplaceOcr);

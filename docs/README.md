@@ -5,6 +5,7 @@
 | [Developer API](../Lingarr.Docs/developers/Plugins.md) | Plugin surface: panels, hooks, tools, and samples |
 | [architecture.md](./architecture.md) | System architecture, layers, request flows, data model |
 | [testing.md](./testing.md) | Unit, regression, and API smoke tests |
+| [Subtitle downloader validation](./validation/subtitle-downloader-reliability.md) | 2026-10-20 reliability regressions, Docker deployment, and validation limits |
 | [classifier-providers.md](./classifier-providers.md) | Jev and Luna Decisions settings, keys, thresholds, and fail-open behavior |
 | [subtitle-maintenance.md](./subtitle-maintenance.md) | Weekly sidecar rename and optional MKV text extract |
 | [ai-providers-model-fallback-chain.md](./ai-providers-model-fallback-chain.md) | Lingarr Next AI providers + fallback chain product design |

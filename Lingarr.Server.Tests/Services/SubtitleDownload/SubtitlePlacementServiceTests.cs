@@ -74,4 +74,17 @@ public class SubtitlePlacementServiceTests
             folder.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public async Task PlaceAsync_DoesNotRecreateAMissingMediaDirectory()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), System.Guid.NewGuid().ToString("N"));
+        var placement = new SubtitlePlacementService(
+            Mock.Of<ISubtitleService>(), null!, null!, null!, NullLogger<SubtitlePlacementService>.Instance);
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(() => placement.PlaceAsync(
+            new Movie { RadarrId = 1, Title = "Example Movie", FileName = "Example.Movie", Path = missing, DateAdded = System.DateTime.UtcNow },
+            new SubtitleDownloadHit { Provider = "fixture", Content = "1\n00:00:01,000 --> 00:00:02,000\nHello there.\n"u8.ToArray() },
+            "en", [], CancellationToken.None));
+        Assert.False(Directory.Exists(missing));
+    }
 }

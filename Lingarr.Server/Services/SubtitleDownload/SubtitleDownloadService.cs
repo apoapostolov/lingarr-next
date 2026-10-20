@@ -41,6 +41,7 @@ public sealed class SubtitleDownloadService : ISubtitleDownloadService
         SubtitleDownloadQuery query,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!await IsEnabledAsync())
         {
             return null;
@@ -50,6 +51,7 @@ public sealed class SubtitleDownloadService : ISubtitleDownloadService
             await _settings.GetSetting(SettingKeys.SubtitleDownload.Providers));
         foreach (var entry in chain)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var provider = SubtitleDownloadCatalog.Find(entry.Provider);
             if (provider == null)
             {
@@ -79,15 +81,23 @@ public sealed class SubtitleDownloadService : ISubtitleDownloadService
         bool overwrite,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!await IsEnabledAsync() || languages.Count == 0 || media.Path == null || media.FileName == null)
         {
             return [];
         }
 
         var placed = new List<string>();
+        if (!Directory.Exists(media.Path))
+        {
+            _logger.LogWarning("Subtitle downloads skipped: media directory unavailable at {Path}.", media.Path);
+            return placed;
+        }
+
         var current = existing.ToList();
         foreach (var language in languages)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!overwrite && HasLanguage(current, language))
             {
                 continue;
@@ -100,7 +110,17 @@ public sealed class SubtitleDownloadService : ISubtitleDownloadService
                 continue;
             }
 
-            var path = await _placement.PlaceAsync(media, hit, language, current, cancellationToken);
+            string? path;
+            try
+            {
+                path = await _placement.PlaceAsync(media, hit, language, current, cancellationToken);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(exception,
+                    "Subtitle downloads stopped: media directory unavailable or not writable at {Path}.", media.Path);
+                break;
+            }
             if (string.IsNullOrWhiteSpace(path))
             {
                 continue;

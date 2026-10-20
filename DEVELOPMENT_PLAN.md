@@ -34,8 +34,9 @@ transcript. Completed work belongs in the changelog or a dated development log.
   deletion, and the Dependabot trains. Remaining 1.3.0 majors (Pinia 4,
   Node 26 types, Tailwind range, oxlint/oxfmt) are still skipped.
 - **Protected line:** `main`.
-- **Validation baseline:** server unit tests including chunker + Local AI parse
-  retry. Image rebuild/deploy is a follow-up, not part of this import.
+- **Validation baseline:** 570 server tests, Docker build/publish, and 19 API
+  smoke checks passed for subtitle downloader reliability. The Bedroom image
+  is rebuilt and deployed; see [validation](docs/validation/subtitle-downloader-reliability.md).
 
 ## Next decisions
 

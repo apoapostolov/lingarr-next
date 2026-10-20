@@ -154,7 +154,10 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
             exception is not OperationCanceledException
             || !cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation(exception, "{Provider} subtitle search missed for {Title}.", provider.DisplayName, query.Title);
+            // Exception messages and request URIs can contain API keys or passwords.
+            _logger.LogWarning("Subtitle provider {Provider} search failed for {Title}: {Failure} (HTTP {Status}).",
+                provider.DisplayName, query.Title, exception.GetType().Name,
+                exception is HttpRequestException http ? (int?)http.StatusCode : null);
             return null;
         }
     }
@@ -346,10 +349,14 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         Uri uri,
         string? referer,
         CancellationToken cancellationToken,
-        string? language = null)
+        string? language = null,
+        string? cookies = null,
+        string? userAgent = null,
+        Uri? credentialOrigin = null)
     {
         var client = Client();
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyHtmlHeaders(request, cookies, userAgent, credentialOrigin);
         if (!string.IsNullOrWhiteSpace(referer))
         {
             request.Headers.Referrer = new Uri(referer);
@@ -358,6 +365,8 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            _logger.LogWarning("Subtitle provider {Provider} download failed on {Host}: HTTP {Status}.",
+                provider, uri.Host, (int)response.StatusCode);
             return null;
         }
 
@@ -429,13 +438,13 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
             .Replace("{base_url}", (baseUrl ?? "").TrimEnd('/'));
         var cookies = await Field(provider, "cookies", true);
         var userAgent = await Field(provider, "user_agent", false);
-        var html = await GetHtml(page, cookies, userAgent, cancellationToken);
+        var pageUri = new Uri(page);
+        var html = await GetHtml(provider.Id, page, cookies, userAgent, cancellationToken, pageUri);
         if (html == null)
         {
             return null;
         }
 
-        var pageUri = new Uri(page);
         var ranked = RankLinks(html, pageUri, query);
         foreach (var candidate in ranked.Take(8))
         {
@@ -447,7 +456,8 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
                     continue;
                 }
 
-                var hit = await FetchBytes(provider.Id, candidate, page, cancellationToken, query.Language);
+                var hit = await FetchBytes(provider.Id, candidate, page, cancellationToken, query.Language,
+                    cookies, userAgent, pageUri);
                 if (KeepHit(hit, provider, query))
                 {
                     return hit;
@@ -456,7 +466,8 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
                 continue;
             }
 
-            var followed = await FollowHtmlPage(provider, candidate, query, cancellationToken);
+            var followed = await FollowHtmlPage(provider, candidate, query, cancellationToken,
+                cookies, userAgent, pageUri);
             if (followed != null)
             {
                 return followed;
@@ -470,9 +481,12 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         SubtitleProviderDefinition provider,
         Uri page,
         SubtitleDownloadQuery query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? cookies,
+        string? userAgent,
+        Uri credentialOrigin)
     {
-        var html = await GetHtml(page.AbsoluteUri, null, null, cancellationToken);
+        var html = await GetHtml(provider.Id, page.AbsoluteUri, cookies, userAgent, cancellationToken, credentialOrigin);
         if (html == null)
         {
             return null;
@@ -491,7 +505,8 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
                 continue;
             }
 
-            var hit = await FetchBytes(provider.Id, file, page.ToString(), cancellationToken, query.Language);
+            var hit = await FetchBytes(provider.Id, file, page.ToString(), cancellationToken, query.Language,
+                cookies, userAgent, credentialOrigin);
             if (KeepHit(hit, provider, query))
             {
                 return hit;
@@ -502,31 +517,41 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
     }
 
     private async Task<string?> GetHtml(
+        string provider,
         string page,
         string? cookies,
         string? userAgent,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Uri? credentialOrigin = null)
     {
         var client = Client();
         using var request = new HttpRequestMessage(HttpMethod.Get, page);
+        ApplyHtmlHeaders(request, cookies, userAgent, credentialOrigin);
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Subtitle provider {Provider} page failed on {Host}: HTTP {Status}.",
+                provider, request.RequestUri!.Host, (int)response.StatusCode);
+            return null;
+        }
+        return await ReadTextAsync(response, cancellationToken);
+    }
+
+    private static void ApplyHtmlHeaders(HttpRequestMessage request, string? cookies,
+        string? userAgent, Uri? credentialOrigin)
+    {
         if (!string.IsNullOrWhiteSpace(userAgent))
         {
             request.Headers.UserAgent.Clear();
             request.Headers.UserAgent.ParseAdd(userAgent);
         }
 
-        if (!string.IsNullOrWhiteSpace(cookies))
+        if (!string.IsNullOrWhiteSpace(cookies)
+            && credentialOrigin != null
+            && request.RequestUri?.GetLeftPart(UriPartial.Authority) == credentialOrigin.GetLeftPart(UriPartial.Authority))
         {
             request.Headers.TryAddWithoutValidation("Cookie", cookies);
         }
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
-
-        return await ReadTextAsync(response, cancellationToken);
     }
 
     private bool KeepHit(SubtitleDownloadHit? hit, SubtitleProviderDefinition provider, SubtitleDownloadQuery query)
@@ -653,7 +678,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         var ranked = new List<(int Score, Uri Uri)>();
         foreach (Match match in HrefRegex.Matches(html))
         {
-            var href = EncodeHref(match.Groups[1].Value);
+            var href = EncodeHref(System.Net.WebUtility.HtmlDecode(match.Groups[1].Value));
             if (href.StartsWith("javascript", StringComparison.OrdinalIgnoreCase) || href == "#")
             {
                 continue;
@@ -862,10 +887,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         login.Headers.TryAddWithoutValidation("Api-Key", apiKey);
         login.Headers.TryAddWithoutValidation("Accept", "application/json");
         using var loginResponse = await client.SendAsync(login, cancellationToken);
-        if (!loginResponse.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        loginResponse.EnsureSuccessStatusCode();
 
         using var loginDoc = JsonDocument.Parse(await loginResponse.Content.ReadAsStringAsync(cancellationToken));
         if (!loginDoc.RootElement.TryGetProperty("token", out var tokenElement))
@@ -903,10 +925,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         download.Headers.TryAddWithoutValidation("Api-Key", apiKey);
         download.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var downloadResponse = await client.SendAsync(download, cancellationToken);
-        if (!downloadResponse.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        downloadResponse.EnsureSuccessStatusCode();
 
         using var downloadDoc = JsonDocument.Parse(await downloadResponse.Content.ReadAsStringAsync(cancellationToken));
         var link = downloadDoc.RootElement.TryGetProperty("link", out var linkElement)
@@ -957,10 +976,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         search.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         search.Headers.TryAddWithoutValidation("Accept", "application/json");
         using var searchResponse = await client.SendAsync(search, cancellationToken);
-        if (!searchResponse.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        searchResponse.EnsureSuccessStatusCode();
 
         using var searchDoc = JsonDocument.Parse(await searchResponse.Content.ReadAsStringAsync(cancellationToken));
         if (!searchDoc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
@@ -1026,10 +1042,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
 
         var client = Client();
         using var response = await client.GetAsync(url, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
         if (!doc.RootElement.TryGetProperty("subtitles", out var subtitles) || subtitles.ValueKind != JsonValueKind.Array)
@@ -1070,10 +1083,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         using var shows = await client.GetAsync(
             $"https://api.gestdown.info/shows/search/{Uri.EscapeDataString(title)}",
             cancellationToken);
-        if (!shows.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        shows.EnsureSuccessStatusCode();
 
         using var showDoc = JsonDocument.Parse(await shows.Content.ReadAsStringAsync(cancellationToken));
         if (!showDoc.RootElement.TryGetProperty("shows", out var list) || list.ValueKind != JsonValueKind.Array)
@@ -1148,10 +1158,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         var search =
             $"https://api.assrt.net/v1/sub/search?token={Uri.EscapeDataString(token)}&q={Uri.EscapeDataString(QueryTitle(query))}";
         using var response = await client.GetAsync(search, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        response.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
         if (!doc.RootElement.TryGetProperty("sub", out var sub) ||
@@ -1217,10 +1224,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         var search =
             $"https://api.betaseries.com/shows/search?key={Uri.EscapeDataString(token)}&title={Uri.EscapeDataString(query.SeriesTitle ?? query.Title)}";
         using var shows = await client.GetAsync(search, cancellationToken);
-        if (!shows.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        shows.EnsureSuccessStatusCode();
 
         using var showDoc = JsonDocument.Parse(await shows.Content.ReadAsStringAsync(cancellationToken));
         if (!showDoc.RootElement.TryGetProperty("shows", out var list) || list.ValueKind != JsonValueKind.Array)
@@ -1308,23 +1312,23 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
             queryString += $"&episode={query.EpisodeNumber}";
         }
 
-        builder.Query = queryString;
+        var endpointQuery = builder.Query.TrimStart('?');
+        builder.Query = string.IsNullOrEmpty(endpointQuery) ? queryString : endpointQuery + "&" + queryString;
         using var response = await client.GetAsync(builder.Uri, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         using var doc = JsonDocument.Parse(body);
         foreach (var url in FindUrls(doc.RootElement))
         {
-            if (!Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var uri))
+            if (!Uri.TryCreate(builder.Uri, url, out var uri)
+                || uri.Scheme is not ("http" or "https"))
             {
                 continue;
             }
 
-            var hit = await FetchBytes(provider.Id, uri, endpoint, cancellationToken, query.Language);
+            var hit = await FetchBytes(provider.Id, uri, builder.Uri.GetLeftPart(UriPartial.Path),
+                cancellationToken, query.Language);
             if (KeepHit(hit, provider, query))
             {
                 return hit;
@@ -1416,10 +1420,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         var url =
             $"http://napisy24.pl/run/CheckSubAgent.php?post_form=1&data={hash}|{username}|{password}";
         using var response = await client.GetAsync(url, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        response.EnsureSuccessStatusCode();
 
         var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         if (bytes.Length < 64)
