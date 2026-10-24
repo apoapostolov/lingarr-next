@@ -381,7 +381,8 @@ public class GoogleGeminiService : BaseLanguageService, ITranslationService, IBa
                             },
                             line = new
                             {
-                                type = "string"
+                                type = "string",
+                                description = StructuredOutputSchema.TranslatedLineDescription(_replacements["targetLanguage"])
                             }
                         },
                         required = new[] { "position", "line" }

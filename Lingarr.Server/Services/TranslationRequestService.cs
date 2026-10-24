@@ -18,6 +18,7 @@ using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Models.TranslationRequests;
 using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
+using Lingarr.Server.Services.SubtitleDownload;
 using Lingarr.Server.Services.Translation;
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
@@ -437,7 +438,8 @@ public class TranslationRequestService : ITranslationRequestService
         var sourceLanguages = await _settingService.GetSettingAsJson<SourceLanguage>(
             SettingKeys.Translation.SourceLanguages
             );
-        var sourceCodes = sourceLanguages.Select(sourceLanguage => sourceLanguage.Code).ToHashSet();
+        var sourceCodes = sourceLanguages.Select(sourceLanguage => sourceLanguage.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var ignoreCaptions = await _settingService.GetSetting(SettingKeys.Translation.IgnoreCaptions) ?? "false";
 
         switch (request.MediaType)
@@ -530,9 +532,15 @@ public class TranslationRequestService : ITranslationRequestService
             return;
         }
 
-        if (selected.AvailableLanguages.Contains(targetLanguage.ToLowerInvariant()))
+        var targetExists = subtitles.Any(subtitle =>
+            subtitle.Language.Equals(targetLanguage, StringComparison.OrdinalIgnoreCase)
+            && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language)
+            && (ignoreCaptions == "true"
+                || string.Equals(subtitle.Caption, selected.Subtitle.Caption, StringComparison.OrdinalIgnoreCase)));
+
+        if (targetExists)
         {
-            _logger.LogDebug("Bulk: skipping mediaId {MediaId} — target language {Target} already exists",
+            _logger.LogDebug("Bulk: skipping mediaId {MediaId} — matching target subtitle {Target} already exists",
                 mediaId, targetLanguage);
             return;
         }
@@ -902,9 +910,9 @@ public class TranslationRequestService : ITranslationRequestService
     }
 
     /// <inheritdoc />
-    public async Task<BatchTranslatedLine[]> TranslateContentAsync(
+    public async Task<BatchTranslatedLine[]?> TranslateContentAsync(
         TranslateAbleSubtitleContent translateAbleContent,
-        CancellationToken parentCancellationToken)
+        CancellationToken parentCancellationToken = default)
     {
         // Resolve internal media id from the client's ArrMediaId
         var mediaId = await GetMediaId(translateAbleContent.ArrMediaId, translateAbleContent.MediaType);
@@ -928,9 +936,10 @@ public class TranslationRequestService : ITranslationRequestService
             Status = TranslationStatus.InProgress
         };
 
-        // Link cancel token with new source to be able to cancel the async translation
-        var asyncTranslationCancellationTokenSource = new CancellationTokenSource();
-        var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(parentCancellationToken, asyncTranslationCancellationTokenSource.Token);
+        // Content translations keep running when the HTTP client disconnects.
+        // CancelTranslationRequest still cancels through _asyncTranslationJobs.
+        _ = parentCancellationToken;
+        var cancellationTokenSource = new CancellationTokenSource();
         var cancellationToken = cancellationTokenSource.Token;
 
         try
@@ -961,14 +970,16 @@ public class TranslationRequestService : ITranslationRequestService
             }
             var translationService = services[0].Service;
 
-            // Skip if an active content-translation row for this media+target already exists.
-            var existingId = await _dbContext.TranslationRequests
+            var matchingRequests = _dbContext.TranslationRequests
                 .Where(r => r.MediaId == translationRequest.MediaId
                          && r.MediaType == translationRequest.MediaType
                          && r.Title == translationRequest.Title
                          && r.SourceLanguage == translationRequest.SourceLanguage
-                         && r.TargetLanguage == translationRequest.TargetLanguage
-                         && (r.Status == TranslationStatus.Pending || r.Status == TranslationStatus.InProgress))
+                         && r.TargetLanguage == translationRequest.TargetLanguage);
+
+            // Skip if an active content-translation row for this media+target already exists.
+            var existingId = await matchingRequests
+                .Where(r => r.Status == TranslationStatus.Pending || r.Status == TranslationStatus.InProgress)
                 .Select(r => (int?)r.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -979,7 +990,43 @@ public class TranslationRequestService : ITranslationRequestService
                     translationRequest.MediaId, translationRequest.MediaType,
                     translationRequest.Title,
                     translationRequest.SourceLanguage, translationRequest.TargetLanguage, existingId.Value);
-                return Array.Empty<BatchTranslatedLine>();
+                return null;
+            }
+
+            var stripSubtitleFormatting = settings[SettingKeys.Translation.StripSubtitleFormatting] == "true";
+            var latestRequest = await matchingRequests
+                .OrderByDescending(r => r.CreatedAt)
+                .ThenByDescending(r => r.Id)
+                .Select(r => new { r.Id, r.Status })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latestRequest?.Status == TranslationStatus.Completed)
+            {
+                var storedLines = await _dbContext.TranslationRequestLines
+                    .AsNoTracking()
+                    .Where(line => line.TranslationRequestId == latestRequest.Id)
+                    .OrderBy(line => line.Position)
+                    .ToListAsync(cancellationToken);
+
+                if (storedLines.DistinctBy(line => line.Position).Count() == storedLines.Count
+                    && storedLines.Select(line => (line.Position, line.Source))
+                    .SequenceEqual(translateAbleContent.Lines.OrderBy(line => line.Position)
+                        .Select(line => (line.Position, line.Line))))
+                {
+                    _logger.LogInformation(
+                        "Completed content-translation request reused for mediaId {MediaId} ({MediaType}) '{Title}' {Src}->{Tgt} (existing id {Id}).",
+                        translationRequest.MediaId, translationRequest.MediaType,
+                        translationRequest.Title,
+                        translationRequest.SourceLanguage, translationRequest.TargetLanguage, latestRequest.Id);
+                    var targets = storedLines.ToDictionary(line => line.Position, line => line.Target);
+                    return translateAbleContent.Lines.Select(line => new BatchTranslatedLine
+                    {
+                        Position = line.Position,
+                        Line = stripSubtitleFormatting
+                            ? SubtitleFormatterService.RemoveMarkup(targets[line.Position])
+                            : targets[line.Position]
+                    }).ToArray();
+                }
             }
 
             // Add TranslationRequest
@@ -995,7 +1042,6 @@ public class TranslationRequestService : ITranslationRequestService
 
 
             // Process Translation
-            var stripSubtitleFormatting = settings[SettingKeys.Translation.StripSubtitleFormatting] == "true";
             var stripSubtitleHtml = SubtitleHtml.Enabled(
                 settings.GetValueOrDefault(SettingKeys.Translation.StripSubtitleHtml));
             if (settings[SettingKeys.Translation.UseBatchTranslation] == "true"

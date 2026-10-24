@@ -8,6 +8,7 @@ using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Integration;
 using Lingarr.Server.Models.Plex;
 using Lingarr.Server.Services.Integration.Plex;
+using Lingarr.Server.Services.SubtitleDownload;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lingarr.Server.Services;
@@ -66,20 +67,25 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         var completed = await LoadCompletedLanguages(cancellationToken);
         var seenAt = await ReadSeenAt();
         var started = 0;
+        var truncated = false;
         if (radarr)
         {
-            started += await NewMovies(seenAt, sources, targets, completed, translationLimit, cancellationToken);
+            var movies = await NewMovies(seenAt, sources, targets, completed, translationLimit, cancellationToken);
+            started += movies.Started;
+            truncated |= movies.Truncated;
         }
 
         if (sonarr && started < translationLimit)
         {
-            started += await NewEpisodes(
+            var episodes = await NewEpisodes(
                 seenAt,
                 sources,
                 targets,
                 completed,
                 translationLimit - started,
                 cancellationToken);
+            started += episodes.Started;
+            truncated |= episodes.Truncated;
         }
 
         if (plex != null)
@@ -94,7 +100,10 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
                 cancellationToken);
         }
 
-        await _settings.UpsertSetting(SettingKeys.Automation.LibraryLightSeenAt, DateTime.UtcNow.ToString("O"));
+        if (!truncated)
+        {
+            await _settings.UpsertSetting(SettingKeys.Automation.LibraryLightSeenAt, DateTime.UtcNow.ToString("O"));
+        }
         _logger.LogInformation(
             "Light library check used {Helpers}. Started {Count} translations without walking the drive.",
             Helpers(plex != null, radarr, sonarr),
@@ -102,7 +111,9 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         return started;
     }
 
-    private async Task<int> NewMovies(
+    private readonly record struct DiscoveryBatch(int Started, bool Truncated);
+
+    private async Task<DiscoveryBatch> NewMovies(
         DateTime seenAt,
         HashSet<string> sources,
         HashSet<string> targets,
@@ -118,15 +129,17 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Lingarr could not read new movies from Radarr.");
-            return 0;
+            return new DiscoveryBatch(0, false);
         }
 
         var started = 0;
+        var truncated = false;
         foreach (var radarrId in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (started >= limit)
             {
+                truncated = true;
                 break;
             }
 
@@ -137,7 +150,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
             }
 
             var movie = await _db.Movies.FirstOrDefaultAsync(item => item.Id == movieId, cancellationToken);
-            if (movie == null || !movie.IncludeInTranslation || Skip(movie.LanguageCoverage, completed, MediaType.Movie, movie.Id, sources, targets))
+            if (movie == null || !movie.IncludeInTranslation || Skip(movie, movie.LanguageCoverage, completed, MediaType.Movie, movie.Id, sources, targets))
             {
                 continue;
             }
@@ -148,10 +161,10 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
             }
         }
 
-        return started;
+        return new DiscoveryBatch(started, truncated);
     }
 
-    private async Task<int> NewEpisodes(
+    private async Task<DiscoveryBatch> NewEpisodes(
         DateTime seenAt,
         HashSet<string> sources,
         HashSet<string> targets,
@@ -167,15 +180,17 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Lingarr could not read new episodes from Sonarr.");
-            return 0;
+            return new DiscoveryBatch(0, false);
         }
 
         var started = 0;
+        var truncated = false;
         foreach (var sonarrId in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (started >= limit)
             {
+                truncated = true;
                 break;
             }
 
@@ -186,7 +201,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
             }
 
             var episode = await _db.Episodes.FirstOrDefaultAsync(item => item.Id == episodeId, cancellationToken);
-            if (episode == null || !episode.IncludeInTranslation || Skip(episode.LanguageCoverage, completed, MediaType.Episode, episode.Id, sources, targets))
+            if (episode == null || !episode.IncludeInTranslation || Skip(episode, episode.LanguageCoverage, completed, MediaType.Episode, episode.Id, sources, targets))
             {
                 continue;
             }
@@ -197,7 +212,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
             }
         }
 
-        return started;
+        return new DiscoveryBatch(started, truncated);
     }
 
     private async Task<int> ClassifyPlexPage(
@@ -270,7 +285,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
             }
 
             var type = item.Kind == "episode" ? MediaType.Episode : MediaType.Movie;
-            if (Skip(ReadCoverage(media), completed, type, media.Id, sources, targets))
+            if (Skip(media, ReadCoverage(media), completed, type, media.Id, sources, targets))
             {
                 continue;
             }
@@ -298,7 +313,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
                 SetCoverage(media, coverage);
             }
 
-            if (Skip(ReadCoverage(media), completed, type, media.Id, sources, targets)
+            if (Skip(media, ReadCoverage(media), completed, type, media.Id, sources, targets)
                 || started >= limit
                 || !HasSource(languages, sources)
                 || targets.All(target => HasLanguage(languages, target)))
@@ -367,6 +382,7 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
     }
 
     private static bool Skip(
+        IMedia media,
         string? coverage,
         Dictionary<(MediaType Type, int Id), HashSet<string>> completed,
         MediaType type,
@@ -377,6 +393,12 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         completed.TryGetValue((type, id), out var extra);
         if (LibraryCoverage.HasFullPair(coverage, extra, sources, targets))
         {
+            if (LibraryCoverage.HasFullPair(coverage, null, sources, targets)
+                && !LibraryCoverage.HasUsablePair(media.Path, media.FileName, sources, targets))
+            {
+                return false;
+            }
+
             return true;
         }
 
@@ -389,12 +411,46 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
         var rows = await _db.TranslationRequests
             .AsNoTracking()
             .Where(request => request.Status == TranslationStatus.Completed && request.MediaId != null)
-            .Select(request => new { request.MediaId, request.MediaType, request.SourceLanguage, request.TargetLanguage })
+            .Select(request => new
+            {
+                request.MediaId,
+                request.MediaType,
+                request.SourceLanguage,
+                request.TargetLanguage,
+                request.SubtitleToTranslate,
+                request.TranslatedSubtitle
+            })
             .ToListAsync(cancellationToken);
+        var movieIds = rows
+            .Where(row => row.MediaType == MediaType.Movie && row.MediaId != null)
+            .Select(row => row.MediaId!.Value)
+            .Distinct()
+            .ToList();
+        var episodeIds = rows
+            .Where(row => row.MediaType == MediaType.Episode && row.MediaId != null)
+            .Select(row => row.MediaId!.Value)
+            .Distinct()
+            .ToList();
+        var movieNames = await _db.Movies.AsNoTracking()
+            .Where(movie => movieIds.Contains(movie.Id))
+            .ToDictionaryAsync(movie => movie.Id, movie => movie.FileName, cancellationToken);
+        var episodeNames = await _db.Episodes.AsNoTracking()
+            .Where(episode => episodeIds.Contains(episode.Id))
+            .ToDictionaryAsync(episode => episode.Id, episode => episode.FileName, cancellationToken);
         var map = new Dictionary<(MediaType Type, int Id), HashSet<string>>();
         foreach (var row in rows)
         {
             if (row.MediaId == null)
+            {
+                continue;
+            }
+
+            var fileName = row.MediaType == MediaType.Movie
+                ? movieNames.GetValueOrDefault(row.MediaId.Value)
+                : row.MediaType == MediaType.Episode
+                    ? episodeNames.GetValueOrDefault(row.MediaId.Value)
+                    : null;
+            if (!LibraryCoverage.MatchesCurrentFile(row.SubtitleToTranslate, fileName))
             {
                 continue;
             }
@@ -413,7 +469,8 @@ public class LibraryLightDiscovery : ILibraryLightDiscovery
                 languages.Add(source);
             }
 
-            if (!string.IsNullOrEmpty(target))
+            if (!string.IsNullOrEmpty(target)
+                && SubtitleBytes.IsUsableSidecar(row.TranslatedSubtitle, target))
             {
                 languages.Add(target);
             }

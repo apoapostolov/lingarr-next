@@ -4,7 +4,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2 bg-tertiary p-4">
             <SearchComponent v-model="filter" />
             <div
-                class="flex w-full flex-col gap-2 md:w-fit md:flex-row md:justify-between md:space-x-2">
+                class="flex w-full flex-col gap-2 lg:w-fit lg:flex-row lg:flex-wrap lg:justify-between">
                 <button
                     v-if="isSelectMode"
                     class="hover:text-primary-content/50 cursor-pointer rounded-md border border-accent px-2 py-1 text-primary-content transition-colors"

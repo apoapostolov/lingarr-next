@@ -70,6 +70,52 @@ public class ForceTranslationDownloadTests
     }
 
     [Fact]
+    public async Task Download_ExtractedSource_QueuesTranslation()
+    {
+        var fixture = await CreateFixture();
+        fixture.Subtitles
+            .Setup(service => service.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.en.srt",
+                    FileName = "test",
+                    Language = "en",
+                    Format = ".srt"
+                }
+            ]);
+        fixture.Downloads
+            .Setup(service => service.DownloadLanguagesAsync(
+                It.IsAny<IMedia>(),
+                It.IsAny<MediaType>(),
+                It.Is<IReadOnlyCollection<string>>(languages => languages.Contains("ro")),
+                It.IsAny<IReadOnlyList<Subtitles>>(),
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
+
+        var result = await fixture.Service.DownloadAsync(1, MediaType.Movie, CancellationToken.None);
+
+        Assert.Empty(result.Downloaded);
+        Assert.Equal([7], result.RequestIds);
+        Assert.Equal("Lingarr queued translation for this title.", result.Message);
+        fixture.Downloads.Verify(
+            service => service.DownloadLanguagesAsync(
+                It.IsAny<IMedia>(),
+                It.IsAny<MediaType>(),
+                It.Is<IReadOnlyCollection<string>>(languages => languages.Contains("en")),
+                It.IsAny<IReadOnlyList<Subtitles>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        fixture.Requests.Verify(
+            service => service.CreateRequest(It.Is<TranslateAbleSubtitle>(request =>
+                request.SourceLanguage == "en" && request.TargetLanguage == "ro")),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Download_SourceAndTarget_DoesNotQueueTranslation()
     {
         var fixture = await CreateFixture();

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Lingarr.Server.Services.Subtitle;
 using Xunit;
 
@@ -185,5 +186,57 @@ public class EmbeddedSubtitleExtractorTests
         Assert.Single(streams);
         Assert.Equal(2, streams[0].Index);
         Assert.Equal("eng", streams[0].Language);
+    }
+
+    [Fact]
+    public void CanReuseSidecar_RejectsAnEmptyFile()
+    {
+        var folder = Directory.CreateTempSubdirectory("lingarr-empty-extract");
+        try
+        {
+            var empty = Path.Combine(folder.FullName, "Movie.en.srt");
+            File.WriteAllBytes(empty, []);
+
+            Assert.False(EmbeddedSubtitleExtractor.CanReuseSidecar(empty, "en"));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CanReuseSidecar_AcceptsARealSubtitle()
+    {
+        var folder = Directory.CreateTempSubdirectory("lingarr-real-extract");
+        try
+        {
+            var path = Path.Combine(folder.FullName, "Movie.en.srt");
+            File.WriteAllText(path, "1\n00:00:01,000 --> 00:00:02,000\nHello\n");
+
+            Assert.True(EmbeddedSubtitleExtractor.CanReuseSidecar(path, "en"));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AcceptExtractedSidecar_DeletesAnEmptyResult()
+    {
+        var folder = Directory.CreateTempSubdirectory("lingarr-empty-extract-result");
+        try
+        {
+            var path = Path.Combine(folder.FullName, "Movie.en.srt");
+            File.WriteAllBytes(path, []);
+
+            Assert.False(EmbeddedSubtitleExtractor.AcceptExtractedSidecar(path, "en"));
+            Assert.False(File.Exists(path));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
     }
 }

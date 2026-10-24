@@ -127,7 +127,10 @@ public sealed class ForceTranslationService : IForceTranslationService
         var sourceLanguages = await LanguageCodes<SourceLanguage>(SettingKeys.Translation.SourceLanguages);
         var targetLanguages = await LanguageCodes<TargetLanguage>(SettingKeys.Translation.TargetLanguages);
         var subtitles = await ExtractConfiguredText(
-            media, await _subtitles.GetSubtitles(media.Path, media.FileName), sourceLanguages, targetLanguages);
+            media,
+            DropUnusableSidecars(await _subtitles.GetSubtitles(media.Path, media.FileName)),
+            sourceLanguages,
+            targetLanguages);
 
         var sourceHits = new List<string>();
         if (!HasAnyLanguage(subtitles, sourceLanguages) && sourceLanguages.Count > 0)
@@ -163,7 +166,7 @@ public sealed class ForceTranslationService : IForceTranslationService
             .ToList();
 
         var requestIds = new List<int>();
-        if (sourceHits.Count > 0 && targetHits.Count == 0 && remaining.Count > 0 && hasSource)
+        if (targetHits.Count == 0 && remaining.Count > 0 && hasSource)
         {
             requestIds = await QueueRemaining(
                 media,
@@ -244,10 +247,12 @@ public sealed class ForceTranslationService : IForceTranslationService
                     media.Path,
                     media.FileName,
                     wanted,
-                    subtitles.Select(subtitle => subtitle.Language),
+                    subtitles
+                        .Where(subtitle => SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+                        .Select(subtitle => subtitle.Language),
                     CancellationToken.None))
             {
-                return await _subtitles.GetSubtitles(media.Path, media.FileName);
+                return DropUnusableSidecars(await _subtitles.GetSubtitles(media.Path, media.FileName));
             }
         }
         catch (Exception exception) when (exception is IOException or System.ComponentModel.Win32Exception)
@@ -319,11 +324,41 @@ public sealed class ForceTranslationService : IForceTranslationService
             return "Lingarr placed a source subtitle and queued translation.";
         }
 
+        if (queued > 0)
+        {
+            return "Lingarr queued translation for this title.";
+        }
+
         if (downloaded > 0)
         {
             return "Lingarr placed downloaded subtitles.";
         }
 
         return "Lingarr found no subtitles to download.";
+    }
+
+    private static List<Subtitles> DropUnusableSidecars(List<Subtitles> subtitles)
+    {
+        var kept = new List<Subtitles>(subtitles.Count);
+        foreach (var subtitle in subtitles)
+        {
+            if (string.IsNullOrWhiteSpace(subtitle.Path)
+                || !File.Exists(subtitle.Path)
+                || SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+            {
+                kept.Add(subtitle);
+                continue;
+            }
+
+            try
+            {
+                File.Delete(subtitle.Path);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        return kept;
     }
 }

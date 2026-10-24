@@ -7,6 +7,43 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-23 — Closest Match
+
+Source matching uses the closest language code. Connections can skip
+unmonitored titles when scanning.
+
+- Source subtitle matching uses the closest language code (`en-US` can use `en.srt`)
+  and ignores letter case. Forced and regular tracks can be translated separately
+  when Ignore captions is off; a captioned target no longer blocks a matching
+  regular source.
+- Content translation (Bazarr and other API clients) keeps running if the HTTP
+  client disconnects. An active duplicate returns HTTP 409. A completed request
+  with the same source lines is reused.
+- Machine-translation language catalogues load from the app directory instead of
+  a hardcoded `/app` path.
+- Dashboard changelog highlighting and the show-title directive write text nodes
+  instead of HTML.
+- Connections can skip unmonitored Radarr movies and Sonarr series or episodes
+  when scanning. The switches start off, and turning them on leaves already
+  imported titles in Lingarr. Migration M0046 seeds the three switches off.
+- Batch structured-output schemas name the target language on the translated
+  line.
+- Expanding a season loads subtitles from that season's stored folder.
+- Movie, show, and translation toolbars wrap from the large breakpoint so tablet
+  widths stay on one row less often.
+- A Radarr or Sonarr quality replace clears language coverage, the media hash,
+  and the folder stamp so daily discovery downloads for the new file.
+- A completed translation for an old filename does not count as coverage for
+  the current file.
+- Daily light discovery keeps the Radarr/Sonarr import cursor when the per-run
+  translation cap leaves imported titles unprocessed.
+- Download queues translation when English is already on disk (extracted or
+  placed earlier) and providers miss the target language.
+- Daily discovery no longer treats an empty target sidecar as a finished
+  language pair. ProcessMedia drops unusable leftovers and records only
+  usable coverage. Embedded extract ignores empty sidecars, deletes a
+  0-byte extract, and waits up to 10 minutes so a large video can finish.
+
 ## [1.2.0] - 2026-10-16 — Download First
 
 Lingarr can download a subtitle that already exists on a provider before it
@@ -510,6 +547,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1
 [1.2.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0
 [1.1.6]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6
 [1.1.5]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.5

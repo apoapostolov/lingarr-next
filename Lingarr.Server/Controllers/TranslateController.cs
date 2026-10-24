@@ -103,7 +103,8 @@ public class TranslateController : ControllerBase
 
     /// <summary>
     /// Downloads missing source and target subtitles from configured providers.
-    /// If only a source file is placed, translation is queued for the missing targets.
+    /// If a source is on disk after extract or download and providers miss the target,
+    /// translation is queued for the missing targets.
     /// </summary>
     [HttpPost("download")]
     public async Task<ActionResult<ForceTranslateResult>> Download(
@@ -159,16 +160,18 @@ public class TranslateController : ControllerBase
     /// Translates subtitle content, supporting both single line and batch translation.
     /// </summary>
     /// <param name="translateAbleSubtitleContent">The translation request containing one or more subtitle items</param>
-    /// <param name="cancellationToken">Token to cancel the translation operation</param>
-    /// <returns>Translated subtitle content</returns>
+    /// <returns>Translated subtitle content, or 409 for an active duplicate.</returns>
     [HttpPost("content")]
     public async Task<ActionResult<BatchTranslatedLine[]>> TranslateContent(
-        [FromBody] TranslateAbleSubtitleContent translateAbleSubtitleContent,
-        CancellationToken cancellationToken)
+        [FromBody] TranslateAbleSubtitleContent translateAbleSubtitleContent)
     {
         try
         {
-            var results = await _translationRequestService.TranslateContentAsync(translateAbleSubtitleContent, cancellationToken);
+            var results = await _translationRequestService.TranslateContentAsync(translateAbleSubtitleContent);
+            if (results == null)
+            {
+                return Conflict(new { message = "Lingarr is already translating this content." });
+            }
             return Ok(results);
         }
         catch (Exception ex)

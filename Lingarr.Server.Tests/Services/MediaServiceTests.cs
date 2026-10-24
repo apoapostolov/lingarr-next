@@ -80,7 +80,7 @@ public class MediaServiceTests
         // Assert
         sonarrMock.Verify(s => s.GetEpisode(150), Times.Once);
         sonarrMock.Verify(s => s.GetShows(), Times.Once);
-        showSyncServiceMock.Verify(s => s.SyncShows(It.IsAny<List<Lingarr.Server.Models.Integrations.SonarrShow>>(), It.IsAny<bool>()), Times.Once);
+        showSyncServiceMock.Verify(s => s.SyncShows(It.IsAny<List<Lingarr.Server.Models.Integrations.SonarrShow>>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Once);
         Assert.Equal(0, result);
     }
 }

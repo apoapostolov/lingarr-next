@@ -73,8 +73,10 @@ public class MovieSync : IMovieSync
         {
             movieEntity.Title = movie.Title;
             movieEntity.DateAdded = DateTime.Parse(movie.Added, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
-            movieEntity.FileName = Path.GetFileNameWithoutExtension(moviePath);
-            movieEntity.Path = Path.GetDirectoryName(moviePath) ?? string.Empty;
+            MediaFileIdentity.Assign(
+                movieEntity,
+                Path.GetFileNameWithoutExtension(moviePath),
+                Path.GetDirectoryName(moviePath) ?? string.Empty);
         }
 
         _logger.LogDebug("Syncing movie: {MovieId} with Path: {Path}", movie.Id, movieEntity.Path);

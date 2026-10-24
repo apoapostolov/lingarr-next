@@ -1,5 +1,6 @@
 using Hangfire;
 using Lingarr.Core.Configuration;
+using Lingarr.Core.Data;
 using Lingarr.Server.Attributes;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Jobs;
@@ -18,15 +19,18 @@ public class SubtitleController : ControllerBase
     private readonly ISubtitleService _subtitleService;
     private readonly ISettingService _settings;
     private readonly IBackgroundJobClient _jobs;
+    private readonly LingarrDbContext _dbContext;
 
     public SubtitleController(
         ISubtitleService subtitleService,
         ISettingService settings,
-        IBackgroundJobClient jobs)
+        IBackgroundJobClient jobs,
+        LingarrDbContext dbContext)
     {
         _subtitleService = subtitleService;
         _settings = settings;
         _jobs = jobs;
+        _dbContext = dbContext;
     }
 
     [HttpGet("picture-scan")]
@@ -97,6 +101,27 @@ public class SubtitleController : ControllerBase
     public async Task<ActionResult<List<Subtitles>>> GetAllSubtitles([FromBody] SubtitlePath subtitlePath)
     {
         var value = await _subtitleService.GetAllSubtitles(subtitlePath.Path);
+        return Ok(value);
+    }
+
+    /// <summary>
+    /// Retrieves subtitle files in the folder of the specified season.
+    /// </summary>
+    [HttpPost("season")]
+    public async Task<ActionResult<List<Subtitles>>> GetSeasonSubtitles([FromBody] SeasonSubtitlesRequest request)
+    {
+        var season = await _dbContext.Seasons.FindAsync(request.SeasonId);
+        if (season == null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrEmpty(season.Path))
+        {
+            return Ok(new List<Subtitles>());
+        }
+
+        var value = await _subtitleService.GetAllSubtitles(season.Path);
         return Ok(value);
     }
 }

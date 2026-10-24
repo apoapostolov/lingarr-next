@@ -6,6 +6,7 @@ using Lingarr.Server.Filters;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Integration;
 using Lingarr.Server.Interfaces.Services.Sync;
+using Lingarr.Server.Services.Sync;
 using Microsoft.OpenApi.Extensions;
 
 namespace Lingarr.Server.Jobs;
@@ -53,9 +54,16 @@ public class SyncMovieJob
             _logger.LogInformation("Fetched {Count} movies from Radarr", movies.Count());
 
             var defaultInclude = await _settingService.GetSetting(SettingKeys.Integration.RadarrDefaultInclude) == "true";
+            var excludeUnmonitored = await _settingService.GetSetting(SettingKeys.Integration.RadarrExcludeUnmonitored) == "true";
+            var moviesToSync = UnmonitoredScan.MoviesToSync(movies, excludeUnmonitored);
+
+            _logger.LogInformation(
+                "Scanning {ScanCount} of {TotalCount} Radarr movies (exclude unmonitored: {ExcludeUnmonitored})",
+                moviesToSync.Count, movies.Count, excludeUnmonitored);
+
             await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-            await _movieSyncService.SyncMovies(movies, defaultInclude);
+            await _movieSyncService.SyncMovies(moviesToSync, defaultInclude);
             await _movieSyncService.RemoveNonExistentMovies(movies.Select(m => m.Id));
 
             await transaction.CommitAsync();

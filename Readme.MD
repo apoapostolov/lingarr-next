@@ -35,8 +35,29 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.2.0](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0).
+Current release: [1.2.1](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.2.1 — Closest Match (2026-10-23)
+
+- Source matching uses the closest language code (`en-US` can use `en.srt`)
+  and ignores letter case. Forced and regular tracks can be translated
+  separately when Ignore captions is off.
+- Content translation keeps running if the HTTP client disconnects. An
+  active duplicate returns HTTP 409. A completed request with the same
+  source lines is reused.
+- Connections can skip unmonitored Radarr movies and Sonarr series or
+  episodes when scanning. The switches start off.
+- Expanding a season loads subtitles from that season's stored folder.
+- Movie, show, and translation toolbars wrap from the large breakpoint.
+- A quality replace clears coverage so daily discovery downloads for the new
+  file. A completed translation for an old filename does not skip the new one.
+  Daily discovery keeps the import cursor when the per-run cap leaves titles
+  unprocessed. Download queues translation when English is already on disk
+  and providers miss the target language.
+- An empty target sidecar does not count as a finished language pair.
+  Extract ignores that leftover, deletes a 0-byte extract, and waits up to
+  10 minutes so a large video can finish.
 
 ### 1.2.0 — Download First (2026-10-16)
 

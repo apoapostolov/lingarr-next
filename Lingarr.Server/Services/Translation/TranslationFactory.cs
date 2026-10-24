@@ -18,6 +18,9 @@ public class TranslationFactory : ITranslationServiceFactory
         _logger = logger;
     }
 
+    public static string LanguageCatalogPath(string fileName) =>
+        Path.Combine(AppContext.BaseDirectory, "Statics", fileName);
+
     /// <inheritdoc />
     public ITranslationService CreateTranslationService(string serviceType)
     {
@@ -34,7 +37,7 @@ public class TranslationFactory : ITranslationServiceFactory
                 _serviceProvider,
                 _serviceProvider.GetRequiredService<IHttpClientFactory>(),
                 "google",
-                "/app/Statics/google_languages.json",
+                LanguageCatalogPath("google_languages.json"),
                 _serviceProvider.GetRequiredService<ISettingService>(),
                 _serviceProvider.GetRequiredService<ILogger<GoogleTranslator>>(),
                 languageCodeService
@@ -44,7 +47,7 @@ public class TranslationFactory : ITranslationServiceFactory
                 _serviceProvider,
                 _serviceProvider.GetRequiredService<IHttpClientFactory>(),
                 "bing",
-                "/app/Statics/bing_languages.json",
+                LanguageCatalogPath("bing_languages.json"),
                 _serviceProvider.GetRequiredService<ISettingService>(),
                 _serviceProvider.GetRequiredService<ILogger<BingTranslator>>(),
                 languageCodeService
@@ -54,7 +57,7 @@ public class TranslationFactory : ITranslationServiceFactory
                 _serviceProvider,
                 _serviceProvider.GetRequiredService<IHttpClientFactory>(),
                 "microsoft",
-                "/app/Statics/microsoft_languages.json",
+                LanguageCatalogPath("microsoft_languages.json"),
                 _serviceProvider.GetRequiredService<ISettingService>(),
                 _serviceProvider.GetRequiredService<ILogger<MicrosoftTranslator>>(),
                 languageCodeService
@@ -64,7 +67,7 @@ public class TranslationFactory : ITranslationServiceFactory
                 _serviceProvider,
                 _serviceProvider.GetRequiredService<IHttpClientFactory>(),
                 "yandex",
-                "/app/Statics/yandex_languages.json",
+                LanguageCatalogPath("yandex_languages.json"),
                 _serviceProvider.GetRequiredService<ISettingService>(),
                 _serviceProvider.GetRequiredService<ILogger<YandexTranslator>>(),
                 languageCodeService

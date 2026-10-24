@@ -307,7 +307,8 @@ public class OpenAiService : BaseMeteredLanguageService, ITranslationService, IB
                                     },
                                     line = new
                                     {
-                                        type = "string"
+                                        type = "string",
+                                        description = StructuredOutputSchema.TranslatedLineDescription(_replacements["targetLanguage"])
                                     }
                                 },
                                 required = new[] { "position", "line" },

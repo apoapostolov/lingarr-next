@@ -220,4 +220,90 @@ public class SubtitleServiceEnumerationTests
             root.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void SelectSourceSubtitle_MatchesSourceCodeCaseInsensitively()
+    {
+        var service = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+
+        var selected = service.SelectSourceSubtitle(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.en.srt",
+                    FileName = "test.en",
+                    Language = "en",
+                    Caption = "",
+                    Format = ".srt"
+                }
+            ],
+            new HashSet<string> { "EN" },
+            "true");
+
+        Assert.NotNull(selected);
+        Assert.Equal("en", selected.SourceLanguage);
+        Assert.Equal("/movies/test/test.en.srt", selected.Subtitle.Path);
+    }
+
+    [Fact]
+    public void SelectSourceSubtitle_RegionalSourceUsesNeutralFile()
+    {
+        var service = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+
+        var selected = service.SelectSourceSubtitle(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.en.srt",
+                    FileName = "test.en",
+                    Language = "en",
+                    Caption = "",
+                    Format = ".srt"
+                }
+            ],
+            new HashSet<string> { "en-US" },
+            "true");
+
+        Assert.NotNull(selected);
+        Assert.Equal("en", selected.SourceLanguage);
+        Assert.Equal("/movies/test/test.en.srt", selected.Subtitle.Path);
+    }
+
+    [Fact]
+    public void SelectSourceSubtitle_PrefersExactRegionalOverNeutral()
+    {
+        var service = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+
+        var selected = service.SelectSourceSubtitle(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.pt.srt",
+                    FileName = "test.pt",
+                    Language = "pt",
+                    Caption = "",
+                    Format = ".srt"
+                },
+                new Subtitles
+                {
+                    Path = "/movies/test/test.pt-BR.srt",
+                    FileName = "test.pt-BR",
+                    Language = "pt-br",
+                    Caption = "",
+                    Format = ".srt"
+                }
+            ],
+            new HashSet<string> { "pt-BR" },
+            "true");
+
+        Assert.NotNull(selected);
+        Assert.Equal("pt-br", selected.SourceLanguage);
+        Assert.Equal("/movies/test/test.pt-BR.srt", selected.Subtitle.Path);
+    }
 }

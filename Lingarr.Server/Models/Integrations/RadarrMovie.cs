@@ -16,6 +16,8 @@ public class RadarrMovie
     public required string Added { get; set; }
     [JsonPropertyName("hasFile")]
     public required bool HasFile { get; set; }
+    [JsonPropertyName("monitored")]
+    public bool Monitored { get; set; } = true;
     [JsonPropertyName("movieFile")]
     public RadarrMovieFile MovieFile { get; set; } = new();
     [JsonPropertyName("images")]

@@ -25,12 +25,16 @@ public class EpisodeSync : IEpisodeSync
     }
 
     /// <inheritdoc />
-    public async Task SyncEpisodes(SonarrShow show, Season season, bool defaultInclude = true)
+    public async Task SyncEpisodes(
+        SonarrShow show,
+        Season season,
+        bool defaultInclude = true,
+        bool excludeUnmonitoredEpisodes = false)
     {
         var episodes = await _sonarrService.GetEpisodes(show.Id, season.SeasonNumber);
         if (episodes == null) return;
 
-        foreach (var episode in episodes.Where(e => e.HasFile))
+        foreach (var episode in UnmonitoredScan.EpisodesToImport(episodes, excludeUnmonitoredEpisodes))
         {
             var episodePathResult = await _sonarrService.GetEpisodePath(episode.Id);
             var episodePath = await _shelf.ResolvePathAsync(
@@ -80,8 +84,10 @@ public class EpisodeSync : IEpisodeSync
         {
             episodeEntity.EpisodeNumber = episode.EpisodeNumber;
             episodeEntity.Title = episode.Title;
-            episodeEntity.FileName = Path.GetFileNameWithoutExtension(episodePath);
-            episodeEntity.Path = Path.GetDirectoryName(episodePath);
+            MediaFileIdentity.Assign(
+                episodeEntity,
+                Path.GetFileNameWithoutExtension(episodePath),
+                Path.GetDirectoryName(episodePath));
             episodeEntity.DateAdded = utcDateAdded;
         }
     }

@@ -84,7 +84,7 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         
         var sourceLanguages = await GetLanguagesSetting<SourceLanguage>(SettingKeys.Translation.SourceLanguages);
         var targetLanguages = await GetLanguagesSetting<TargetLanguage>(SettingKeys.Translation.TargetLanguages);
-        var subtitles = await _subtitleService.GetSubtitles(media.Path, media.FileName);
+        var subtitles = DropUnusableSidecars(await _subtitleService.GetSubtitles(media.Path, media.FileName));
         subtitles = await TryExtractConfiguredText(media, subtitles, sourceLanguages, targetLanguages);
         var bazarrPolicy = BazarrRetryPolicy.From(await _settingService.GetSettings(BazarrRetryPolicy.Keys));
         if (NeedsRealSource(subtitles, sourceLanguages, bazarrPolicy.ReplaceOcr))
@@ -179,7 +179,12 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             }
         }
 
-        ApplyCoverage(media, subtitles.Select(subtitle => subtitle.Language));
+        subtitles = DropUnusableSidecars(subtitles);
+        ApplyCoverage(
+            media,
+            subtitles
+                .Where(subtitle => SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+                .Select(subtitle => subtitle.Language));
         if (!subtitles.Any())
         {
             await RememberFolder(media);
@@ -228,15 +233,15 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         return await _subtitleService.GetSubtitles(media.Path, media.FileName);
     }
 
-    private static bool NeedsRealSource(
+    private bool NeedsRealSource(
         List<Subtitles> subtitles,
         HashSet<string> sourceLanguages,
         bool replaceOcr)
     {
-        return !subtitles.Any(subtitle =>
-            sourceLanguages.Any(code => string.Equals(code, subtitle.Language, StringComparison.OrdinalIgnoreCase))
-            && !(replaceOcr && SubtitleNaming.IsOcr(subtitle.Caption))
-            && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language));
+        var pool = replaceOcr
+            ? subtitles.Where(subtitle => !SubtitleNaming.IsOcr(subtitle.Caption)).ToList()
+            : subtitles;
+        return _subtitleService.SelectSourceSubtitle(pool, sourceLanguages, "false") == null;
     }
 
     private async Task<List<Subtitles>> AdoptDownloadedSubtitle(IMedia media, bool replaceOcr)
@@ -284,7 +289,9 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
                     media.Path,
                     media.FileName,
                     wanted,
-                    subtitles.Select(subtitle => subtitle.Language),
+                    subtitles
+                        .Where(subtitle => SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+                        .Select(subtitle => subtitle.Language),
                     CancellationToken.None))
             {
                 _logger.LogInformation(
@@ -448,11 +455,17 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             return false;
         }
 
-        var languagesToTranslate = targetLanguages.Except(selected.AvailableLanguages).ToList();
+        var sourceSubtitle = selected.Subtitle;
+        var languagesToTranslate = targetLanguages
+            .Where(targetLanguage => !HasMatchingTarget(subtitles, targetLanguage, sourceSubtitle.Caption, ignoreCaptions))
+            .ToList();
         if (ignoreCaptions == "true")
         {
             var targetLanguagesWithCaptions = subtitles
-                .Where(s => targetLanguages.Contains(s.Language) && !string.IsNullOrEmpty(s.Caption))
+                .Where(s => targetLanguages.Any(targetLanguage =>
+                    targetLanguage.Equals(s.Language, StringComparison.OrdinalIgnoreCase))
+                    && !string.IsNullOrEmpty(s.Caption)
+                    && SubtitleBytes.IsUsableSidecar(s.Path, s.Language))
                 .Select(s => s.Language)
                 .Distinct()
                 .ToList();
@@ -481,7 +494,9 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             .Distinct()
             .ToListAsync();
 
-        languagesToTranslate = languagesToTranslate.Except(existingTranslationRequests).ToList();
+        languagesToTranslate = languagesToTranslate
+            .Except(existingTranslationRequests, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (!languagesToTranslate.Any())
         {
             await UpdateHash();
@@ -548,7 +563,20 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         var languages = await _settingService.GetSettingAsJson<T>(settingName);
         return languages
             .Select(lang => lang.Code)
-            .ToHashSet();
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool HasMatchingTarget(
+        IEnumerable<Subtitles> subtitles,
+        string targetLanguage,
+        string sourceCaption,
+        string ignoreCaptions)
+    {
+        return subtitles.Any(subtitle =>
+            subtitle.Language.Equals(targetLanguage, StringComparison.OrdinalIgnoreCase)
+            && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language)
+            && (ignoreCaptions == "true"
+                || string.Equals(subtitle.Caption, sourceCaption, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -561,6 +589,31 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
         LibraryFolderStamp.Write(_media, LibraryFolderStamp.Capture(_media.Path));
         _dbContext.Update(_media);
         await _dbContext.SaveChangesAsync();
+    }
+
+    private static List<Subtitles> DropUnusableSidecars(List<Subtitles> subtitles)
+    {
+        var kept = new List<Subtitles>(subtitles.Count);
+        foreach (var subtitle in subtitles)
+        {
+            if (string.IsNullOrWhiteSpace(subtitle.Path)
+                || !File.Exists(subtitle.Path)
+                || SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+            {
+                kept.Add(subtitle);
+                continue;
+            }
+
+            try
+            {
+                File.Delete(subtitle.Path);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        return kept;
     }
 
     private static void ApplyCoverage(IMedia media, IEnumerable<string> languages)

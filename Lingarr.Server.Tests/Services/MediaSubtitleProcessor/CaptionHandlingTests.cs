@@ -317,4 +317,124 @@ public class CaptionHandlingTests : MediaSubtitleProcessorTestBase
                 !t.SubtitlePath.Contains(".cc."))),
             Times.Once);
     }
+
+    [Fact]
+    public async Task ProcessMedia_WithCaptionedTarget_ShouldSkipWhenIgnoreCaptionsTrue()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.en.srt",
+                FileName = "test.movie.en",
+                Language = "en",
+                Caption = "",
+                Format = ".srt"
+            },
+            new()
+            {
+                Path = "/movies/test/test.movie.ro.forced.srt",
+                FileName = "test.movie.ro.forced",
+                Language = "ro",
+                Caption = "forced",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+
+        SetupStandardSettings(ignoreCaptions: "true");
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.False(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.IsAny<TranslateAbleSubtitle>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessMedia_WithCaptionedTarget_ShouldTranslateWhenIgnoreCaptionsFalse()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.en.srt",
+                FileName = "test.movie.en",
+                Language = "en",
+                Caption = "",
+                Format = ".srt"
+            },
+            new()
+            {
+                Path = "/movies/test/test.movie.ro.forced.srt",
+                FileName = "test.movie.ro.forced",
+                Language = "ro",
+                Caption = "forced",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+
+        SetupStandardSettings(ignoreCaptions: "false");
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.True(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.Is<TranslateAbleSubtitle>(t =>
+                t.SourceLanguage == "en" &&
+                t.TargetLanguage == "ro" &&
+                t.SubtitlePath == "/movies/test/test.movie.en.srt")),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessMedia_WithForcedSourceAndRegularTarget_ShouldTranslateWhenIgnoreCaptionsFalse()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.en.forced.srt",
+                FileName = "test.movie.en.forced",
+                Language = "en",
+                Caption = "forced",
+                Format = ".srt"
+            },
+            new()
+            {
+                Path = "/movies/test/test.movie.ro.srt",
+                FileName = "test.movie.ro",
+                Language = "ro",
+                Caption = "",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+
+        SetupStandardSettings(ignoreCaptions: "false");
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.True(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.Is<TranslateAbleSubtitle>(t =>
+                t.SourceLanguage == "en" &&
+                t.TargetLanguage == "ro" &&
+                t.SubtitlePath.Contains("en.forced.srt"))),
+            Times.Once);
+    }
 }

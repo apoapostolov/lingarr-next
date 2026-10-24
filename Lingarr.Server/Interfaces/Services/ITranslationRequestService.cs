@@ -149,9 +149,9 @@ public interface ITranslationRequestService
     /// Translate subtitle content without using jobs, Used for other Apps API Intergration (ex. Bazarr).
     /// </summary>
     /// <param name="translateAbleContent">The translation to translate</param>
-    /// <param name="parentCancellationToken">Token to cancel the translation operation</param>
-    /// <returns>The translated lines</returns>
-    Task<BatchTranslatedLine[]> TranslateContentAsync(
+    /// <param name="parentCancellationToken">Unused. Content translation keeps running if the HTTP client disconnects.</param>
+    /// <returns>The translated lines, or null for an active duplicate.</returns>
+    Task<BatchTranslatedLine[]?> TranslateContentAsync(
         TranslateAbleSubtitleContent translateAbleContent,
-        CancellationToken parentCancellationToken);
+        CancellationToken parentCancellationToken = default);
 }

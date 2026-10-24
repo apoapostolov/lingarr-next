@@ -342,7 +342,7 @@ public class AnthropicService : BaseMeteredLanguageService, ITranslationService,
                                         ["line"] = new
                                         {
                                             type = "string",
-                                            description = "Translated subtitle text"
+                                            description = StructuredOutputSchema.TranslatedLineDescription(_replacements["targetLanguage"])
                                         }
                                     },
                                     required = new[] { "position", "line" }

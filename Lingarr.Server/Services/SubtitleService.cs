@@ -3,6 +3,7 @@ using System.Text;
 using Lingarr.Contracts.Translation;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Subtitle;
+using Lingarr.Server.Models;
 using Lingarr.Server.Models.FileSystem;
 using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Subtitle;
@@ -666,16 +667,28 @@ public class SubtitleService : ISubtitleService
             .Where(s => SubtitleBytes.IsUsableSidecar(s.Path, s.Language))
             .ToList();
         var availableLanguages = usable
-            .Select(s => s.Language.ToLowerInvariant())
-            .ToHashSet();
+            .Select(s => s.Language)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var sourceLanguage = availableLanguages.FirstOrDefault(lang => sourceCodes.Contains(lang));
-        if (sourceLanguage == null)
+        LanguageMatch? bestMatch = null;
+        foreach (var sourceCode in sourceCodes)
+        {
+            var match = _languageCodeService.GetBestMatch(sourceCode, availableLanguages);
+            if (match != null && (bestMatch == null || match.Tier < bestMatch.Tier))
+            {
+                bestMatch = match;
+            }
+        }
+
+        if (bestMatch == null)
         {
             return null;
         }
 
-        var pool = usable.Where(s => s.Language == sourceLanguage).ToList();
+        var sourceLanguage = bestMatch.Code;
+        var pool = usable
+            .Where(s => s.Language.Equals(sourceLanguage, StringComparison.OrdinalIgnoreCase))
+            .ToList();
         var sourceSubtitle = ignoreCaptions == "true"
             ? pool.FirstOrDefault(s => string.IsNullOrEmpty(s.Caption))
                 ?? pool.FirstOrDefault(s => !SubtitleNaming.IsOcr(s.Caption))

@@ -169,6 +169,112 @@ public class LanguageHandlingTests : MediaSubtitleProcessorTestBase
         }
     }
 
+    [Fact]
+    public async Task ProcessMedia_WithRegionalSourceAndNeutralSubtitle_ShouldUseNeutralSubtitle()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.en.srt",
+                FileName = "test.movie.en",
+                Language = "en",
+                Caption = "",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+
+        SettingServiceMock
+            .Setup(s => s.GetSettingAsJson<SourceLanguage>(SettingKeys.Translation.SourceLanguages))
+            .ReturnsAsync(new List<SourceLanguage> { new() { Code = "en-US", Name = "English (United States)" } });
+
+        SettingServiceMock
+            .Setup(s => s.GetSettingAsJson<TargetLanguage>(SettingKeys.Translation.TargetLanguages))
+            .ReturnsAsync(new List<TargetLanguage> { new() { Code = "nl", Name = "Dutch" } });
+
+        SettingServiceMock
+            .Setup(s => s.GetSetting(SettingKeys.Translation.IgnoreCaptions))
+            .ReturnsAsync("true");
+
+        UseRealSelectSourceSubtitle();
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.True(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.Is<TranslateAbleSubtitle>(t =>
+                t.SourceLanguage == "en" &&
+                t.TargetLanguage == "nl" &&
+                t.SubtitlePath.Contains("test.movie.en.srt"))),
+            Times.Once);
+        SubtitleDownloadServiceMock.Verify(
+            service => service.DownloadLanguagesAsync(
+                It.IsAny<IMedia>(),
+                MediaType.Movie,
+                It.Is<IReadOnlyCollection<string>>(languages => languages.Contains("en-US")),
+                It.IsAny<IReadOnlyList<Subtitles>>(),
+                false,
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessMedia_WithRegionalSourceAndBothSubtitles_ShouldPreferExactSubtitle()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.pt.srt",
+                FileName = "test.movie.pt",
+                Language = "pt",
+                Caption = "",
+                Format = ".srt"
+            },
+            new()
+            {
+                Path = "/movies/test/test.movie.pt-BR.srt",
+                FileName = "test.movie.pt-BR",
+                Language = "pt-br",
+                Caption = "",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+
+        SettingServiceMock
+            .Setup(s => s.GetSettingAsJson<SourceLanguage>(SettingKeys.Translation.SourceLanguages))
+            .ReturnsAsync(new List<SourceLanguage> { new() { Code = "pt-BR", Name = "Portuguese (Brazil)" } });
+
+        SettingServiceMock
+            .Setup(s => s.GetSettingAsJson<TargetLanguage>(SettingKeys.Translation.TargetLanguages))
+            .ReturnsAsync(new List<TargetLanguage> { new() { Code = "en", Name = "English" } });
+
+        SettingServiceMock
+            .Setup(s => s.GetSetting(SettingKeys.Translation.IgnoreCaptions))
+            .ReturnsAsync("true");
+
+        UseRealSelectSourceSubtitle();
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.True(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.Is<TranslateAbleSubtitle>(t =>
+                t.SourceLanguage == "pt-br" &&
+                t.SubtitlePath.Contains("test.movie.pt-BR.srt"))),
+            Times.Once);
+    }
+
     private void UseRealSelectSourceSubtitle()
     {
         var real = new SubtitleService(

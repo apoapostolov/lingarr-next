@@ -86,8 +86,8 @@ async function toggleSeason(season: ISeason) {
 }
 
 async function collectSubtitles() {
-    if (expandedSeason.value?.path) {
-        subtitles.value = await services.subtitle.collect(expandedSeason.value.path)
+    if (expandedSeason.value?.id) {
+        subtitles.value = await services.subtitle.getSeasonSubtitles(expandedSeason.value.id)
     }
 }
 </script>

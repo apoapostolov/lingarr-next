@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Lingarr.Server.Services.Integration.Bazarr;
+using Lingarr.Server.Services.SubtitleDownload;
 
 namespace Lingarr.Server.Services.Subtitle;
 
@@ -201,6 +202,9 @@ public static class EmbeddedSubtitleExtractor
                ?? token.Split('-', ':')[0].ToLowerInvariant();
     }
 
+    private static string SidecarLanguageFromDestination(string destinationFileName) =>
+        SubtitleNaming.ParseSidecar(destinationFileName).Language ?? "en";
+
     private static bool StreamMatchesLanguage(string? streamLanguage, string wanted)
     {
         var streamCode = SubtitleNaming.NormalizeLanguage(streamLanguage)
@@ -219,6 +223,20 @@ public static class EmbeddedSubtitleExtractor
     public static bool HasOnlyImageSubtitles(IReadOnlyList<EmbeddedSubtitleStream> streams) =>
         streams.Count > 0
         && streams.All(stream => ImageCodecs.Contains(stream.Codec));
+
+    public static bool CanReuseSidecar(string destination, string language) =>
+        File.Exists(destination) && SubtitleBytes.IsUsableSidecar(destination, language);
+
+    public static bool AcceptExtractedSidecar(string destination, string language)
+    {
+        if (CanReuseSidecar(destination, language))
+        {
+            return true;
+        }
+
+        TryDelete(destination);
+        return false;
+    }
 
     public static async Task<bool> TryExtractTextLanguages(
         string directory,
@@ -258,7 +276,8 @@ public static class EmbeddedSubtitleExtractor
         foreach (var plan in SelectTextTracks(streams, missing, fileName))
         {
             var destination = Path.Combine(directory, plan.DestinationFileName);
-            if (File.Exists(destination))
+            var language = SidecarLanguageFromDestination(plan.DestinationFileName);
+            if (CanReuseSidecar(destination, language))
             {
                 wrote = true;
                 continue;
@@ -302,7 +321,8 @@ public static class EmbeddedSubtitleExtractor
         }
 
         var destination = Path.Combine(directory, plan.DestinationFileName);
-        if (File.Exists(destination))
+        var language = SidecarLanguageFromDestination(plan.DestinationFileName);
+        if (CanReuseSidecar(destination, language))
         {
             return true;
         }
@@ -324,9 +344,10 @@ public static class EmbeddedSubtitleExtractor
     {
         var extract = await Run(
             BuildExtractCommand(videoPath, plan.StreamIndex, destination),
-            TimeSpan.FromMinutes(2),
+            TimeSpan.FromMinutes(10),
             cancellationToken);
-        return extract.ExitCode == 0 && File.Exists(destination);
+        return extract.ExitCode == 0
+               && AcceptExtractedSidecar(destination, SidecarLanguageFromDestination(plan.DestinationFileName));
     }
 
     private static async Task<bool> ExtractImage(

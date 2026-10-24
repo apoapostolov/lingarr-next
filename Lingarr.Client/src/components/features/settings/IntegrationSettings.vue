@@ -27,6 +27,13 @@
                     Include new imports
                 </span>
             </ToggleButton>
+            <ToggleButton
+                v-model="radarrExcludeUnmonitored"
+                aria-label="Skip unmonitored movies when scanning">
+                <span class="text-primary-content text-sm font-medium">
+                    Skip unmonitored movies when scanning
+                </span>
+            </ToggleButton>
         </template>
     </CardComponent>
 
@@ -56,6 +63,20 @@
                 aria-label="Include new Sonarr imports">
                 <span class="text-primary-content text-sm font-medium">
                     Include new imports
+                </span>
+            </ToggleButton>
+            <ToggleButton
+                v-model="sonarrExcludeUnmonitoredSeries"
+                aria-label="Skip unmonitored series when scanning">
+                <span class="text-primary-content text-sm font-medium">
+                    Skip unmonitored series when scanning
+                </span>
+            </ToggleButton>
+            <ToggleButton
+                v-model="sonarrExcludeUnmonitoredEpisodes"
+                aria-label="Skip unmonitored episodes when scanning">
+                <span class="text-primary-content text-sm font-medium">
+                    Skip unmonitored episodes when scanning
                 </span>
             </ToggleButton>
             <p class="text-secondary-content text-sm">
@@ -153,6 +174,32 @@ const sonarrDefaultInclude = computed({
     get: (): string => settingsStore.getSetting(SETTINGS.SONARR_DEFAULT_INCLUDE) as string,
     set: (newValue: string): void => {
         settingsStore.updateSetting(SETTINGS.SONARR_DEFAULT_INCLUDE, newValue, true)
+        sonarrSaveNotification.value?.show()
+    }
+})
+
+const radarrExcludeUnmonitored = computed({
+    get: (): string => settingsStore.getSetting(SETTINGS.RADARR_EXCLUDE_UNMONITORED) as string,
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.RADARR_EXCLUDE_UNMONITORED, newValue, true)
+        radarrSaveNotification.value?.show()
+    }
+})
+
+const sonarrExcludeUnmonitoredSeries = computed({
+    get: (): string =>
+        settingsStore.getSetting(SETTINGS.SONARR_EXCLUDE_UNMONITORED_SERIES) as string,
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.SONARR_EXCLUDE_UNMONITORED_SERIES, newValue, true)
+        sonarrSaveNotification.value?.show()
+    }
+})
+
+const sonarrExcludeUnmonitoredEpisodes = computed({
+    get: (): string =>
+        settingsStore.getSetting(SETTINGS.SONARR_EXCLUDE_UNMONITORED_EPISODES) as string,
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.SONARR_EXCLUDE_UNMONITORED_EPISODES, newValue, true)
         sonarrSaveNotification.value?.show()
     }
 })

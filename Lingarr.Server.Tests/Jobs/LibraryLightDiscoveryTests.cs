@@ -131,6 +131,225 @@ public class LibraryLightDiscoveryTests
     }
 
     [Fact]
+    public async Task TryDiscover_ProcessesAReplacedFileEvenWhenAnOldTranslationCompleted()
+    {
+        await using var database = new LingarrDbContext(
+            new DbContextOptionsBuilder<LingarrDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        database.Episodes.Add(Episode(3, 300, "Show - S03E01 WEBDL-720p", "en"));
+        database.TranslationRequests.Add(new TranslationRequest
+        {
+            MediaId = 3,
+            MediaType = MediaType.Episode,
+            Title = "Show - S03E01",
+            SourceLanguage = "en",
+            TargetLanguage = "bg",
+            Status = TranslationStatus.Completed,
+            SubtitleToTranslate = "/tv/Show/Show - S03E01 WEBDL-1080p.en.srt"
+        });
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var opened = new List<string>();
+        var discovery = Discovery(
+            database,
+            ArrSettings(),
+            processor: Processor(opened),
+            radarr: Radarr(),
+            sonarr: Sonarr(300),
+            media: Media(episodeSonarrId: 300, episodeId: 3));
+
+        var started = await discovery.TryDiscover(5, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, started);
+        Assert.Contains("Fake Episode", opened);
+    }
+
+    [Fact]
+    public async Task TryDiscover_SkipsWhenACompletedRequestMatchesTheCurrentFile()
+    {
+        await using var database = new LingarrDbContext(
+            new DbContextOptionsBuilder<LingarrDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        database.Episodes.Add(Episode(3, 300, "Show - S03E01 WEBDL-720p", "en"));
+        database.TranslationRequests.Add(new TranslationRequest
+        {
+            MediaId = 3,
+            MediaType = MediaType.Episode,
+            Title = "Show - S03E01",
+            SourceLanguage = "en",
+            TargetLanguage = "bg",
+            Status = TranslationStatus.Completed,
+            SubtitleToTranslate = "/tv/Show/Show - S03E01 WEBDL-720p.en.srt"
+        });
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var opened = new List<string>();
+        var discovery = Discovery(
+            database,
+            ArrSettings(),
+            processor: Processor(opened),
+            radarr: Radarr(),
+            sonarr: Sonarr(300),
+            media: Media(episodeSonarrId: 300, episodeId: 3));
+
+        var started = await discovery.TryDiscover(5, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, started);
+        Assert.Empty(opened);
+    }
+
+    [Fact]
+    public async Task TryDiscover_ProcessesMovieWhenCoveredTargetSidecarIsEmpty()
+    {
+        var root = Directory.CreateTempSubdirectory("lingarr-empty-covered");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root.FullName, "Leftover.en.srt"),
+                "1\n00:00:01,000 --> 00:00:02,000\nHello\n");
+            File.WriteAllBytes(Path.Combine(root.FullName, "Leftover.bg.srt"), []);
+
+            await using var database = new LingarrDbContext(
+                new DbContextOptionsBuilder<LingarrDbContext>()
+                    .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                    .Options);
+            database.Movies.Add(Movie(1, 100, "Leftover", root.FullName, "Leftover", "bg,en"));
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var opened = new List<string>();
+            var discovery = Discovery(
+                database,
+                ArrSettings(),
+                processor: Processor(opened),
+                radarr: Radarr(100),
+                sonarr: Sonarr(),
+                media: Media(moviePairs: [(100, 1)]));
+
+            var started = await discovery.TryDiscover(5, TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, started);
+            Assert.Equal("Leftover", Assert.Single(opened));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task TryDiscover_ProcessesWhenCompletedTranslationWroteAnEmptyFile()
+    {
+        var root = Directory.CreateTempSubdirectory("lingarr-empty-translated");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root.FullName, "Show - S03E01 WEBDL-720p.en.srt"),
+                "1\n00:00:01,000 --> 00:00:02,000\nHello\n");
+            var emptyBg = Path.Combine(root.FullName, "Show - S03E01 WEBDL-720p.bg.srt");
+            File.WriteAllBytes(emptyBg, []);
+
+            await using var database = new LingarrDbContext(
+                new DbContextOptionsBuilder<LingarrDbContext>()
+                    .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                    .Options);
+            var episode = Episode(3, 300, "Show - S03E01 WEBDL-720p", "en");
+            episode.Path = root.FullName;
+            database.Episodes.Add(episode);
+            database.TranslationRequests.Add(new TranslationRequest
+            {
+                MediaId = 3,
+                MediaType = MediaType.Episode,
+                Title = "Show - S03E01",
+                SourceLanguage = "en",
+                TargetLanguage = "bg",
+                Status = TranslationStatus.Completed,
+                SubtitleToTranslate = Path.Combine(root.FullName, "Show - S03E01 WEBDL-720p.en.srt"),
+                TranslatedSubtitle = emptyBg
+            });
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var opened = new List<string>();
+            var discovery = Discovery(
+                database,
+                ArrSettings(),
+                processor: Processor(opened),
+                radarr: Radarr(),
+                sonarr: Sonarr(300),
+                media: Media(episodeSonarrId: 300, episodeId: 3));
+
+            var started = await discovery.TryDiscover(5, TestContext.Current.CancellationToken);
+
+            Assert.Equal(1, started);
+            Assert.Contains("Fake Episode", opened);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task TryDiscover_KeepsSeenAtWhenTheTranslationCapLeavesImports()
+    {
+        await using var database = new LingarrDbContext(
+            new DbContextOptionsBuilder<LingarrDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        database.Movies.Add(Movie(1, 100, "First", "/movies/First", "First", null));
+        database.Movies.Add(Movie(2, 200, "Second", "/movies/Second", "Second", null));
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var settings = ArrSettings();
+        settings.Set(SettingKeys.Automation.LibraryLightSeenAt, "2026-10-20T12:00:00.0000000Z");
+        var opened = new List<string>();
+        var discovery = Discovery(
+            database,
+            settings,
+            processor: Processor(opened),
+            radarr: Radarr(100, 200),
+            sonarr: Sonarr(),
+            media: Media(moviePairs: [(100, 1), (200, 2)]));
+
+        var started = await discovery.TryDiscover(1, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, started);
+        Assert.Equal("First", Assert.Single(opened));
+        Assert.Equal(
+            "2026-10-20T12:00:00.0000000Z",
+            await settings.GetSetting(SettingKeys.Automation.LibraryLightSeenAt));
+    }
+
+    [Fact]
+    public async Task TryDiscover_AdvancesSeenAtWhenEveryImportFits()
+    {
+        await using var database = new LingarrDbContext(
+            new DbContextOptionsBuilder<LingarrDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+        database.Movies.Add(Movie(1, 100, "First", "/movies/First", "First", null));
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var settings = ArrSettings();
+        settings.Set(SettingKeys.Automation.LibraryLightSeenAt, "2026-10-20T12:00:00.0000000Z");
+        var discovery = Discovery(
+            database,
+            settings,
+            processor: Processor([]),
+            radarr: Radarr(100),
+            sonarr: Sonarr(),
+            media: Media(moviePairs: [(100, 1)]));
+
+        var started = await discovery.TryDiscover(5, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, started);
+        var seenAt = await settings.GetSetting(SettingKeys.Automation.LibraryLightSeenAt);
+        Assert.NotEqual("2026-10-20T12:00:00.0000000Z", seenAt);
+        Assert.False(string.IsNullOrWhiteSpace(seenAt));
+    }
+
+    [Fact]
     public async Task TryDiscover_FallsBackWhenNoHelperIsConfigured()
     {
         await using var database = new LingarrDbContext(
@@ -154,6 +373,17 @@ public class LibraryLightDiscoveryTests
 
     private static JsonSettings Settings()
     {
+        var settings = ArrSettings();
+        settings.Set(SettingKeys.MediaServers.PlexAuthMethod, "oauth");
+        settings.Set(SettingKeys.MediaServers.PlexUrl, "http://plex.test:32400");
+        settings.Set(SettingKeys.MediaServers.PlexToken, "plex-token");
+        settings.Set(SettingKeys.MediaServers.PlexClientIdentifier, "client-id");
+        settings.Set(SettingKeys.MediaServers.PlexIgnoreEnvironment, "false");
+        return settings;
+    }
+
+    private static JsonSettings ArrSettings()
+    {
         var settings = new JsonSettings();
         settings.Set(SettingKeys.Translation.SourceLanguages, """[{"name":"English","code":"en"}]""");
         settings.Set(SettingKeys.Translation.TargetLanguages, """[{"name":"Bulgarian","code":"bg"}]""");
@@ -161,12 +391,69 @@ public class LibraryLightDiscoveryTests
         settings.Set("radarr_api_key", "radarr-key");
         settings.Set("sonarr_url", "http://sonarr.test");
         settings.Set("sonarr_api_key", "sonarr-key");
-        settings.Set(SettingKeys.MediaServers.PlexAuthMethod, "oauth");
-        settings.Set(SettingKeys.MediaServers.PlexUrl, "http://plex.test:32400");
-        settings.Set(SettingKeys.MediaServers.PlexToken, "plex-token");
-        settings.Set(SettingKeys.MediaServers.PlexClientIdentifier, "client-id");
-        settings.Set(SettingKeys.MediaServers.PlexIgnoreEnvironment, "false");
         return settings;
+    }
+
+    private static LibraryLightDiscovery Discovery(
+        LingarrDbContext database,
+        JsonSettings settings,
+        Mock<IMediaSubtitleProcessor> processor,
+        Mock<IRadarrService> radarr,
+        Mock<ISonarrService> sonarr,
+        Mock<IMediaService> media) =>
+        new(
+            database,
+            settings,
+            new Mock<IPlexClient>().Object,
+            radarr.Object,
+            sonarr.Object,
+            media.Object,
+            processor.Object,
+            NullLogger<LibraryLightDiscovery>.Instance);
+
+    private static Mock<IMediaSubtitleProcessor> Processor(List<string> opened)
+    {
+        var processor = new Mock<IMediaSubtitleProcessor>();
+        processor
+            .Setup(service => service.ProcessMedia(It.IsAny<IMedia>(), It.IsAny<MediaType>()))
+            .Callback<IMedia, MediaType>((media, _) => opened.Add(media.Title))
+            .ReturnsAsync(true);
+        return processor;
+    }
+
+    private static Mock<IRadarrService> Radarr(params int[] ids)
+    {
+        var radarr = new Mock<IRadarrService>();
+        radarr.Setup(service => service.GetImportedMovieIdsSince(It.IsAny<DateTime>()))
+            .ReturnsAsync(ids.ToList());
+        return radarr;
+    }
+
+    private static Mock<ISonarrService> Sonarr(params int[] ids)
+    {
+        var sonarr = new Mock<ISonarrService>();
+        sonarr.Setup(service => service.GetImportedEpisodeIdsSince(It.IsAny<DateTime>()))
+            .ReturnsAsync(ids.ToList());
+        return sonarr;
+    }
+
+    private static Mock<IMediaService> Media(
+        int? episodeSonarrId = null,
+        int? episodeId = null,
+        params (int RadarrId, int MovieId)[] moviePairs)
+    {
+        var media = new Mock<IMediaService>();
+        foreach (var pair in moviePairs)
+        {
+            media.Setup(service => service.GetMovieIdOrSyncFromRadarrMovieId(pair.RadarrId)).ReturnsAsync(pair.MovieId);
+        }
+
+        if (episodeSonarrId is int sonarrId && episodeId is int id)
+        {
+            media.Setup(service => service.GetEpisodeIdOrSyncFromSonarrEpisodeId(sonarrId)).ReturnsAsync(id);
+        }
+
+        return media;
     }
 
     private static Movie Movie(int id, int radarrId, string title, string path, string fileName, string? coverage) => new()
@@ -181,7 +468,10 @@ public class LibraryLightDiscoveryTests
         IncludeInTranslation = true
     };
 
-    private static Episode Episode(int id, int sonarrId)
+    private static Episode Episode(int id, int sonarrId) =>
+        Episode(id, sonarrId, "Fake Show - S01E01", null);
+
+    private static Episode Episode(int id, int sonarrId, string fileName, string? coverage)
     {
         var show = new Show
         {
@@ -204,8 +494,9 @@ public class LibraryLightDiscoveryTests
             SonarrId = sonarrId,
             EpisodeNumber = 1,
             Title = "Fake Episode",
-            FileName = "Fake Show - S01E01",
+            FileName = fileName,
             Path = "/unused/Season 1",
+            LanguageCoverage = coverage,
             SeasonId = season.Id,
             Season = season,
             IncludeInTranslation = true

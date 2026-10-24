@@ -142,13 +142,15 @@ search `DEVELOPMENT_PLAN.md` and `git log main --grep '#<N>'` for that PR.
 Do not pick it again when it is already recorded.
 
 Already ported onto `main`: #527, #529, #550 (behavior port, not a clean
-pick), #551, #552, #553 (empty subtitle language becomes `unknown`), and
-the unauthenticated signup and onboarding guard from `9fba9f7` (1.4.0).
+pick), #551, #552, #553 (empty subtitle language becomes `unknown`),
+the unauthenticated signup and onboarding guard from `9fba9f7` (1.4.0),
+and from 1.4.1: #554, #557, #587, #556, #586, #584, #558, #574
+(schema line), #583, #576, and #575.
 
 Still skipped: telemetry #510, date handling #514, translated context #530,
-the issue-validation workflow deletion, Dependabot trains, and the
-remaining 1.3.0 majors (Pinia 4, Node 26 types, Tailwind range,
-oxlint/oxfmt).
+path mapping removal #561, Local AI structured-output toggle #574, the
+issue-validation workflow deletion, Dependabot trains, and the remaining
+1.3.0 majors (Pinia 4, Node 26 types, Tailwind range, oxlint/oxfmt).
 
 ### Diff one new commit against current main
 

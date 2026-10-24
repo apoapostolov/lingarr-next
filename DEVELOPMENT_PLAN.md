@@ -22,21 +22,31 @@ transcript. Completed work belongs in the changelog or a dated development log.
 
 ## Current state
 
-- **Released:** Lingarr Next 1.2.0, “Download First”.
-- **main:** the only long-lived branch, and the Lingarr Next 1.2.0 product
+- **Released:** Lingarr Next 1.2.1, “Closest Match”.
+- **main:** the only long-lived branch, and the Lingarr Next 1.2.1 product
   line. Do not recreate `next`. Do not merge `upstream/main` into `main`.
   Upstream #502 (`5eadc933`) is an old snapshot and is not the branch tip.
   The daily check uses Plex, Radarr, and Sonarr and does not walk every
   folder. Upstream 1.4.0 was reviewed after pulling `main`. #527, #529,
   #550, #551, and #552 were already present. #553 and the signup/onboarding
-  guard from `9fba9f7` are ported. Still skipped: telemetry #510, date
-  handling #514, translated context #530, the issue-validation workflow
-  deletion, and the Dependabot trains. Remaining 1.3.0 majors (Pinia 4,
-  Node 26 types, Tailwind range, oxlint/oxfmt) are still skipped.
+  guard from `9fba9f7` are ported. Upstream 1.4.1 ports on `main`: #554
+  (forced/regular caption pairing), #557 (case-insensitive language codes),
+  #587 (closest language match via `GetBestMatch`), #556 (content translate
+  survives disconnect, 409 duplicate, completed reuse), #586 (language JSON
+  from `AppContext.BaseDirectory`), and #584 (`textContent` in highlight and
+  show-title). Product recs taken from 1.4.1: #558 (M0046, default off,
+  full-id removal), #574 schema line, #583 additive season lookup, #576
+  toolbar wrap, #575 compose-dev named volumes. Still skipped: telemetry
+  #510, date handling #514, translated context #530, path mapping removal
+  #561, Local AI structured-output toggle #574, the issue-validation
+  workflow deletion, and the Dependabot trains. Remaining 1.3.0 majors
+  (Pinia 4, Node 26 types, Tailwind range, oxlint/oxfmt) are still skipped.
 - **Protected line:** `main`.
-- **Validation baseline:** 570 server tests, Docker build/publish, and 19 API
-  smoke checks passed for subtitle downloader reliability. The Bedroom image
-  is rebuilt and deployed; see [validation](docs/validation/subtitle-downloader-reliability.md).
+- **Validation baseline:** 613 server tests. Bedroom was rebuilt from this
+  working tree as `lingarr-next:latest` after the coverage and daily-cursor
+  fixes. 19 API smoke checks passed for subtitle downloader reliability on
+  the previous image; see
+  [validation](docs/validation/subtitle-downloader-reliability.md).
 
 ## Next decisions
 

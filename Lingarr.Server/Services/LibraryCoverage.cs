@@ -1,3 +1,6 @@
+using System.IO;
+using Lingarr.Server.Services.SubtitleDownload;
+
 namespace Lingarr.Server.Services;
 
 public static class LibraryCoverage
@@ -56,6 +59,50 @@ public static class LibraryCoverage
 
         var have = Parse(coverage);
         return !sources.Any(have.Contains);
+    }
+
+    public static bool MatchesCurrentFile(string? subtitlePath, string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(subtitlePath) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        var subtitleFile = Path.GetFileName(subtitlePath);
+        return subtitleFile.StartsWith(fileName + ".", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool HasUsablePair(
+        string? directory,
+        string? fileName,
+        IReadOnlySet<string> sources,
+        IReadOnlySet<string> targets)
+    {
+        if (string.IsNullOrWhiteSpace(directory)
+            || string.IsNullOrWhiteSpace(fileName)
+            || sources.Count == 0
+            || targets.Count == 0)
+        {
+            return false;
+        }
+
+        return sources.Any(language => HasUsableSidecar(directory, fileName, language))
+            && targets.All(language => HasUsableSidecar(directory, fileName, language));
+    }
+
+    public static bool HasUsableSidecar(string directory, string fileName, string language)
+    {
+        var two = TwoLetter(language) ?? language.Trim();
+        foreach (var extension in new[] { ".srt", ".ass", ".ssa" })
+        {
+            var path = Path.Combine(directory, fileName + "." + two + extension);
+            if (File.Exists(path) && SubtitleBytes.IsUsableSidecar(path, two))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static HashSet<string> Parse(string? coverage)

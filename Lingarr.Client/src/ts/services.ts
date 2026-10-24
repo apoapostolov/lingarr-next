@@ -158,6 +158,7 @@ export interface ISettingService {
 
 export interface ISubtitleService {
     collect<T>(path: string): Promise<T>
+    getSeasonSubtitles<T>(seasonId: number): Promise<T>
 }
 
 export interface IVersionService {

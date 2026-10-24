@@ -12,6 +12,7 @@ using Lingarr.Server.Models;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Integration.Bazarr;
 using Lingarr.Server.Services.Subtitle;
+using Lingarr.Server.Services.SubtitleDownload;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Extensions;
 
@@ -253,7 +254,9 @@ public class SubtitleMaintenanceJob
                     directory,
                     fileName,
                     missing,
-                    matching.Select(subtitle => subtitle.Language),
+                    matching
+                        .Where(subtitle => SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language))
+                        .Select(subtitle => subtitle.Language),
                     cancellationToken);
                 var wroteEnglish = false;
                 if (!wroteText

@@ -135,7 +135,10 @@ export const SETTINGS = {
     GEMINI_REQUEST_TEMPLATE: 'gemini_request_template',
     LANGUAGE_CODE_FORMAT: 'language_code_format',
     RADARR_DEFAULT_INCLUDE: 'radarr_default_include',
+    RADARR_EXCLUDE_UNMONITORED: 'radarr_exclude_unmonitored',
     SONARR_DEFAULT_INCLUDE: 'sonarr_default_include',
+    SONARR_EXCLUDE_UNMONITORED_SERIES: 'sonarr_exclude_unmonitored_series',
+    SONARR_EXCLUDE_UNMONITORED_EPISODES: 'sonarr_exclude_unmonitored_episodes',
     DASHBOARD_ACTIVITY_WINDOW_HOURS: 'dashboard_activity_window_hours',
     DASHBOARD_PRIMARY_LANGUAGE: 'dashboard_primary_language',
     PLEX_SET_SELECTED_SUBTITLE: 'plex_set_selected_subtitle',
@@ -282,7 +285,10 @@ export interface ISettings {
     gemini_request_template: string
     language_code_format: string
     radarr_default_include: string
+    radarr_exclude_unmonitored: string
     sonarr_default_include: string
+    sonarr_exclude_unmonitored_series: string
+    sonarr_exclude_unmonitored_episodes: string
     dashboard_activity_window_hours: string
     dashboard_primary_language: string
     plex_set_selected_subtitle: string

@@ -14,6 +14,8 @@ public class SonarrShow
     public required string Added { get; set; }
     [JsonPropertyName("seasonFolder")]
     public required bool SeasonFolder { get; set; }
+    [JsonPropertyName("monitored")]
+    public bool Monitored { get; set; } = true;
     [JsonPropertyName("rootFolderPath")]
     public string? RootFolderPath { get; set; } 
     [JsonPropertyName("seasons")]
