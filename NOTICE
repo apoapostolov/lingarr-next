@@ -1,0 +1,16 @@
+Lingarr Next
+Copyright (C) 2024 Lingarr
+Copyright (C) 2026 Apostol Apostolov
+
+Lingarr Next started from Lingarr (https://github.com/lingarr-translate/lingarr)
+and is distributed under the GNU Affero General Public License, version 3.
+The complete license text is in the LICENSE file, which is kept byte-identical
+to the canonical text published by the Free Software Foundation at
+https://www.gnu.org/licenses/agpl-3.0.txt. Do not edit LICENSE; put notices
+here instead, so the repository's license stays machine-identifiable.
+
+Original notice from the upstream LICENSE file:
+
+  Lingarr is an application that utilizes LibreTranslate to translate
+  subtitle files to a user-specified target language, providing a
+  locally hosted solution for subtitle localization.
