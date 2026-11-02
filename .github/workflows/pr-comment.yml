@@ -9,14 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+    env:
+      # The wording lives in a repository secret so it can change without a
+      # commit. Pass it through the environment instead of interpolating it into
+      # the script body, and skip the step when the secret is unset: the comments
+      # API rejects an empty body with a 422.
+      PR_COMMENT_BODY: ${{ secrets.PR_COMMENT_BODY }}
     steps:
       - name: Auto Comment on PR
+        if: env.PR_COMMENT_BODY != ''
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `${{secrets.PR_COMMENT_BODY}}`
-            })
+              body: process.env.PR_COMMENT_BODY,
+            });
