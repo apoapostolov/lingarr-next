@@ -46,6 +46,18 @@
                 </ToggleButton>
 
                 <div class="flex flex-col space-x-2">
+                    <span class="font-semibold">Source subtitle guard</span>
+                    Refuses a typesetting or drawing track, and a translation that comes back
+                    unchanged because the file is in another language. Nothing is written when it
+                    refuses.
+                </div>
+                <ToggleButton v-model="sourceSubtitleGuard">
+                    <span class="text-primary-content text-sm font-medium">
+                        {{ sourceSubtitleGuard == 'false' ? 'Disabled' : 'Enabled' }}
+                    </span>
+                </ToggleButton>
+
+                <div class="flex flex-col space-x-2">
                     <span class="font-semibold">Preserve line breaks</span>
                 </div>
                 <ToggleButton v-model="preserveLineBreaks">
@@ -139,6 +151,14 @@ const stripSubtitleFormatting = computed({
     get: (): string => settingsStore.getSetting(SETTINGS.STRIP_SUBTITLE_FORMATTING) as string,
     set: (newValue: string): void => {
         settingsStore.updateSetting(SETTINGS.STRIP_SUBTITLE_FORMATTING, newValue, true)
+        saveNotification.value?.show()
+    }
+})
+
+const sourceSubtitleGuard = computed({
+    get: (): string => (settingsStore.getSetting(SETTINGS.SOURCE_SUBTITLE_GUARD) as string) || 'true',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.SOURCE_SUBTITLE_GUARD, newValue, true)
         saveNotification.value?.show()
     }
 })

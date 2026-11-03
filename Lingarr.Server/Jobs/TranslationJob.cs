@@ -37,6 +37,7 @@ public class TranslationJob
     private readonly ITranslationPromptProfileService _promptProfiles;
     private readonly IPlexSubtitleSelector _plexSubtitles;
     private readonly IClassifierSubtitleGate _classifier;
+    private readonly ISourceSubtitleGuard _subtitleGuard;
     private readonly SubtitlePostProcessRunner _postProcess;
     private readonly PluginSignals _signals;
 
@@ -56,6 +57,7 @@ public class TranslationJob
         ITranslationPromptProfileService promptProfiles,
         IPlexSubtitleSelector plexSubtitles,
         IClassifierSubtitleGate classifier,
+        ISourceSubtitleGuard subtitleGuard,
         SubtitlePostProcessRunner postProcess,
         PluginSignals signals)
     {
@@ -74,6 +76,7 @@ public class TranslationJob
         _promptProfiles = promptProfiles;
         _plexSubtitles = plexSubtitles;
         _classifier = classifier;
+        _subtitleGuard = subtitleGuard;
         _postProcess = postProcess;
         _signals = signals;
     }
@@ -146,7 +149,8 @@ public class TranslationJob
                 SettingKeys.Translation.MaxBatchSize,
                 SettingKeys.Translation.RemoveLanguageTag,
                 SettingKeys.Translation.UseSubtitleTagging,
-                SettingKeys.Translation.SubtitleTag
+                SettingKeys.Translation.SubtitleTag,
+                SettingKeys.Translation.SourceSubtitleGuard
             ]);
             var chain = TranslationChain.Parse(settings[SettingKeys.Translation.ServiceType], _logger);
             await _promptProfiles.ResolveChainAsync(chain, request.Id, cancellationToken);
@@ -158,6 +162,7 @@ public class TranslationJob
             var validateSubtitles = settings[SettingKeys.SubtitleValidation.ValidateSubtitles] != "false";
             var removeLanguageTag = settings[SettingKeys.Translation.RemoveLanguageTag] != "false";
             var contextPromptEnabled = settings[SettingKeys.Translation.AiContextPromptEnabled] == "true";
+            var sourceGuardEnabled = settings[SettingKeys.Translation.SourceSubtitleGuard] != "false";
 
             var contextBefore = 0;
             var contextAfter = 0;
@@ -249,6 +254,19 @@ public class TranslationJob
                 }
             }
 
+            // A converted typesetting track translates into drawings and markup, not subtitles.
+            if (sourceGuardEnabled)
+            {
+                var sourceVerdict = _subtitleGuard.InspectSource(subtitles);
+                if (sourceVerdict.Blocked)
+                {
+                    _logger.LogWarning(
+                        "Refusing to translate source subtitle {Path}: {Reason}",
+                        request.SubtitleToTranslate, sourceVerdict.Reason);
+                    throw new TranslationException(sourceVerdict.Reason!);
+                }
+            }
+
             // subtitle already carries a translation from an earlier prior run.
             // Group by Position and keep the most recent row in case the same position was used more than once.
             var persistedLines = (await _dbContext.TranslationRequestLines
@@ -319,6 +337,20 @@ public class TranslationJob
                 foreach (var subtitle in translatedSubtitles)
                 {
                     SubtitleHtml.StripTranslated(subtitle);
+                }
+            }
+
+            // A source file in another language than its name promises comes back as a copy.
+            if (sourceGuardEnabled)
+            {
+                var translationVerdict = _subtitleGuard.InspectTranslation(
+                    translatedSubtitles, request.SourceLanguage);
+                if (translationVerdict.Blocked)
+                {
+                    _logger.LogWarning(
+                        "Refusing to write a translation of {Path}: {Reason}",
+                        request.SubtitleToTranslate, translationVerdict.Reason);
+                    throw new TranslationException(translationVerdict.Reason!);
                 }
             }
 
