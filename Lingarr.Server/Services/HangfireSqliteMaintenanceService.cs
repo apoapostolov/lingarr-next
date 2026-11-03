@@ -145,16 +145,18 @@ public sealed class HangfireSqliteMaintenanceService : BackgroundService
             return false;
         }
 
+        SqliteConnection? connection = null;
         try
         {
-            using var connection = OpenConnection(sqliteDbPath);
+            connection = OpenConnection(sqliteDbPath);
             var failure = CheckIntegrity(connection);
             if (failure == null)
             {
                 return false;
             }
 
-            if (TryRepair(connection, logger) && CheckIntegrity(connection) == null)
+            Repair(connection);
+            if (CheckIntegrity(connection) == null)
             {
                 logger.LogWarning(
                     "Hangfire SQLite index damage at {Path} was rebuilt in place; the job history is kept.",
@@ -174,10 +176,16 @@ public sealed class HangfireSqliteMaintenanceService : BackgroundService
         }
         catch (Exception ex)
         {
+            // A busy, locked or briefly unreadable file is not corruption, and neither is a full
+            // disk during the repair. Keep the job history and let Hangfire open the file next.
             logger.LogWarning(ex,
-                "Hangfire SQLite database at {Path} could not be checked. It is left in place and Hangfire opens it next.",
+                "Hangfire SQLite database at {Path} could not be checked or repaired. It is left in place and Hangfire opens it next.",
                 sqliteDbPath);
             return false;
+        }
+        finally
+        {
+            connection?.Dispose();
         }
 
         Quarantine(sqliteDbPath, logger);
@@ -215,31 +223,26 @@ public sealed class HangfireSqliteMaintenanceService : BackgroundService
     /// accounting behind. Damage of the "row missing from index" kind lives only in the index, so
     /// this restores a usable database instead of discarding it.
     /// </summary>
-    private static bool TryRepair(SqliteConnection connection, ILogger logger)
+    /// <remarks>
+    /// Exceptions are left to the caller: a corrupt file throws a corruption error and is
+    /// quarantined, while a busy, locked or full-disk failure keeps the database in place.
+    /// </remarks>
+    private static void Repair(SqliteConnection connection)
     {
-        try
-        {
-            using var rebuild = connection.CreateCommand();
-            rebuild.CommandText = "REINDEX;";
-            rebuild.ExecuteNonQuery();
+        using var rebuild = connection.CreateCommand();
+        rebuild.CommandText = "REINDEX;";
+        rebuild.ExecuteNonQuery();
 
-            if (CheckIntegrity(connection) == null)
-            {
-                return true;
-            }
-
-            // REINDEX alone can leave a freed page unaccounted for; VACUUM rewrites the file from
-            // the surviving data, which is the same operation SQLite's recovery tools use.
-            using var rewrite = connection.CreateCommand();
-            rewrite.CommandText = "VACUUM;";
-            rewrite.ExecuteNonQuery();
-            return true;
-        }
-        catch (Exception ex)
+        if (CheckIntegrity(connection) == null)
         {
-            logger.LogWarning(ex, "Rebuilding Hangfire SQLite indexes failed.");
-            return false;
+            return;
         }
+
+        // REINDEX alone can leave a freed page unaccounted for; VACUUM rewrites the file from
+        // the surviving data, which is the same operation SQLite's recovery tools use.
+        using var rewrite = connection.CreateCommand();
+        rewrite.CommandText = "VACUUM;";
+        rewrite.ExecuteNonQuery();
     }
 
     private static bool IsCorruption(SqliteException exception) =>

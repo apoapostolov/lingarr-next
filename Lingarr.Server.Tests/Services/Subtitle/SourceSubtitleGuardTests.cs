@@ -109,6 +109,51 @@ public class SourceSubtitleGuardTests
         Assert.False(verdict.Blocked);
     }
 
+    [Fact]
+    public void InspectSource_InspectsRawLinesWhenPlaintextIsCleaned()
+    {
+        // A parser that strips override blocks from the plaintext must not hide a typeset track.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => new SubtitleItem
+            {
+                Position = index + 1,
+                Lines = [@"{\an5}m -681.75 -8.06 l -683.02 -7.56 b -684.05 -8.86 -685"],
+                PlaintextLines = ["Clean dialogue that the parser left here"]
+            })
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectTranslation_SkippedNonDialogueLines_AreNotCountedAsUnchanged()
+    {
+        // The classifier leaves sound cues untranslated, which is a copy by design.
+        var subtitles = Enumerable.Range(0, 60)
+            .Select(index => index % 2 == 0
+                ? new SubtitleItem
+                {
+                    Position = index + 1,
+                    Lines = [$"[door slams and footsteps fade out {index}]"],
+                    PlaintextLines = [$"[door slams and footsteps fade out {index}]"],
+                    TranslatedLines = [$"[door slams and footsteps fade out {index}]"]
+                }
+                : new SubtitleItem
+                {
+                    Position = index + 1,
+                    Lines = [$"We should leave before the rain starts tonight {index}"],
+                    PlaintextLines = [$"We should leave before the rain starts tonight {index}"],
+                    TranslatedLines = [$"Трябва да тръгнем преди дъжда довечера {index}"]
+                })
+            .ToList();
+
+        var verdict = _guard.InspectTranslation(subtitles, "en");
+
+        Assert.False(verdict.Blocked);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,

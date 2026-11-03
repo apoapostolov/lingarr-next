@@ -162,7 +162,11 @@ public class TranslationJob
             var validateSubtitles = settings[SettingKeys.SubtitleValidation.ValidateSubtitles] != "false";
             var removeLanguageTag = settings[SettingKeys.Translation.RemoveLanguageTag] != "false";
             var contextPromptEnabled = settings[SettingKeys.Translation.AiContextPromptEnabled] == "true";
-            var sourceGuardEnabled = settings[SettingKeys.Translation.SourceSubtitleGuard] != "false";
+            // Absent on an install that has not stored the key yet, and absent has to mean on.
+            var sourceGuardEnabled = !string.Equals(
+                settings.GetValueOrDefault(SettingKeys.Translation.SourceSubtitleGuard),
+                "false",
+                StringComparison.OrdinalIgnoreCase);
 
             var contextBefore = 0;
             var contextAfter = 0;

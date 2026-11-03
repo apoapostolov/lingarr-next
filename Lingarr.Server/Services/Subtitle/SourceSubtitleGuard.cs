@@ -65,6 +65,13 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
                 continue;
             }
 
+            // Sound cues and credits are left untranslated on purpose by the non-dialogue
+            // classifier, so a copy there is expected and says nothing about the language.
+            if (CueRegex().IsMatch(sourcePlain))
+            {
+                continue;
+            }
+
             candidates++;
             if (Normalized(sourcePlain) == Normalized(target))
             {
@@ -95,7 +102,10 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
         var lines = new List<string>(subtitles.Count);
         foreach (var subtitle in subtitles)
         {
-            var text = string.Join(" ", subtitle.PlaintextLines ?? subtitle.Lines ?? []).Trim();
+            // Raw lines first: a parser can already have removed the override blocks from the
+            // plaintext, and those blocks are the evidence this check looks for.
+            var raw = subtitle.Lines is { Count: > 0 } ? subtitle.Lines : subtitle.PlaintextLines;
+            var text = string.Join(" ", raw ?? []).Trim();
             if (text.Length > 0)
             {
                 lines.Add(text);
@@ -149,4 +159,8 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 
     [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
     private static partial Regex WhitespaceRegex();
+
+    /// <summary>A whole line inside brackets or parentheses, such as "[door slams]" or "(sighs)".</summary>
+    [GeneratedRegex(@"^[\[\(].*[\]\)]$", RegexOptions.Compiled)]
+    private static partial Regex CueRegex();
 }
