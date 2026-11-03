@@ -45,14 +45,18 @@ The full history is in [CHANGELOG.md](CHANGELOG.md).
   file no longer counts as corruption.
 - A machine-translation call that does not answer is dropped after the attempt
   timeout and retried inside the provider's request timeout. One dead call now
-  costs about two minutes instead of holding the job for fifteen. Translation
-  settings has Attempt timeout, 120 seconds by default, with per-provider
-  overrides.
+  costs about two minutes instead of holding the job for fifteen. A single
+  deadline covers the retries, the waits between them and Microsoft's
+  thousand-character chunks, and a timeout reads as an outcome rather than a
+  provider that "did not answer". Translation settings has Attempt timeout, 120
+  seconds by default, with per-provider overrides.
 - A source subtitle that is a converted typesetting track is refused before
-  translation, and a translation that comes back unchanged on 40% or more of
-  its usable lines is not written. Both checks read the text rather than the
-  styling, so dialogue that carries ASS overrides still translates. Subtitle
-  settings has a Source subtitle guard switch.
+  translation: 15% or more of its lines carry a drawing or formatting instead of
+  speech, or 50% or more repeat the same text at the same moment, which is how an
+  ASS event dump emits one entry per style. Styling never refuses a file on its
+  own, and simultaneous or naturally repeated dialogue still translates. A
+  translation that comes back unchanged on 40% or more of its usable lines is not
+  written. Subtitle settings has a Source subtitle guard switch.
 - Subtitle markup no longer counts as a changed placeholder, a blank source
   needs no translation, and repeated output is reported only when different
   source lines collapse onto one text. Indexed placeholders such as `{0:C}`
