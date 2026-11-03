@@ -12,6 +12,11 @@ updates:
       # vue-tsc supports the 7.1 plugin interface.
       - dependency-name: "typescript"
         versions: ["7.0.x"]
+      # vue-tsc 3.3.12 and later report template-closure errors that 3.3.11 accepts:
+      # imported const members gain a bogus .value, handler params lose their type.
+      # Upstream vuejs/language-tools#6237. Re-enable once that is fixed.
+      - dependency-name: "vue-tsc"
+        versions: ["3.3.x"]
     groups:
       npm-minor-and-patch:
         update-types:
