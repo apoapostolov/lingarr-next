@@ -234,6 +234,20 @@ public class SourceSubtitleGuardTests
         Assert.False(verdict.Blocked);
     }
 
+    [Fact]
+    public void InspectSource_RepeatedHtmlStyledSigns_IsRefused()
+    {
+        // With HTML stripping off, a signs track arrives wrapped in font tags and carries no ASS
+        // override at all. Repetition still identifies it.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index, @"<font face=""Impact"" size=""20""><b>Episode title card</b></font>"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,

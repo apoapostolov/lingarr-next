@@ -58,13 +58,13 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
         // A signs track repeats the same on-screen text over and over with per-line styling.
         // Styling alone is not evidence: dialogue wrapped in font tags or ASS overrides is
         // ordinary dialogue, which is why only repetition decides this one.
-        var overrideLines = (double)counts.OverrideLines / total;
+        var styledLines = (double)counts.StyledLines / total;
         var repeatedLines = (double)counts.RepeatedLines / total;
-        if (overrideLines >= OverrideLineRatio && repeatedLines >= RepeatedLineRatio)
+        if (styledLines >= OverrideLineRatio && repeatedLines >= RepeatedLineRatio)
         {
             return SubtitleSourceVerdict.Refuse(
                 $"The source subtitle repeats itself instead of holding dialogue: {counts.RepeatedLines} of {total} " +
-                $"lines repeat an earlier line ({repeatedLines:P0}) and {counts.OverrideLines} lines carry ASS styling. " +
+                $"lines repeat an earlier line ({repeatedLines:P0}) and {counts.StyledLines} lines carry subtitle styling. " +
                 "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
                 "subtitle guard to translate it anyway.");
         }
@@ -145,14 +145,16 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     private static FileMeasurements Measure(IReadOnlyList<string> lines)
     {
         var nonDialogue = 0;
-        var overrideLines = 0;
+        var styledLines = 0;
         var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var line in lines)
         {
-            if (AssOverrideRegex().IsMatch(line))
+            // Either kind of styling counts here: with HTML stripping off, a signs track arrives
+            // wrapped in font tags rather than ASS overrides.
+            if (AssOverrideRegex().IsMatch(line) || HtmlTagRegex().IsMatch(line))
             {
-                overrideLines++;
+                styledLines++;
             }
 
             var text = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
@@ -168,12 +170,12 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 
         // A phrase repeated twice contributes one line that repeats an earlier line, not two.
         var repeated = occurrences.Values.Sum(count => count - 1);
-        return new FileMeasurements(nonDialogue, overrideLines, repeated);
+        return new FileMeasurements(nonDialogue, styledLines, repeated);
     }
 
     private readonly record struct FileMeasurements(
         int NonDialogueLines,
-        int OverrideLines,
+        int StyledLines,
         int RepeatedLines);
 
     private static bool LooksLikeDrawing(string value)
