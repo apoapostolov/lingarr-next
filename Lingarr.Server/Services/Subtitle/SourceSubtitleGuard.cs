@@ -16,10 +16,11 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     public const double NonDialogueLineRatio = 0.15;
 
     /// <summary>
-    /// Share of lines that begin at the same moment as another line. A subtitle holds one line per
-    /// moment; a converted ASS track turns every style and position into its own line.
+    /// Share of lines that repeat the same text at the same moment. A converted ASS track turns
+    /// every style and position into its own line, so one sign starts several times at once.
+    /// Simultaneous dialogue with different text is ordinary dialogue.
     /// </summary>
-    public const double StackedCueRatio = 0.50;
+    public const double DuplicatedCueRatio = 0.50;
 
     /// <summary>Smaller files are not judged, so a short clip is never refused.</summary>
     public const int MinimumLinesToJudge = 20;
@@ -52,15 +53,15 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
                 "or turn off the source subtitle guard to translate it anyway.");
         }
 
-        // One cue per moment is what a subtitle is. A converted event dump stacks several lines on
-        // the same start time, one per style or position. Styling alone is never evidence, and
-        // repeated dialogue that keeps its own timings is left alone.
-        var stacked = (double)counts.StackedLines / counts.Lines;
-        if (stacked >= StackedCueRatio)
+        // The same line twice at the same moment is a duplicated event, which is what a converted
+        // ASS track produces: one entry per style or position. Two speakers at the same moment say
+        // different things, so simultaneous dialogue is not counted here.
+        var duplicated = (double)counts.DuplicatedLines / counts.Lines;
+        if (duplicated >= DuplicatedCueRatio)
         {
             return SubtitleSourceVerdict.Refuse(
-                $"The source subtitle looks like a converted typesetting track: {counts.StackedLines} of " +
-                $"{counts.Lines} lines start at the same moment as another line ({stacked:P0}). " +
+                $"The source subtitle looks like a converted typesetting track: {counts.DuplicatedLines} of " +
+                $"{counts.Lines} lines repeat the same text at the same moment ({duplicated:P0}). " +
                 "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the " +
                 "source subtitle guard to translate it anyway.");
         }
@@ -125,7 +126,7 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     {
         var lines = 0;
         var nonDialogue = 0;
-        var starts = new Dictionary<int, int>();
+        var events = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var subtitle in subtitles)
         {
@@ -137,7 +138,8 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             }
 
             lines++;
-            starts[subtitle.StartTime] = starts.TryGetValue(subtitle.StartTime, out var count) ? count + 1 : 1;
+            var key = $"{subtitle.StartTime}{Normalized(line)}";
+            events[key] = events.TryGetValue(key, out var count) ? count + 1 : 1;
 
             var text = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
             if (text.Length == 0 || LooksLikeDrawing(text))
@@ -146,14 +148,14 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             }
         }
 
-        var stacked = starts.Values.Where(count => count > 1).Sum(count => count);
-        return new FileMeasurements(lines, nonDialogue, stacked);
+        var duplicated = events.Values.Where(count => count > 1).Sum(count => count);
+        return new FileMeasurements(lines, nonDialogue, duplicated);
     }
 
     private readonly record struct FileMeasurements(
         int Lines,
         int NonDialogueLines,
-        int StackedLines);
+        int DuplicatedLines);
 
     private static bool LooksLikeDrawing(string value)
     {
