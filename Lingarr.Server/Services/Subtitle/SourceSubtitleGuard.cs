@@ -138,14 +138,18 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             }
 
             lines++;
-            var key = $"{subtitle.StartTime}{Normalized(line)}";
-            events[key] = events.TryGetValue(key, out var count) ? count + 1 : 1;
 
+            // Compare the readable text, not the raw line: an ASS dump emits the same sign once per
+            // style, so {\an5}Episode title card and {\an3}Episode title card are one duplicated event.
             var text = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
             if (text.Length == 0 || LooksLikeDrawing(text))
             {
                 nonDialogue++;
+                continue;
             }
+
+            var key = $"{subtitle.StartTime}\u001f{Normalized(text)}";
+            events[key] = events.TryGetValue(key, out var count) ? count + 1 : 1;
         }
 
         var duplicated = events.Values.Where(count => count > 1).Sum(count => count);
