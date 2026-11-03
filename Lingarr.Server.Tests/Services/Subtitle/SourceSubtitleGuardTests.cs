@@ -311,6 +311,31 @@ public class SourceSubtitleGuardTests
         Assert.True(verdict.Blocked);
     }
 
+    [Fact]
+    public void InspectSource_DuplicateSignsWithDifferentOverrides_AreRefused()
+    {
+        // A dump emits one entry per style, so the same sign carries a different override each time.
+        // The key has to compare the readable text, or the whole track looks unique.
+        var subtitles = new List<SubtitleItem>();
+        for (var index = 0; index < 30; index++)
+        {
+            var top = Line(index * 2, @"{\an8}{\b1}Episode title card");
+            top.StartTime = index * 1000;
+            top.EndTime = (index * 1000) + 900;
+            subtitles.Add(top);
+
+            var bottom = Line((index * 2) + 1, @"{\an2}{\i1}Episode title card");
+            bottom.StartTime = index * 1000;
+            bottom.EndTime = (index * 1000) + 900;
+            subtitles.Add(bottom);
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+        Assert.Contains("same moment", verdict.Reason);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,
