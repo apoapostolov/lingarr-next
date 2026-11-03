@@ -336,6 +336,31 @@ public class SourceSubtitleGuardTests
         Assert.Contains("same moment", verdict.Reason);
     }
 
+    [Fact]
+    public void InspectSource_DuplicateSignsWithDifferentTextEscapes_AreRefused()
+    {
+        // \N and \h render as a line break and a hard space, so the same sign written either way is
+        // still one duplicated event.
+        var subtitles = new List<SubtitleItem>();
+        for (var index = 0; index < 30; index++)
+        {
+            var first = Line(index * 2, @"{\an8}Episode title\Ncard");
+            first.StartTime = index * 1000;
+            first.EndTime = (index * 1000) + 900;
+            subtitles.Add(first);
+
+            var second = Line((index * 2) + 1, @"{\an2}Episode title\hcard");
+            second.StartTime = index * 1000;
+            second.EndTime = (index * 1000) + 900;
+            subtitles.Add(second);
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+        Assert.Contains("same moment", verdict.Reason);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,
