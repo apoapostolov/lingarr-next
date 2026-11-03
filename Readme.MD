@@ -51,12 +51,13 @@ The full history is in [CHANGELOG.md](CHANGELOG.md).
   provider that "did not answer". Translation settings has Attempt timeout, 120
   seconds by default, with per-provider overrides.
 - A source subtitle that is a converted typesetting track is refused before
-  translation: 15% or more of its lines carry a drawing or formatting instead of
-  speech, or 50% or more repeat the same text at the same moment, which is how an
-  ASS event dump emits one entry per style. Styling never refuses a file on its
-  own, and simultaneous or naturally repeated dialogue still translates. A
-  translation that comes back unchanged on 40% or more of its usable lines is not
-  written. Subtitle settings has a Source subtitle guard switch.
+  translation: once it holds at least 20 lines, it fails when 15% or more carry a
+  drawing or formatting instead of speech, or when 50% or more repeat the same text
+  at the same moment, which is how an ASS event dump emits one entry per style.
+  Styling never refuses a file on its own, and simultaneous or naturally repeated
+  dialogue still translates. A translation that comes back unchanged on 40% or more
+  of its usable lines is not written once there are 50 such lines. Subtitle settings
+  has a Source subtitle guard switch.
 - Subtitle markup no longer counts as a changed placeholder, a blank source
   needs no translation, and repeated output is reported only when different
   source lines collapse onto one text. Indexed placeholders such as `{0:C}`

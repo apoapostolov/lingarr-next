@@ -141,15 +141,14 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 
             // Compare the readable text, not the raw line: an ASS dump emits the same sign once per
             // style, so {\an5}Episode title card and {\an3}Episode title card are one duplicated event.
-            var text = Normalized(AssOverrideRegex().Replace(
-                HtmlTagRegex().Replace(line, string.Empty), string.Empty));
-            if (text.Length == 0 || LooksLikeDrawing(text))
+            var plain = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
+            if (plain.Length == 0 || LooksLikeDrawing(plain))
             {
                 nonDialogue++;
                 continue;
             }
 
-            var key = $"{subtitle.StartTime}\u001f{text}";
+            var key = $"{subtitle.StartTime}\u001f{Normalized(plain)}";
             events[key] = events.TryGetValue(key, out var count) ? count + 1 : 1;
         }
 

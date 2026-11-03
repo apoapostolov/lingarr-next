@@ -27,14 +27,14 @@ is refused before a subtitle is written.
   bounds. Translation settings shows Attempt timeout, 120 seconds by default, with
   per-provider overrides.
 - A source subtitle that is a converted typesetting track is refused before
-  translation: it fails when 15% or more of its lines carry a drawing or formatting
-  instead of speech, or when 50% or more repeat the same text at the same moment,
-  which is how an ASS event dump emits one entry per style. Styling never refuses a
-  file on its own, so dialogue with font tags or ASS overrides still translates, and
-  neither simultaneous dialogue nor a naturally repeated line is counted against a
-  file. A translation that comes back unchanged on 40% or more of its usable lines is
-  not written, and sound cues are ignored. Subtitle settings has a Source subtitle
-  guard switch.
+  translation: once it holds at least 20 lines, it fails when 15% or more carry a
+  drawing or formatting instead of speech, or when 50% or more repeat the same text
+  at the same moment, which is how an ASS event dump emits one entry per style.
+  Styling never refuses a file on its own, so dialogue with font tags or ASS
+  overrides still translates, and neither simultaneous dialogue nor a naturally
+  repeated line is counted against a file. A translation that comes back unchanged on
+  40% or more of its usable lines is not written once there are 50 such lines, and
+  sound cues are ignored. Subtitle settings has a Source subtitle guard switch.
 - Quality scoring no longer reads subtitle markup as a placeholder, no longer
   counts a blank source with a blank target as an integrity failure, reports
   repeated output only when three or more distinct sources collapse onto one

@@ -361,6 +361,27 @@ public class SourceSubtitleGuardTests
         Assert.Contains("same moment", verdict.Reason);
     }
 
+    [Fact]
+    public void InspectSource_HardSpacesInText_AreNotCountedAsDrawings()
+    {
+        // "3\h2\h1\hGo\h!" is a time cue with letters in it. Collapsing \h before the drawing test
+        // would leave "3 2 1 go !", which reads as numbers only.
+        var subtitles = new List<SubtitleItem>();
+        for (var index = 0; index < 17; index++)
+        {
+            subtitles.Add(Line(index, $"Line {index} carries its own sentence about the harbour"));
+        }
+
+        for (var index = 17; index < 20; index++)
+        {
+            subtitles.Add(Line(index, @"3\h2\h1\hGo\h!"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,
