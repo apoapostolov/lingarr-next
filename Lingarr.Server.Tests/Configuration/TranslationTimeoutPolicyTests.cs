@@ -54,4 +54,48 @@ public class TranslationTimeoutPolicyTests
 
         Assert.Equal(TranslationTimeoutPolicy.MicrosoftDefaultTimeoutMinutes, timeout);
     }
+
+    [Fact]
+    public void AttemptTimeoutForProvider_NormalizesProviderId()
+    {
+        var key = SettingKeys.Translation.RequestAttemptTimeoutForProvider("OpenCode-Go");
+
+        Assert.Equal("opencode_go_request_attempt_timeout", key);
+    }
+
+    [Fact]
+    public void ResolveAttemptSeconds_DefaultsToTwoMinutes()
+    {
+        var attempt = TranslationTimeoutPolicy.ResolveAttemptSeconds(
+            new Dictionary<string, string>(), "microsoft");
+
+        Assert.Equal(TranslationTimeoutPolicy.DefaultAttemptTimeoutSeconds, attempt);
+    }
+
+    [Fact]
+    public void ResolveAttemptSeconds_UsesProviderSpecificValue()
+    {
+        var settings = new Dictionary<string, string>
+        {
+            [SettingKeys.Translation.RequestAttemptTimeout] = "30",
+            [SettingKeys.Translation.RequestAttemptTimeoutForProvider("microsoft")] = "90"
+        };
+
+        var attempt = TranslationTimeoutPolicy.ResolveAttemptSeconds(settings, "microsoft");
+
+        Assert.Equal(90, attempt);
+    }
+
+    [Fact]
+    public void ResolveAttemptSeconds_FallsBackToGlobalValue()
+    {
+        var settings = new Dictionary<string, string>
+        {
+            [SettingKeys.Translation.RequestAttemptTimeout] = "45"
+        };
+
+        var attempt = TranslationTimeoutPolicy.ResolveAttemptSeconds(settings, "google");
+
+        Assert.Equal(45, attempt);
+    }
 }

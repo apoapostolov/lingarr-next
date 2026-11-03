@@ -59,6 +59,7 @@ export const SETTINGS = {
     FIX_OVERLAPPING_SUBTITLES: 'fix_overlapping_subtitles',
     STRIP_SUBTITLE_FORMATTING: 'strip_subtitle_formatting',
     STRIP_SUBTITLE_HTML: 'strip_subtitle_html',
+    SOURCE_SUBTITLE_GUARD: 'source_subtitle_guard',
     PRESERVE_LINE_BREAKS: 'preserve_line_breaks',
     ADD_TRANSLATOR_INFO: 'add_translator_info',
     CUSTOM_AI_PARAMETERS: 'custom_ai_parameters',
@@ -97,6 +98,7 @@ export const SETTINGS = {
     PICTURE_CONVERT_LAST_RESORT: 'picture_convert_last_resort',
     PICTURE_CONVERT_WAIT_HOURS: 'picture_convert_wait_hours',
     REQUEST_TIMEOUT: 'request_timeout',
+    REQUEST_ATTEMPT_TIMEOUT: 'request_attempt_timeout',
     LIBRETRANSLATE_REQUEST_TIMEOUT: 'libretranslate_request_timeout',
     GOOGLE_REQUEST_TIMEOUT: 'google_request_timeout',
     BING_REQUEST_TIMEOUT: 'bing_request_timeout',
@@ -208,6 +210,8 @@ export interface ISettings {
     fix_overlapping_subtitles: string
     strip_subtitle_formatting: string
     strip_subtitle_html: string
+    source_subtitle_guard: string
+    request_attempt_timeout: string
     preserve_line_breaks: string
     add_translator_info: string
     theme: ITheme

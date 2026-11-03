@@ -193,6 +193,25 @@ public static class SettingKeys
             ArgumentException.ThrowIfNullOrWhiteSpace(provider);
             return $"{provider.Trim().ToLowerInvariant().Replace("-", "_")}_request_timeout";
         }
+
+        /// <summary>
+        /// Seconds a single provider call may run before it is abandoned and retried inside the
+        /// provider's request budget. A stalled machine-translation call is dropped in seconds
+        /// instead of holding the job for the whole request timeout.
+        /// </summary>
+        public const string RequestAttemptTimeout = "request_attempt_timeout";
+
+        public static string RequestAttemptTimeoutForProvider(string provider)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+            return $"{provider.Trim().ToLowerInvariant().Replace("-", "_")}_request_attempt_timeout";
+        }
+
+        /// <summary>
+        /// When true, a source subtitle that is a typesetting or drawing track, and a translation
+        /// that came back unchanged from a mislabelled source, are refused before a file is written.
+        /// </summary>
+        public const string SourceSubtitleGuard = "source_subtitle_guard";
         public const string MaxRetries = "max_retries";
         public const string ProviderCancelRetryCount = "provider_cancel_retry_count";
         public const string ProviderCancelRetryHours = "provider_cancel_retry_hours";

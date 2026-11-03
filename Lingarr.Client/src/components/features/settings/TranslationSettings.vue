@@ -58,6 +58,16 @@
                 @update:validation="(val) => (isValid.requestTimeout = val)" />
 
             <div class="flex flex-col space-x-2">
+                <span class="font-semibold">Attempt timeout (seconds)</span>
+                A call that never answers is dropped after this and retried inside the request
+                timeout, so one stalled call cannot hold the queue for the whole budget.
+            </div>
+            <InputComponent
+                v-model="attemptTimeout"
+                :validation-type="INPUT_VALIDATION_TYPE.NUMBER"
+                @update:validation="(val) => (isValid.attemptTimeout = val)" />
+
+            <div class="flex flex-col space-x-2">
                 <span class="font-semibold">Job retries after provider cancellation</span>
             </div>
             <InputComponent
@@ -115,6 +125,7 @@ const settingsStore = useSettingStore()
 const isValid = reactive({
     maxBatchSize: true,
     requestTimeout: true,
+    attemptTimeout: true,
     maxRetries: true,
     providerCancelRetryCount: true,
     providerCancelRetryHours: true,
@@ -255,6 +266,15 @@ const requestTimeout = computed({
     get: (): string => settingsStore.getSetting(requestTimeoutKey.value) as string,
     set: (newValue: string): void => {
         settingsStore.updateSetting(requestTimeoutKey.value, newValue, isValid.requestTimeout)
+        saveNotification.value?.show()
+    }
+})
+
+const attemptTimeout = computed({
+    get: (): string =>
+        (settingsStore.getSetting(SETTINGS.REQUEST_ATTEMPT_TIMEOUT) as string) || '120',
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.REQUEST_ATTEMPT_TIMEOUT, newValue, isValid.attemptTimeout)
         saveNotification.value?.show()
     }
 })
