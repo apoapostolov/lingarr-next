@@ -7,15 +7,6 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
-- The source subtitle guard identifies a converted typesetting track by its structure, not by its
-  styling: it refuses a file where 15% or more of the lines are drawings or formatting, or where
-  50% or more of the lines repeat the same text at the same moment. Font tags and ASS overrides
-  never refuse anything on their own, simultaneous dialogue is untouched, and repeated dialogue
-  that keeps its own timings translates normally.
-- A provider timeout reads as an outcome: "Translation failed. The provider exceeded the 900
-  second request timeout." What the attempt timeout and the request deadline each bound is
-  documented in [docs/provider-timeouts.md](docs/provider-timeouts.md).
-
 ## [1.2.2] - 2026-11-03 — Clean Source
 
 Damaged job history is repaired instead of discarded, a stalled provider call stops
@@ -29,13 +20,21 @@ is refused before a subtitle is written.
 - A machine-translation call that does not answer is abandoned after the attempt
   timeout and retried inside the provider's request timeout, so one dead call costs
   about two minutes instead of holding the job for the full 15 minutes. A single
-  deadline covers the retries and the waits between them. Translation settings
-  shows Attempt timeout, 120 seconds by default, with per-provider overrides.
+  deadline covers the retries, the waits between them and Microsoft's
+  1000-character chunks, and a provider timeout reads as an outcome:
+  "Translation failed. The provider exceeded the 900 second request timeout."
+  [docs/provider-timeouts.md](docs/provider-timeouts.md) records what each timeout
+  bounds. Translation settings shows Attempt timeout, 120 seconds by default, with
+  per-provider overrides.
 - A source subtitle that is a converted typesetting track is refused before
-  translation, and a translation that comes back unchanged on 40% or more of its
-  usable lines is not written. Both checks judge content rather than styling, so
-  dialogue that carries ASS overrides still translates, and sound cues are ignored.
-  Subtitle settings has a Source subtitle guard switch.
+  translation: it fails when 15% or more of its lines carry a drawing or formatting
+  instead of speech, or when 50% or more repeat the same text at the same moment,
+  which is how an ASS event dump emits one entry per style. Styling never refuses a
+  file on its own, so dialogue with font tags or ASS overrides still translates, and
+  neither simultaneous dialogue nor a naturally repeated line is counted against a
+  file. A translation that comes back unchanged on 40% or more of its usable lines is
+  not written, and sound cues are ignored. Subtitle settings has a Source subtitle
+  guard switch.
 - Quality scoring no longer reads subtitle markup as a placeholder, no longer
   counts a blank source with a blank target as an integrity failure, reports
   repeated output only when three or more distinct sources collapse onto one
