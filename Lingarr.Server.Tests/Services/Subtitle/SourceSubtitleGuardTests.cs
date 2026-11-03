@@ -168,18 +168,51 @@ public class SourceSubtitleGuardTests
     }
 
     [Fact]
-    public void InspectSource_RepeatedSignsTrack_IsRefused()
+    public void InspectSource_StackedCueTrack_IsRefused()
     {
+        // A converted ASS track turns every style into its own line on the same start time.
         var subtitles = new List<SubtitleItem>();
         for (var index = 0; index < 30; index++)
         {
-            subtitles.Add(Line(index, @"{\an5}{\b1}Episode title card"));
-            subtitles.Add(Line(index, $"Dialogue line number {index} with actual words in it"));
+            var card = Line(index * 2, @"{\an5}{\b1}Episode title card");
+            card.StartTime = index * 1000;
+            card.EndTime = (index * 1000) + 900;
+            subtitles.Add(card);
+
+            var dialogue = Line((index * 2) + 1, $"Dialogue line number {index} with actual words in it");
+            dialogue.StartTime = index * 1000;
+            dialogue.EndTime = (index * 1000) + 900;
+            subtitles.Add(dialogue);
         }
 
         var verdict = _guard.InspectSource(subtitles);
 
         Assert.True(verdict.Blocked);
+        Assert.Contains("same moment", verdict.Reason);
+    }
+
+    [Fact]
+    public void InspectSource_RepeatedDialogueWithItsOwnTimings_IsAllowed()
+    {
+        // Chants and rituals repeat real dialogue, but every line keeps its own moment.
+        var subtitles = new List<SubtitleItem>();
+        var position = 0;
+        for (var repeat = 0; repeat < 6; repeat++)
+        {
+            subtitles.Add(Line(position++, "I wish to save the world."));
+            subtitles.Add(Line(position++, "My name is not one of them."));
+            subtitles.Add(Line(position++, "I am not one of them."));
+            subtitles.Add(Line(position++, "We should leave before the rain starts."));
+        }
+
+        for (var index = 0; index < 40; index++)
+        {
+            subtitles.Add(Line(position++, $"Line {index} carries its own sentence about the harbour"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
     }
 
     [Fact]
@@ -235,12 +268,18 @@ public class SourceSubtitleGuardTests
     }
 
     [Fact]
-    public void InspectSource_RepeatedHtmlStyledSigns_IsRefused()
+    public void InspectSource_StackedHtmlStyledTrack_IsRefused()
     {
         // With HTML stripping off, a signs track arrives wrapped in font tags and carries no ASS
-        // override at all. Repetition still identifies it.
+        // override at all. The shared start times identify it.
         var subtitles = Enumerable.Range(0, 40)
-            .Select(index => Line(index, @"<font face=""Impact"" size=""20""><b>Episode title card</b></font>"))
+            .Select(index =>
+            {
+                var item = Line(index, @"<font face=""Impact"" size=""20""><b>Episode title card</b></font>");
+                item.StartTime = (index / 2) * 1000;
+                item.EndTime = ((index / 2) * 1000) + 900;
+                return item;
+            })
             .ToList();
 
         var verdict = _guard.InspectSource(subtitles);
@@ -251,6 +290,8 @@ public class SourceSubtitleGuardTests
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,
+        StartTime = index * 1000,
+        EndTime = (index * 1000) + 900,
         Lines = [text],
         PlaintextLines = [text]
     };
