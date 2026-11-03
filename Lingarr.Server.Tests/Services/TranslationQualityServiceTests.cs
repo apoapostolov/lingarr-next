@@ -169,6 +169,21 @@ public class TranslationQualityServiceTests
         Assert.Contains(detail!.Findings, finding => finding.RuleId == "content.repeated_output");
     }
 
+    [Fact]
+    public async Task EvaluateAsync_IndexedFormatPlaceholder_IsStillReported()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            ("Total: {0:C} for the room.", "Общо за стаята."));
+        var service = CreateService(database);
+
+        await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.Contains(detail!.Findings, finding => finding.RuleId == "placeholder_changed");
+    }
+
     private static TranslationQualityService CreateService(LingarrDbContext database) =>
         new(database, NullLogger<TranslationQualityService>.Instance);
 
