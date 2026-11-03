@@ -40,30 +40,21 @@ The full history is in [CHANGELOG.md](CHANGELOG.md).
 
 ### 1.2.2 — Clean Source (2026-11-03)
 
-- Hangfire's SQLite job store is rebuilt in place when only its indexes are
-  damaged, instead of being quarantined with the job history. A busy or locked
-  file no longer counts as corruption.
-- A machine-translation call that does not answer is dropped after the attempt
-  timeout and retried inside the provider's request timeout. One dead call now
-  costs about two minutes instead of holding the job for fifteen. A single
-  deadline covers the retries, the waits between them and Microsoft's
-  thousand-character chunks, and a timeout reads as an outcome rather than a
-  provider that "did not answer". Translation settings has Attempt timeout, 120
-  seconds by default, with per-provider overrides.
-- A source subtitle that is a converted typesetting track is refused before
-  translation: once it holds at least 20 lines, it fails when 15% or more carry a
-  drawing or formatting instead of speech, or when 50% or more repeat the same text
-  at the same moment, which is how an ASS event dump emits one entry per style.
-  Styling never refuses a file on its own, and simultaneous or naturally repeated
-  dialogue still translates. A translation that comes back unchanged on 40% or more
-  of its usable lines is not written once there are 50 such lines. Subtitle settings
-  has a Source subtitle guard switch.
-- Subtitle markup no longer counts as a changed placeholder, a blank source
-  needs no translation, and repeated output is reported only when different
-  source lines collapse onto one text. Indexed placeholders such as `{0:C}`
-  are recognised again.
-- Migration M0047 seeds the two new settings, so an existing install behaves
-  the same without saving them.
+- A translation that stalls no longer holds everything up for fifteen minutes.
+  A request that stops answering is dropped after about two minutes and retried,
+  and when the provider never answers the job ends with a clear timeout instead
+  of hanging.
+- Subtitle files that carry only signs, song lyrics or on-screen text are refused
+  before translation, so a file with no dialogue no longer turns into a broken
+  translation. Ordinary subtitles still go through, including styled ones and
+  lines two characters speak at once.
+- A translation that comes back unchanged is not written over your file.
+- Quality scores stopped reporting things that are not problems, so a good
+  translation is no longer scored as failed.
+- Job history survives. A damaged job list is repaired instead of being thrown
+  away with every job in it.
+- Both new checks have a switch in Settings, and an existing install behaves the
+  same after upgrading.
 
 ### 1.2.1 — Closest Match (2026-10-23)
 
