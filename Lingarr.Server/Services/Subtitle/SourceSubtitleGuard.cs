@@ -12,8 +12,17 @@ namespace Lingarr.Server.Services.Subtitle;
 /// </summary>
 public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 {
-    /// <summary>Share of non-dialogue lines that marks a typesetting track rather than a dialogue file.</summary>
-    public const double MarkupLineRatio = 0.25;
+    /// <summary>Share of lines that carry formatting or a drawing instead of speech.</summary>
+    public const double NonDialogueLineRatio = 0.25;
+
+    /// <summary>Share of all characters taken by markup. Dialogue with styling stays far below.</summary>
+    public const double MarkupCharacterRatio = 0.40;
+
+    /// <summary>Share of lines carrying an ASS override block, paired with <see cref="RepeatedLineRatio"/>.</summary>
+    public const double OverrideLineRatio = 0.25;
+
+    /// <summary>Share of lines whose text repeats another line, as in a signs track.</summary>
+    public const double RepeatedLineRatio = 0.30;
 
     /// <summary>Smaller files are not judged on markup, so a short clip is never refused.</summary>
     public const int MinimumLinesForMarkupCheck = 20;
@@ -35,18 +44,46 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             return SubtitleSourceVerdict.Allowed;
         }
 
-        var markup = lines.Count(IsMarkupLine);
-        var ratio = (double)markup / lines.Count;
-        if (ratio < MarkupLineRatio)
+        var counts = Measure(lines);
+        var total = lines.Count;
+
+        // A drawing or a font wrapper on its own: signs, karaoke and typeset effects, no dialogue.
+        var nonDialogue = (double)counts.NonDialogueLines / total;
+        if (nonDialogue >= NonDialogueLineRatio)
         {
-            return SubtitleSourceVerdict.Allowed;
+            return SubtitleSourceVerdict.Refuse(
+                $"The source subtitle looks like a typesetting or drawing track, not dialogue: " +
+                $"{counts.NonDialogueLines} of {total} lines carry a drawing or formatting instead of speech " +
+                $"({nonDialogue:P0}). Lingarr did not translate it. Add a dialogue subtitle for this media, " +
+                "or turn off the source subtitle guard to translate it anyway.");
         }
 
-        return SubtitleSourceVerdict.Refuse(
-            $"The source subtitle looks like a typesetting or drawing track, not dialogue: " +
-            $"{markup} of {lines.Count} lines carry subtitle markup instead of speech ({ratio:P0}). " +
-            "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the " +
-            "source subtitle guard to translate it anyway.");
+        // Mostly markup with a little text left over is what an ASS-to-SRT conversion of a signs
+        // track looks like. Styled dialogue keeps its text and stays well under this share.
+        var characters = counts.MarkupCharacters + counts.TextCharacters;
+        var markupCharacters = characters == 0 ? 0 : (double)counts.MarkupCharacters / characters;
+        if (markupCharacters >= MarkupCharacterRatio)
+        {
+            return SubtitleSourceVerdict.Refuse(
+                $"The source subtitle looks like a converted typesetting track: {markupCharacters:P0} of its " +
+                $"characters are styling markup rather than text, across {counts.OverrideLines} of {total} lines. " +
+                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
+                "subtitle guard to translate it anyway.");
+        }
+
+        // A signs track repeats the same on-screen text over and over with per-line styling.
+        var overrideLines = (double)counts.OverrideLines / total;
+        var repeatedLines = (double)counts.RepeatedLines / total;
+        if (overrideLines >= OverrideLineRatio && repeatedLines >= RepeatedLineRatio)
+        {
+            return SubtitleSourceVerdict.Refuse(
+                $"The source subtitle repeats itself instead of holding dialogue: {counts.RepeatedLines} of {total} " +
+                $"lines repeat an earlier line ({repeatedLines:P0}) and {counts.OverrideLines} lines carry ASS styling. " +
+                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
+                "subtitle guard to translate it anyway.");
+        }
+
+        return SubtitleSourceVerdict.Allowed;
     }
 
     public SubtitleSourceVerdict InspectTranslation(
@@ -116,24 +153,49 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     }
 
     /// <summary>
-    /// A line is markup when it carries an ASS override block, when it is a vector drawing command
-    /// left over from a typeset conversion, or when nothing but formatting remains after stripping.
+    /// Collects the file-level evidence the checks use. A line counts as non-dialogue only when
+    /// nothing readable is left once its markup is removed, so styled dialogue stays dialogue.
     /// </summary>
-    private static bool IsMarkupLine(string line)
+    private static FileMeasurements Measure(IReadOnlyList<string> lines)
     {
-        if (AssOverrideRegex().IsMatch(line))
+        var nonDialogue = 0;
+        var overrideLines = 0;
+        var markupCharacters = 0;
+        var textCharacters = 0;
+        var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var line in lines)
         {
-            return true;
+            if (AssOverrideRegex().IsMatch(line))
+            {
+                overrideLines++;
+            }
+
+            var withoutTags = HtmlTagRegex().Replace(line, string.Empty);
+            var text = AssOverrideRegex().Replace(withoutTags, string.Empty).Trim();
+            markupCharacters += line.Length - text.Length;
+            textCharacters += text.Length;
+
+            if (text.Length == 0 || LooksLikeDrawing(text))
+            {
+                nonDialogue++;
+                continue;
+            }
+
+            var key = Normalized(text);
+            occurrences[key] = occurrences.TryGetValue(key, out var count) ? count + 1 : 1;
         }
 
-        var stripped = HtmlTagRegex().Replace(AssOverrideRegex().Replace(line, " "), " ").Trim();
-        if (LooksLikeDrawing(stripped))
-        {
-            return true;
-        }
-
-        return stripped.Length > 0 && !LetterRegex().IsMatch(stripped);
+        var repeated = occurrences.Values.Where(count => count > 1).Sum(count => count);
+        return new FileMeasurements(nonDialogue, overrideLines, markupCharacters, textCharacters, repeated);
     }
+
+    private readonly record struct FileMeasurements(
+        int NonDialogueLines,
+        int OverrideLines,
+        int MarkupCharacters,
+        int TextCharacters,
+        int RepeatedLines);
 
     private static bool LooksLikeDrawing(string value)
     {

@@ -154,6 +154,34 @@ public class SourceSubtitleGuardTests
         Assert.False(verdict.Blocked);
     }
 
+    [Fact]
+    public void InspectSource_StyledDialogue_IsAllowed()
+    {
+        // Real dialogue with an ASS override on every line is not a typesetting track.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index, $@"{{\an5}}We should leave before the rain starts {index}"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_RepeatedSignsTrack_IsRefused()
+    {
+        var subtitles = new List<SubtitleItem>();
+        for (var index = 0; index < 30; index++)
+        {
+            subtitles.Add(Line(index, @"{\an5}{\b1}The Apothecary Diaries"));
+            subtitles.Add(Line(index, $"Dialogue line number {index} with actual words in it"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+    }
+
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,

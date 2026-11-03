@@ -500,10 +500,10 @@ public partial class TranslationQualityService : ITranslationQualityService
     private static partial Regex UrlRegex();
     [GeneratedRegex(@"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled)]
     private static partial Regex EmailRegex();
-    // Only template placeholders count here: {name}, {{name}}, %name%, ${name}. Subtitle markup
-    // such as ASS override blocks ({\an5}) and tag payloads ({en: Advisor}, {=5}) is formatting,
-    // not a placeholder, and format_tag rules already cover it.
-    [GeneratedRegex(@"\{\{[^{}]+\}\}|\{[A-Za-z0-9_][A-Za-z0-9_.\-]*\}|%[A-Za-z0-9_]+%|\$\{[^{}]+\}", RegexOptions.Compiled)]
+    // Only template placeholders count here: {name}, {{name}}, {0}, {0:C}, %name%, ${name}. Subtitle
+    // markup such as ASS override blocks ({\an5}) and tag payloads ({en: Advisor}, {=5}) is
+    // formatting, not a placeholder, and the format tag rules already cover it.
+    [GeneratedRegex(@"\{\{[^{}]+\}\}|\{[A-Za-z0-9_][A-Za-z0-9_.\-]*\}|\{\d+(?:[,:][^{}]*)?\}|%[A-Za-z0-9_]+%|\$\{[^{}]+\}", RegexOptions.Compiled)]
     private static partial Regex PlaceholderRegex();
     [GeneratedRegex(@"</?(?:i|b|u|font|span|c)(?:\s+[^>]*)?>|\{\\[^}]+\}", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex TagRegex();
