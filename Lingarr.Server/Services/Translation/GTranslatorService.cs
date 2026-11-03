@@ -22,6 +22,7 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
     private int _maxRetries;
     private TimeSpan _retryDelay;
     private int _retryDelayMultiplier;
+    private TimeSpan _attemptTimeout;
 
     /// <inheritdoc />
     public override string? ModelName => null;
@@ -54,7 +55,9 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                 SettingKeys.Translation.RetryDelay,
                 SettingKeys.Translation.RetryDelayMultiplier,
                 SettingKeys.Translation.RequestTimeout,
-                SettingKeys.Translation.RequestTimeoutForProvider(_provider)
+                SettingKeys.Translation.RequestTimeoutForProvider(_provider),
+                SettingKeys.Translation.RequestAttemptTimeout,
+                SettingKeys.Translation.RequestAttemptTimeoutForProvider(_provider)
             ]);
 
             _maxRetries = int.TryParse(settings[SettingKeys.Translation.MaxRetries], out var maxRetries)
@@ -70,9 +73,13 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                 ? multiplier
                 : 2;
 
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.Timeout = TimeSpan.FromMinutes(
+            var requestTimeout = TimeSpan.FromMinutes(
                 TranslationTimeoutPolicy.ResolveMinutes(settings, _provider));
+            var attemptSeconds = TranslationTimeoutPolicy.ResolveAttemptSeconds(settings, _provider);
+            _attemptTimeout = TimeSpan.FromSeconds(Math.Min(attemptSeconds, requestTimeout.TotalSeconds));
+
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = requestTimeout;
 
             _translator ??= ActivatorUtilities.CreateInstance<T>(_serviceProvider, httpClient);
 
@@ -129,16 +136,44 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
         var delay = _retryDelay;
         for (var attempt = 1; attempt <= _maxRetries + 1; attempt++)
         {
+            using var attemptCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            attemptCancel.CancelAfter(_attemptTimeout);
+
             try
             {
                 var result = await _translator!.TranslateAsync(
                         text,
                         targetLanguage,
                         sourceLanguage)
-                    .WaitAsync(cancellationToken)
+                    .WaitAsync(attemptCancel.Token)
                     .ConfigureAwait(false);
 
                 return result.Translation;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (attemptCancel.IsCancellationRequested)
+            {
+                // The call never answered inside the attempt budget. The provider keeps its full
+                // request timeout for the retry, so a dead connection costs seconds, not the job.
+                var seconds = _attemptTimeout.TotalSeconds;
+                if (attempt > _maxRetries)
+                {
+                    _logger.LogError(
+                        "{ServiceName} did not answer within {Seconds}s on attempt {Attempt} of {Total}.",
+                        _provider, seconds, attempt, _maxRetries + 1);
+                    throw new TranslationException(
+                        $"The provider did not answer within {seconds:F0} seconds after {_maxRetries + 1} attempts.");
+                }
+
+                _logger.LogWarning(
+                    "{ServiceName} did not answer within {Seconds}s. Retrying in {Delay}... (Attempt {Attempt}/{MaxRetries})",
+                    _provider, seconds, delay, attempt, _maxRetries);
+
+                await Task.Delay(WithJitter(delay), cancellationToken).ConfigureAwait(false);
+                delay = TimeSpan.FromTicks(delay.Ticks * _retryDelayMultiplier);
             }
             catch (HttpRequestException ex) when (
                 ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable
@@ -156,10 +191,6 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
 
                 await Task.Delay(WithJitter(delay), cancellationToken).ConfigureAwait(false);
                 delay = TimeSpan.FromTicks(delay.Ticks * _retryDelayMultiplier);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
             }
             catch (Exception ex) when (IsTransientNetworkFailure(ex) && attempt <= _maxRetries)
             {

@@ -7,6 +7,22 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+- Hangfire's SQLite store is repaired in place instead of being quarantined when
+  only its indexes are damaged (`row N missing from index`), which is what every
+  stored failure since August turned out to be. A failed open is no longer treated
+  as corruption, so a busy or locked file keeps its job history, and the periodic
+  WAL checkpoint runs `PASSIVE` instead of `TRUNCATE`.
+- A machine-translation call that never answers is dropped after the attempt
+  timeout (120 seconds by default) and retried inside the provider's request
+  timeout, instead of holding the job for the full 15 minutes. Translation
+  settings shows the new Attempt timeout value.
+- A source subtitle that is a converted typesetting track, and a translation that
+  comes back unchanged because the file is in another language, are refused before
+  a file is written. Subtitle settings has a Source subtitle guard switch for it.
+- Quality scoring no longer reads subtitle markup as a placeholder, no longer
+  counts a blank line without translation as an integrity failure, and reports
+  repeated output only when different source lines collapsed onto the same text.
+
 ## [1.2.1] - 2026-10-23 — Closest Match
 
 Source matching uses the closest language code. Connections can skip

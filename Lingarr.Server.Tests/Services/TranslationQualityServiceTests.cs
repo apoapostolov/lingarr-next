@@ -88,6 +88,87 @@ public class TranslationQualityServiceTests
         Assert.Equal(second.AssessmentId, (await service.GetAsync(request.Id))!.Summary!.AssessmentId);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_SubtitleMarkupIsNotAPlaceholder()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            (@"{\an5}{en: Advisor}Advisor", @"{\an5} {en: Съветник} Съветник"));
+        var service = CreateService(database);
+
+        await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.DoesNotContain(detail!.Findings, finding => finding.RuleId == "placeholder_changed");
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_RealPlaceholderChange_IsStillReported()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            ("Format the drive before {date}.", "Форматирайте диска преди."));
+        var service = CreateService(database);
+
+        await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.Contains(detail!.Findings, finding => finding.RuleId == "placeholder_changed");
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_BlankSourceWithBlankTarget_IsNotAnIntegrityFailure()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            ("", ""),
+            ("Hello.", "Привіт."));
+        var service = CreateService(database);
+
+        var result = await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.Equal(100, result.Score);
+        Assert.DoesNotContain(detail!.Findings, finding => finding.RuleId == "integrity.target_empty");
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_RepeatedTargetFromIdenticalSources_IsNotFlagged()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            ("The Apothecary Diaries", "Дневниците на аптеката"),
+            ("The Apothecary Diaries", "Дневниците на аптеката"),
+            ("The Apothecary Diaries", "Дневниците на аптеката"));
+        var service = CreateService(database);
+
+        await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.DoesNotContain(detail!.Findings, finding => finding.RuleId == "content.repeated_output");
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_RepeatedTargetFromDifferentSources_IsFlagged()
+    {
+        await using var database = CreateDatabase();
+        var request = await SeedRequest(
+            database,
+            ("Where is the station?", "Същият ред."),
+            ("Bring the lantern.", "Същият ред."),
+            ("Wait for me here.", "Същият ред."));
+        var service = CreateService(database);
+
+        await service.EvaluateAsync(request.Id);
+        var detail = await service.GetAsync(request.Id);
+
+        Assert.Contains(detail!.Findings, finding => finding.RuleId == "content.repeated_output");
+    }
+
     private static TranslationQualityService CreateService(LingarrDbContext database) =>
         new(database, NullLogger<TranslationQualityService>.Instance);
 

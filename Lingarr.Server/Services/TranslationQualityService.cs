@@ -10,7 +10,7 @@ namespace Lingarr.Server.Services;
 
 public partial class TranslationQualityService : ITranslationQualityService
 {
-    private const int RulesetVersion = 1;
+    private const int RulesetVersion = 2;
     private readonly LingarrDbContext _dbContext;
     private readonly ILogger<TranslationQualityService> _logger;
 
@@ -225,7 +225,8 @@ public partial class TranslationQualityService : ITranslationQualityService
         foreach (var group in lines
             .Where(line => Normalized(line.Target).Length >= 8)
             .GroupBy(line => Normalized(line.Target))
-            .Where(group => group.Count() >= 3))
+            .Where(group => group.Count() >= 3 &&
+                            group.Select(line => Normalized(line.Source)).Distinct().Count() >= 3))
         {
             foreach (var line in group)
                 Add(findings, line, "content.repeated_output", "Consistency", QualitySeverity.Warning, 5,
@@ -259,8 +260,14 @@ public partial class TranslationQualityService : ITranslationQualityService
 
         if (string.IsNullOrWhiteSpace(targetPlain))
         {
-            Add(findings, line, "integrity.target_empty", "Integrity", QualitySeverity.Critical, 100,
-                "The translated line is empty.");
+            // A blank source line has nothing to translate, so an empty target is the right result
+            // there. Only a lost translation of real text is an integrity failure.
+            if (!string.IsNullOrWhiteSpace(sourcePlain))
+            {
+                Add(findings, line, "integrity.target_empty", "Integrity", QualitySeverity.Critical, 100,
+                    "The translated line is empty.");
+            }
+
             return;
         }
 
@@ -493,7 +500,10 @@ public partial class TranslationQualityService : ITranslationQualityService
     private static partial Regex UrlRegex();
     [GeneratedRegex(@"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled)]
     private static partial Regex EmailRegex();
-    [GeneratedRegex(@"\{[^{}\r\n]+\}|%\w+%|\$\{[^{}\r\n]+\}", RegexOptions.Compiled)]
+    // Only template placeholders count here: {name}, {{name}}, %name%, ${name}. Subtitle markup
+    // such as ASS override blocks ({\an5}) and tag payloads ({en: Advisor}, {=5}) is formatting,
+    // not a placeholder, and format_tag rules already cover it.
+    [GeneratedRegex(@"\{\{[^{}]+\}\}|\{[A-Za-z0-9_][A-Za-z0-9_.\-]*\}|%[A-Za-z0-9_]+%|\$\{[^{}]+\}", RegexOptions.Compiled)]
     private static partial Regex PlaceholderRegex();
     [GeneratedRegex(@"</?(?:i|b|u|font|span|c)(?:\s+[^>]*)?>|\{\\[^}]+\}", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex TagRegex();
