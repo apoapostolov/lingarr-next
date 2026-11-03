@@ -8,6 +8,12 @@ namespace Lingarr.Server.Services;
 /// </summary>
 public sealed class HangfireSqliteMaintenanceService : BackgroundService
 {
+    /// <summary>SQLITE_CORRUPT: the file is damaged and cannot be read.</summary>
+    private const int SqliteCorrupt = 11;
+
+    /// <summary>SQLITE_NOTADB: the file is not a SQLite database.</summary>
+    private const int SqliteNotADatabase = 26;
+
     private readonly ILogger<HangfireSqliteMaintenanceService> _logger;
     private readonly string? _sqlitePath;
     private readonly TimeSpan _interval;
@@ -90,19 +96,12 @@ public sealed class HangfireSqliteMaintenanceService : BackgroundService
             walBytesBefore = new FileInfo(walPath).Length;
         }
 
-        var connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = path,
-            Mode = SqliteOpenMode.ReadWrite,
-            Cache = SqliteCacheMode.Shared
-        }.ToString();
-
-        using var connection = new SqliteConnection(connectionString);
-        connection.Open();
+        using var connection = OpenConnection(path);
         using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA busy_timeout=120000;";
-        command.ExecuteNonQuery();
-        command.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+        // PASSIVE copies what it can without waiting for readers and never resets the WAL under a
+        // writer. The TRUNCATE mode used here before needs exclusive access, which is what a busy
+        // Hangfire store can never give it.
+        command.CommandText = "PRAGMA wal_checkpoint(PASSIVE);";
         using var reader = command.ExecuteReader();
         // result columns: busy, log, checkpointed
         var busy = 0;
@@ -131,46 +130,120 @@ public sealed class HangfireSqliteMaintenanceService : BackgroundService
     }
 
     /// <summary>
-    /// If Hangfire.db cannot be opened as SQLite, quarantine the files so Hangfire can recreate a clean store.
+    /// If Hangfire.db cannot be opened as SQLite, rebuild it in place when only indexes are damaged,
+    /// and quarantine the files only when the database itself is unreadable.
     /// </summary>
+    /// <remarks>
+    /// A failed open is not proof of corruption: a busy, locked or briefly unreadable file looks the
+    /// same from here. Quarantining on that would trade the whole job history for a transient lock,
+    /// so only a corruption error or a failed integrity_check after an index rebuild quarantines.
+    /// </remarks>
     public static bool TryRecoverCorruptDatabase(string sqliteDbPath, ILogger logger)
     {
+        if (!File.Exists(sqliteDbPath))
+        {
+            return false;
+        }
+
         try
         {
-            if (!File.Exists(sqliteDbPath))
+            using var connection = OpenConnection(sqliteDbPath);
+            var failure = CheckIntegrity(connection);
+            if (failure == null)
             {
                 return false;
             }
 
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            if (TryRepair(connection, logger) && CheckIntegrity(connection) == null)
             {
-                DataSource = sqliteDbPath,
-                Mode = SqliteOpenMode.ReadWrite,
-                Cache = SqliteCacheMode.Shared
-            }.ToString());
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = "PRAGMA integrity_check;";
-            var result = command.ExecuteScalar()?.ToString();
-            if (string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
-            {
+                logger.LogWarning(
+                    "Hangfire SQLite index damage at {Path} was rebuilt in place; the job history is kept.",
+                    sqliteDbPath);
                 return false;
             }
 
             logger.LogError(
                 "Hangfire SQLite integrity_check failed ({Result}). Quarantining database files so a fresh store can be created.",
-                result);
+                failure);
         }
-        catch (Exception ex)
+        catch (SqliteException ex) when (IsCorruption(ex))
         {
             logger.LogError(ex,
                 "Hangfire SQLite database at {Path} is unreadable. Quarantining files for recreation.",
                 sqliteDbPath);
         }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Hangfire SQLite database at {Path} could not be checked. It is left in place and Hangfire opens it next.",
+                sqliteDbPath);
+            return false;
+        }
 
         Quarantine(sqliteDbPath, logger);
         return true;
     }
+
+    private static SqliteConnection OpenConnection(string path)
+    {
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadWrite,
+            // Private cache: shared cache makes one busy connection fail the whole open, and it is
+            // not what a single-process Hangfire store needs.
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
+        }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA busy_timeout=30000;";
+        command.ExecuteNonQuery();
+        return connection;
+    }
+
+    private static string? CheckIntegrity(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA integrity_check;";
+        var result = command.ExecuteScalar()?.ToString();
+        return string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase) ? null : result;
+    }
+
+    /// <summary>
+    /// Rebuilds every index from its table, then rewrites the file when index damage left page
+    /// accounting behind. Damage of the "row missing from index" kind lives only in the index, so
+    /// this restores a usable database instead of discarding it.
+    /// </summary>
+    private static bool TryRepair(SqliteConnection connection, ILogger logger)
+    {
+        try
+        {
+            using var rebuild = connection.CreateCommand();
+            rebuild.CommandText = "REINDEX;";
+            rebuild.ExecuteNonQuery();
+
+            if (CheckIntegrity(connection) == null)
+            {
+                return true;
+            }
+
+            // REINDEX alone can leave a freed page unaccounted for; VACUUM rewrites the file from
+            // the surviving data, which is the same operation SQLite's recovery tools use.
+            using var rewrite = connection.CreateCommand();
+            rewrite.CommandText = "VACUUM;";
+            rewrite.ExecuteNonQuery();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Rebuilding Hangfire SQLite indexes failed.");
+            return false;
+        }
+    }
+
+    private static bool IsCorruption(SqliteException exception) =>
+        exception.SqliteErrorCode is SqliteCorrupt or SqliteNotADatabase;
 
     private static void Quarantine(string sqliteDbPath, ILogger logger)
     {
