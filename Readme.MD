@@ -35,8 +35,30 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.2.1](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1).
+Current release: [1.2.2](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.2.2 — Clean Source (2026-11-03)
+
+- Hangfire's SQLite job store is rebuilt in place when only its indexes are
+  damaged, instead of being quarantined with the job history. A busy or locked
+  file no longer counts as corruption.
+- A machine-translation call that does not answer is dropped after the attempt
+  timeout and retried inside the provider's request timeout. One dead call now
+  costs about two minutes instead of holding the job for fifteen. Translation
+  settings has Attempt timeout, 120 seconds by default, with per-provider
+  overrides.
+- A source subtitle that is a converted typesetting track is refused before
+  translation, and a translation that comes back unchanged on 40% or more of
+  its usable lines is not written. Both checks read the text rather than the
+  styling, so dialogue that carries ASS overrides still translates. Subtitle
+  settings has a Source subtitle guard switch.
+- Subtitle markup no longer counts as a changed placeholder, a blank source
+  needs no translation, and repeated output is reported only when different
+  source lines collapse onto one text. Indexed placeholders such as `{0:C}`
+  are recognised again.
+- Migration M0047 seeds the two new settings, so an existing install behaves
+  the same without saving them.
 
 ### 1.2.1 — Closest Match (2026-10-23)
 
