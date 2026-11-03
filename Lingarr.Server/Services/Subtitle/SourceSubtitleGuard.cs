@@ -15,13 +15,10 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     /// <summary>Share of lines that carry formatting or a drawing instead of speech.</summary>
     public const double NonDialogueLineRatio = 0.25;
 
-    /// <summary>Share of all characters taken by markup. Dialogue with styling stays far below.</summary>
-    public const double MarkupCharacterRatio = 0.40;
-
     /// <summary>Share of lines carrying an ASS override block, paired with <see cref="RepeatedLineRatio"/>.</summary>
     public const double OverrideLineRatio = 0.25;
 
-    /// <summary>Share of lines whose text repeats another line, as in a signs track.</summary>
+    /// <summary>Share of lines whose text repeats an earlier line, as in a signs track.</summary>
     public const double RepeatedLineRatio = 0.30;
 
     /// <summary>Smaller files are not judged on markup, so a short clip is never refused.</summary>
@@ -58,20 +55,9 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
                 "or turn off the source subtitle guard to translate it anyway.");
         }
 
-        // Mostly markup with a little text left over is what an ASS-to-SRT conversion of a signs
-        // track looks like. Styled dialogue keeps its text and stays well under this share.
-        var characters = counts.MarkupCharacters + counts.TextCharacters;
-        var markupCharacters = characters == 0 ? 0 : (double)counts.MarkupCharacters / characters;
-        if (markupCharacters >= MarkupCharacterRatio)
-        {
-            return SubtitleSourceVerdict.Refuse(
-                $"The source subtitle looks like a converted typesetting track: {markupCharacters:P0} of its " +
-                $"characters are styling markup rather than text, across {counts.OverrideLines} of {total} lines. " +
-                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
-                "subtitle guard to translate it anyway.");
-        }
-
         // A signs track repeats the same on-screen text over and over with per-line styling.
+        // Styling alone is not evidence: dialogue wrapped in font tags or ASS overrides is
+        // ordinary dialogue, which is why only repetition decides this one.
         var overrideLines = (double)counts.OverrideLines / total;
         var repeatedLines = (double)counts.RepeatedLines / total;
         if (overrideLines >= OverrideLineRatio && repeatedLines >= RepeatedLineRatio)
@@ -160,8 +146,6 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
     {
         var nonDialogue = 0;
         var overrideLines = 0;
-        var markupCharacters = 0;
-        var textCharacters = 0;
         var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var line in lines)
@@ -171,11 +155,7 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
                 overrideLines++;
             }
 
-            var withoutTags = HtmlTagRegex().Replace(line, string.Empty);
-            var text = AssOverrideRegex().Replace(withoutTags, string.Empty).Trim();
-            markupCharacters += line.Length - text.Length;
-            textCharacters += text.Length;
-
+            var text = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
             if (text.Length == 0 || LooksLikeDrawing(text))
             {
                 nonDialogue++;
@@ -186,15 +166,14 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             occurrences[key] = occurrences.TryGetValue(key, out var count) ? count + 1 : 1;
         }
 
-        var repeated = occurrences.Values.Where(count => count > 1).Sum(count => count);
-        return new FileMeasurements(nonDialogue, overrideLines, markupCharacters, textCharacters, repeated);
+        // A phrase repeated twice contributes one line that repeats an earlier line, not two.
+        var repeated = occurrences.Values.Sum(count => count - 1);
+        return new FileMeasurements(nonDialogue, overrideLines, repeated);
     }
 
     private readonly record struct FileMeasurements(
         int NonDialogueLines,
         int OverrideLines,
-        int MarkupCharacters,
-        int TextCharacters,
         int RepeatedLines);
 
     private static bool LooksLikeDrawing(string value)

@@ -141,9 +141,9 @@ public class TranslationQualityServiceTests
         await using var database = CreateDatabase();
         var request = await SeedRequest(
             database,
-            ("The Apothecary Diaries", "Дневниците на аптеката"),
-            ("The Apothecary Diaries", "Дневниците на аптеката"),
-            ("The Apothecary Diaries", "Дневниците на аптеката"));
+            ("Episode title card", "Дневниците на аптеката"),
+            ("Episode title card", "Дневниците на аптеката"),
+            ("Episode title card", "Дневниците на аптеката"));
         var service = CreateService(database);
 
         await service.EvaluateAsync(request.Id);

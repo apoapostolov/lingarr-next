@@ -18,7 +18,7 @@ public class SourceSubtitleGuardTests
         var subtitles = new List<SubtitleItem>();
         for (var index = 0; index < 20; index++)
         {
-            subtitles.Add(Line(index, @"{\an5}The Apothecary Diaries"));
+            subtitles.Add(Line(index, @"{\an5}Episode title card"));
             subtitles.Add(Line(index, @"{\an5}m -681.75 -8.06 l -683.02 -7.56 b -684.05 -8.86 -685"));
         }
 
@@ -173,13 +173,65 @@ public class SourceSubtitleGuardTests
         var subtitles = new List<SubtitleItem>();
         for (var index = 0; index < 30; index++)
         {
-            subtitles.Add(Line(index, @"{\an5}{\b1}The Apothecary Diaries"));
+            subtitles.Add(Line(index, @"{\an5}{\b1}Episode title card"));
             subtitles.Add(Line(index, $"Dialogue line number {index} with actual words in it"));
         }
 
         var verdict = _guard.InspectSource(subtitles);
 
         Assert.True(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_StyledDialogueWithHtmlWrappers_IsAllowed()
+    {
+        // SubtitleHtml.Strip may be off, so a dialogue file can reach the guard with every line
+        // wrapped in font tags. Wrappers are styling, not evidence of a typesetting track.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index,
+                $@"<font face=""Trebuchet MS"" size=""24""><b><font color=""#ffffff"">" +
+                $@"We should leave before the rain starts line {index}</font></b></font>"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_AHandfulOfRepeatsInDialogue_IsAllowed()
+    {
+        // 100 lines, 15 pairs and 70 unique lines: 15 lines repeat an earlier line, not 30.
+        var subtitles = new List<SubtitleItem>();
+        var position = 0;
+        for (var pair = 0; pair < 15; pair++)
+        {
+            var text = $@"{{\an5}}Leave before the rain starts, take the back road {pair}";
+            subtitles.Add(Line(position++, text));
+            subtitles.Add(Line(position++, text));
+        }
+
+        for (var index = 0; index < 70; index++)
+        {
+            subtitles.Add(Line(position++, $@"{{\an5}}Line {index} carries its own sentence about the harbour"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_MarkupHeavyUniqueDialogue_IsAllowed()
+    {
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index,
+                $@"{{\an8}}{{\b1}}{{\c&H00FFFFFF&}}The ferry leaves at six, meet me at the pier {index}"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
     }
 
     private static SubtitleItem Line(int index, string text) => new()
