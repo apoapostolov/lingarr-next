@@ -107,8 +107,7 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
         // One deadline for the whole call, retries included: HttpClient.Timeout bounds a single
         // request, so without this a slow provider could spend attempt after attempt past the
         // configured request timeout.
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(_requestTimeout);
+        using var budget = new RequestBudget(_requestTimeout, cancellationToken);
 
         var segments = GetTranslationSegments(text);
         if (segments.Count > 1)
@@ -128,7 +127,7 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                 sourceLanguage,
                 targetLanguage,
                 cancellationToken,
-                budget.Token));
+                budget));
         }
 
         return string.Join(" ", translatedSegments.Where(segment => !string.IsNullOrWhiteSpace(segment)));
@@ -139,13 +138,13 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
         string sourceLanguage,
         string targetLanguage,
         CancellationToken cancellationToken,
-        CancellationToken budgetToken)
+        RequestBudget budget)
     {
         var delay = _retryDelay;
         for (var attempt = 1; attempt <= _maxRetries + 1; attempt++)
         {
             using var attemptCancel = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken, budgetToken);
+                cancellationToken, budget.Token);
             attemptCancel.CancelAfter(_attemptTimeout);
 
             try
@@ -163,20 +162,19 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
             {
                 throw;
             }
-            catch (OperationCanceledException) when (budgetToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (budget.Token.IsCancellationRequested)
             {
                 // The whole request deadline is gone; another attempt would exceed the budget the
                 // provider was given, so stop here and let the caller decide about a retry.
-                var seconds = _requestTimeout.TotalSeconds;
                 _logger.LogError(
                     "{ServiceName} used its whole {Seconds}s request budget across {Attempt} attempt(s).",
-                    _provider, seconds, attempt);
+                    _provider, _requestTimeout.TotalSeconds, attempt);
                 throw new TranslationException(
-                    $"The provider did not answer within the {seconds:F0} second request timeout.");
+                    $"Translation failed. The provider exceeded the {_requestTimeout.TotalSeconds:F0} second request timeout.");
             }
             catch (OperationCanceledException) when (attemptCancel.IsCancellationRequested)
             {
-                // The call never answered inside the attempt budget. The provider keeps its full
+                // The call never returned inside the attempt budget. The provider keeps its full
                 // request timeout for the retry, so a dead connection costs seconds, not the job.
                 var seconds = _attemptTimeout.TotalSeconds;
                 if (attempt > _maxRetries)
@@ -185,14 +183,14 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                         "{ServiceName} did not answer within {Seconds}s on attempt {Attempt} of {Total}.",
                         _provider, seconds, attempt, _maxRetries + 1);
                     throw new TranslationException(
-                        $"The provider did not answer within {seconds:F0} seconds after {_maxRetries + 1} attempts.");
+                        $"Translation failed. The provider exceeded the {seconds:F0} second attempt timeout on all {_maxRetries + 1} attempts.");
                 }
 
                 _logger.LogWarning(
                     "{ServiceName} did not answer within {Seconds}s. Retrying in {Delay}... (Attempt {Attempt}/{MaxRetries})",
                     _provider, seconds, delay, attempt, _maxRetries);
 
-                await DelayWithinBudget(delay, cancellationToken, budgetToken).ConfigureAwait(false);
+                await WaitBeforeRetryAsync(delay, budget, cancellationToken, attempt).ConfigureAwait(false);
                 delay = TimeSpan.FromTicks(delay.Ticks * _retryDelayMultiplier);
             }
             catch (HttpRequestException ex) when (
@@ -209,7 +207,7 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                     "{ServiceName} received {StatusCode}. Retrying in {Delay}... (Attempt {Attempt}/{MaxRetries})",
                     _provider, ex.StatusCode, delay, attempt, _maxRetries);
 
-                await DelayWithinBudget(delay, cancellationToken, budgetToken).ConfigureAwait(false);
+                await WaitBeforeRetryAsync(delay, budget, cancellationToken, attempt).ConfigureAwait(false);
                 delay = TimeSpan.FromTicks(delay.Ticks * _retryDelayMultiplier);
             }
             catch (Exception ex) when (IsTransientNetworkFailure(ex) && attempt <= _maxRetries)
@@ -219,7 +217,7 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
                     "{ServiceName} transient error. Retrying in {Delay}... (Attempt {Attempt}/{MaxRetries})",
                     _provider, delay, attempt, _maxRetries);
 
-                await DelayWithinBudget(delay, cancellationToken, budgetToken).ConfigureAwait(false);
+                await WaitBeforeRetryAsync(delay, budget, cancellationToken, attempt).ConfigureAwait(false);
                 delay = TimeSpan.FromTicks(delay.Ticks * _retryDelayMultiplier);
             }
             catch (Exception ex)
@@ -271,26 +269,25 @@ public class GTranslatorService<T> : BaseLanguageService where T : ITranslator
     }
 
     /// <summary>
-    /// Waits between attempts without ever overrunning the request budget. A budget that runs out
-    /// during the wait ends the call with a timeout, so a retry sequence cannot outlive the timeout
-    /// the provider was configured with.
+    /// Waits before the next attempt, and fails the call when the deadline cannot cover the wait.
     /// </summary>
-    private async Task DelayWithinBudget(
+    private async Task WaitBeforeRetryAsync(
         TimeSpan delay,
+        RequestBudget budget,
         CancellationToken cancellationToken,
-        CancellationToken budgetToken)
+        int attempt)
     {
         try
         {
-            await Task.Delay(WithJitter(delay), budgetToken).ConfigureAwait(false);
+            await budget.DelayAsync(WithJitter(delay), cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (RequestBudgetExhaustedException)
         {
             _logger.LogError(
-                "{ServiceName} had no request budget left to retry. Attempted with {Seconds}s per attempt.",
-                _provider, _attemptTimeout.TotalSeconds);
+                "{ServiceName} had no request budget left after attempt {Attempt} of {Total}.",
+                _provider, attempt, _maxRetries + 1);
             throw new TranslationException(
-                $"The provider did not answer within the {_requestTimeout.TotalSeconds:F0} second request timeout.");
+                $"Translation failed. The provider exceeded the {_requestTimeout.TotalSeconds:F0} second request timeout.");
         }
     }
 

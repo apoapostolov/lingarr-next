@@ -7,6 +7,15 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+- The source subtitle guard identifies a converted typesetting track by its structure, not by its
+  styling: it refuses a file where 15% or more of the lines are drawings or formatting, or where
+  50% or more of the lines repeat the same text at the same moment. Font tags and ASS overrides
+  never refuse anything on their own, simultaneous dialogue is untouched, and repeated dialogue
+  that keeps its own timings translates normally.
+- A provider timeout reads as an outcome: "Translation failed. The provider exceeded the 900
+  second request timeout." What the attempt timeout and the request deadline each bound is
+  documented in [docs/provider-timeouts.md](docs/provider-timeouts.md).
+
 ## [1.2.2] - 2026-11-03 — Clean Source
 
 Damaged job history is repaired instead of discarded, a stalled provider call stops

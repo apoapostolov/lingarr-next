@@ -13,19 +13,17 @@ namespace Lingarr.Server.Services.Subtitle;
 public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 {
     /// <summary>Share of lines that carry formatting or a drawing instead of speech.</summary>
-    public const double NonDialogueLineRatio = 0.25;
+    public const double NonDialogueLineRatio = 0.15;
 
-    /// <summary>Share of all characters taken by markup. Dialogue with styling stays far below.</summary>
-    public const double MarkupCharacterRatio = 0.40;
+    /// <summary>
+    /// Share of lines that repeat the same text at the same moment. A converted ASS track turns
+    /// every style and position into its own line, so one sign starts several times at once.
+    /// Simultaneous dialogue with different text is ordinary dialogue.
+    /// </summary>
+    public const double DuplicatedCueRatio = 0.50;
 
-    /// <summary>Share of lines carrying an ASS override block, paired with <see cref="RepeatedLineRatio"/>.</summary>
-    public const double OverrideLineRatio = 0.25;
-
-    /// <summary>Share of lines whose text repeats another line, as in a signs track.</summary>
-    public const double RepeatedLineRatio = 0.30;
-
-    /// <summary>Smaller files are not judged on markup, so a short clip is never refused.</summary>
-    public const int MinimumLinesForMarkupCheck = 20;
+    /// <summary>Smaller files are not judged, so a short clip is never refused.</summary>
+    public const int MinimumLinesToJudge = 20;
 
     /// <summary>Share of lines that come back identical to their source before the file is refused.</summary>
     public const double UnchangedLineRatio = 0.40;
@@ -38,49 +36,34 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
 
     public SubtitleSourceVerdict InspectSource(IReadOnlyList<SubtitleItem> subtitles)
     {
-        var lines = TextLines(subtitles);
-        if (lines.Count < MinimumLinesForMarkupCheck)
+        var counts = Measure(subtitles);
+        if (counts.Lines < MinimumLinesToJudge)
         {
             return SubtitleSourceVerdict.Allowed;
         }
 
-        var counts = Measure(lines);
-        var total = lines.Count;
-
         // A drawing or a font wrapper on its own: signs, karaoke and typeset effects, no dialogue.
-        var nonDialogue = (double)counts.NonDialogueLines / total;
+        var nonDialogue = (double)counts.NonDialogueLines / counts.Lines;
         if (nonDialogue >= NonDialogueLineRatio)
         {
             return SubtitleSourceVerdict.Refuse(
                 $"The source subtitle looks like a typesetting or drawing track, not dialogue: " +
-                $"{counts.NonDialogueLines} of {total} lines carry a drawing or formatting instead of speech " +
+                $"{counts.NonDialogueLines} of {counts.Lines} lines carry a drawing or formatting instead of speech " +
                 $"({nonDialogue:P0}). Lingarr did not translate it. Add a dialogue subtitle for this media, " +
                 "or turn off the source subtitle guard to translate it anyway.");
         }
 
-        // Mostly markup with a little text left over is what an ASS-to-SRT conversion of a signs
-        // track looks like. Styled dialogue keeps its text and stays well under this share.
-        var characters = counts.MarkupCharacters + counts.TextCharacters;
-        var markupCharacters = characters == 0 ? 0 : (double)counts.MarkupCharacters / characters;
-        if (markupCharacters >= MarkupCharacterRatio)
+        // The same line twice at the same moment is a duplicated event, which is what a converted
+        // ASS track produces: one entry per style or position. Two speakers at the same moment say
+        // different things, so simultaneous dialogue is not counted here.
+        var duplicated = (double)counts.DuplicatedLines / counts.Lines;
+        if (duplicated >= DuplicatedCueRatio)
         {
             return SubtitleSourceVerdict.Refuse(
-                $"The source subtitle looks like a converted typesetting track: {markupCharacters:P0} of its " +
-                $"characters are styling markup rather than text, across {counts.OverrideLines} of {total} lines. " +
-                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
-                "subtitle guard to translate it anyway.");
-        }
-
-        // A signs track repeats the same on-screen text over and over with per-line styling.
-        var overrideLines = (double)counts.OverrideLines / total;
-        var repeatedLines = (double)counts.RepeatedLines / total;
-        if (overrideLines >= OverrideLineRatio && repeatedLines >= RepeatedLineRatio)
-        {
-            return SubtitleSourceVerdict.Refuse(
-                $"The source subtitle repeats itself instead of holding dialogue: {counts.RepeatedLines} of {total} " +
-                $"lines repeat an earlier line ({repeatedLines:P0}) and {counts.OverrideLines} lines carry ASS styling. " +
-                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the source " +
-                "subtitle guard to translate it anyway.");
+                $"The source subtitle looks like a converted typesetting track: {counts.DuplicatedLines} of " +
+                $"{counts.Lines} lines repeat the same text at the same moment ({duplicated:P0}). " +
+                "Lingarr did not translate it. Add a dialogue subtitle for this media, or turn off the " +
+                "source subtitle guard to translate it anyway.");
         }
 
         return SubtitleSourceVerdict.Allowed;
@@ -134,68 +117,45 @@ public partial class SourceSubtitleGuard : ISourceSubtitleGuard
             "source subtitle guard to translate it anyway.");
     }
 
-    private static List<string> TextLines(IReadOnlyList<SubtitleItem> subtitles)
+    /// <summary>
+    /// Collects the file-level evidence the checks use: how many lines hold no readable dialogue,
+    /// and how many share a start time with another line. Text is read from the raw lines, because
+    /// a parser can already have cleaned the plaintext.
+    /// </summary>
+    private static FileMeasurements Measure(IReadOnlyList<SubtitleItem> subtitles)
     {
-        var lines = new List<string>(subtitles.Count);
+        var lines = 0;
+        var nonDialogue = 0;
+        var events = new Dictionary<string, int>(StringComparer.Ordinal);
+
         foreach (var subtitle in subtitles)
         {
-            // Raw lines first: a parser can already have removed the override blocks from the
-            // plaintext, and those blocks are the evidence this check looks for.
             var raw = subtitle.Lines is { Count: > 0 } ? subtitle.Lines : subtitle.PlaintextLines;
-            var text = string.Join(" ", raw ?? []).Trim();
-            if (text.Length > 0)
+            var line = string.Join(" ", raw ?? []).Trim();
+            if (line.Length == 0)
             {
-                lines.Add(text);
-            }
-        }
-
-        return lines;
-    }
-
-    /// <summary>
-    /// Collects the file-level evidence the checks use. A line counts as non-dialogue only when
-    /// nothing readable is left once its markup is removed, so styled dialogue stays dialogue.
-    /// </summary>
-    private static FileMeasurements Measure(IReadOnlyList<string> lines)
-    {
-        var nonDialogue = 0;
-        var overrideLines = 0;
-        var markupCharacters = 0;
-        var textCharacters = 0;
-        var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
-
-        foreach (var line in lines)
-        {
-            if (AssOverrideRegex().IsMatch(line))
-            {
-                overrideLines++;
-            }
-
-            var withoutTags = HtmlTagRegex().Replace(line, string.Empty);
-            var text = AssOverrideRegex().Replace(withoutTags, string.Empty).Trim();
-            markupCharacters += line.Length - text.Length;
-            textCharacters += text.Length;
-
-            if (text.Length == 0 || LooksLikeDrawing(text))
-            {
-                nonDialogue++;
                 continue;
             }
 
-            var key = Normalized(text);
-            occurrences[key] = occurrences.TryGetValue(key, out var count) ? count + 1 : 1;
+            lines++;
+            var key = $"{subtitle.StartTime}{Normalized(line)}";
+            events[key] = events.TryGetValue(key, out var count) ? count + 1 : 1;
+
+            var text = AssOverrideRegex().Replace(HtmlTagRegex().Replace(line, string.Empty), string.Empty).Trim();
+            if (text.Length == 0 || LooksLikeDrawing(text))
+            {
+                nonDialogue++;
+            }
         }
 
-        var repeated = occurrences.Values.Where(count => count > 1).Sum(count => count);
-        return new FileMeasurements(nonDialogue, overrideLines, markupCharacters, textCharacters, repeated);
+        var duplicated = events.Values.Where(count => count > 1).Sum(count => count);
+        return new FileMeasurements(lines, nonDialogue, duplicated);
     }
 
     private readonly record struct FileMeasurements(
+        int Lines,
         int NonDialogueLines,
-        int OverrideLines,
-        int MarkupCharacters,
-        int TextCharacters,
-        int RepeatedLines);
+        int DuplicatedLines);
 
     private static bool LooksLikeDrawing(string value)
     {

@@ -8,6 +8,7 @@
 | [Subtitle downloader validation](./validation/subtitle-downloader-reliability.md) | 2026-10-20 reliability regressions, Docker deployment, and validation limits |
 | [classifier-providers.md](./classifier-providers.md) | Jev and Luna Decisions settings, keys, thresholds, and fail-open behavior |
 | [subtitle-maintenance.md](./subtitle-maintenance.md) | Weekly sidecar rename and optional MKV text extract |
+| [provider-timeouts.md](./provider-timeouts.md) | Attempt and request timeouts for machine-translation providers, and what each bounds |
 | [ai-providers-model-fallback-chain.md](./ai-providers-model-fallback-chain.md) | Lingarr Next AI providers + fallback chain product design |
 | [proposals/settings-page-ia-and-qol.md](./proposals/settings-page-ia-and-qol.md) | Settings IA implementation contract and follow-up phases |
 | [proposals/translation-confidence-and-instruction-profiles.md](./proposals/translation-confidence-and-instruction-profiles.md) | Provider health, subtitle quality, recent Dashboard activity, and versioned AI instruction profiles |

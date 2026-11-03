@@ -18,7 +18,7 @@ public class SourceSubtitleGuardTests
         var subtitles = new List<SubtitleItem>();
         for (var index = 0; index < 20; index++)
         {
-            subtitles.Add(Line(index, @"{\an5}The Apothecary Diaries"));
+            subtitles.Add(Line(index, @"{\an5}Episode title card"));
             subtitles.Add(Line(index, @"{\an5}m -681.75 -8.06 l -683.02 -7.56 b -684.05 -8.86 -685"));
         }
 
@@ -168,14 +168,143 @@ public class SourceSubtitleGuardTests
     }
 
     [Fact]
-    public void InspectSource_RepeatedSignsTrack_IsRefused()
+    public void InspectSource_DuplicatedEventTrack_IsRefused()
     {
+        // A converted ASS track turns every style into its own line, so the same sign starts twice
+        // at the same moment.
         var subtitles = new List<SubtitleItem>();
         for (var index = 0; index < 30; index++)
         {
-            subtitles.Add(Line(index, @"{\an5}{\b1}The Apothecary Diaries"));
-            subtitles.Add(Line(index, $"Dialogue line number {index} with actual words in it"));
+            var first = Line(index * 2, @"{\an5}{\b1}Episode title card");
+            first.StartTime = index * 1000;
+            first.EndTime = (index * 1000) + 900;
+            subtitles.Add(first);
+
+            var second = Line((index * 2) + 1, @"{\an5}{\b1}Episode title card");
+            second.StartTime = index * 1000;
+            second.EndTime = (index * 1000) + 900;
+            subtitles.Add(second);
         }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.True(verdict.Blocked);
+        Assert.Contains("same moment", verdict.Reason);
+    }
+
+    [Fact]
+    public void InspectSource_SimultaneousDialogue_IsAllowed()
+    {
+        // Two speakers at once say different things; only a duplicated line is evidence.
+        var subtitles = new List<SubtitleItem>();
+        for (var index = 0; index < 10; index++)
+        {
+            var left = Line(index * 2, $"Left speaker answers the phone about the harbour {index}");
+            left.StartTime = index * 1000;
+            left.EndTime = (index * 1000) + 900;
+            subtitles.Add(left);
+
+            var right = Line((index * 2) + 1, $"Right speaker answers the door about the weather {index}");
+            right.StartTime = index * 1000;
+            right.EndTime = (index * 1000) + 900;
+            subtitles.Add(right);
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_RepeatedDialogueWithItsOwnTimings_IsAllowed()
+    {
+        // Chants and rituals repeat real dialogue, but every line keeps its own moment.
+        var subtitles = new List<SubtitleItem>();
+        var position = 0;
+        for (var repeat = 0; repeat < 6; repeat++)
+        {
+            subtitles.Add(Line(position++, "I wish to save the world."));
+            subtitles.Add(Line(position++, "My name is not one of them."));
+            subtitles.Add(Line(position++, "I am not one of them."));
+            subtitles.Add(Line(position++, "We should leave before the rain starts."));
+        }
+
+        for (var index = 0; index < 40; index++)
+        {
+            subtitles.Add(Line(position++, $"Line {index} carries its own sentence about the harbour"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_StyledDialogueWithHtmlWrappers_IsAllowed()
+    {
+        // SubtitleHtml.Strip may be off, so a dialogue file can reach the guard with every line
+        // wrapped in font tags. Wrappers are styling, not evidence of a typesetting track.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index,
+                $@"<font face=""Trebuchet MS"" size=""24""><b><font color=""#ffffff"">" +
+                $@"We should leave before the rain starts line {index}</font></b></font>"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_AHandfulOfRepeatsInDialogue_IsAllowed()
+    {
+        // 100 lines, 15 pairs and 70 unique lines: 15 lines repeat an earlier line, not 30.
+        var subtitles = new List<SubtitleItem>();
+        var position = 0;
+        for (var pair = 0; pair < 15; pair++)
+        {
+            var text = $@"{{\an5}}Leave before the rain starts, take the back road {pair}";
+            subtitles.Add(Line(position++, text));
+            subtitles.Add(Line(position++, text));
+        }
+
+        for (var index = 0; index < 70; index++)
+        {
+            subtitles.Add(Line(position++, $@"{{\an5}}Line {index} carries its own sentence about the harbour"));
+        }
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_MarkupHeavyUniqueDialogue_IsAllowed()
+    {
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index => Line(index,
+                $@"{{\an8}}{{\b1}}{{\c&H00FFFFFF&}}The ferry leaves at six, meet me at the pier {index}"))
+            .ToList();
+
+        var verdict = _guard.InspectSource(subtitles);
+
+        Assert.False(verdict.Blocked);
+    }
+
+    [Fact]
+    public void InspectSource_DuplicatedHtmlStyledTrack_IsRefused()
+    {
+        // With HTML stripping off, a signs track arrives wrapped in font tags and carries no ASS
+        // override at all. The duplicated lines at one moment identify it.
+        var subtitles = Enumerable.Range(0, 40)
+            .Select(index =>
+            {
+                var item = Line(index, @"<font face=""Impact"" size=""20""><b>Episode title card</b></font>");
+                item.StartTime = (index / 2) * 1000;
+                item.EndTime = ((index / 2) * 1000) + 900;
+                return item;
+            })
+            .ToList();
 
         var verdict = _guard.InspectSource(subtitles);
 
@@ -185,6 +314,8 @@ public class SourceSubtitleGuardTests
     private static SubtitleItem Line(int index, string text) => new()
     {
         Position = index + 1,
+        StartTime = index * 1000,
+        EndTime = (index * 1000) + 900,
         Lines = [text],
         PlaintextLines = [text]
     };
