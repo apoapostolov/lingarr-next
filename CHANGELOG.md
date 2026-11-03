@@ -7,21 +7,33 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
-- Hangfire's SQLite store is repaired in place instead of being quarantined when
-  only its indexes are damaged (`row N missing from index`), which is what every
-  stored failure since August turned out to be. A failed open is no longer treated
-  as corruption, so a busy or locked file keeps its job history, and the periodic
-  WAL checkpoint runs `PASSIVE` instead of `TRUNCATE`.
-- A machine-translation call that never answers is dropped after the attempt
-  timeout (120 seconds by default) and retried inside the provider's request
-  timeout, instead of holding the job for the full 15 minutes. Translation
-  settings shows the new Attempt timeout value.
-- A source subtitle that is a converted typesetting track, and a translation that
-  comes back unchanged because the file is in another language, are refused before
-  a file is written. Subtitle settings has a Source subtitle guard switch for it.
+## [1.2.2] - 2026-11-03 — Clean Source
+
+Damaged job history is repaired instead of discarded, a stalled provider call stops
+costing fifteen minutes, and a source file that cannot produce a usable translation
+is refused before a subtitle is written.
+
+- Hangfire's SQLite store is repaired in place when only its indexes are damaged
+  (`row N missing from index`) instead of being quarantined with the job history.
+  A failed open no longer counts as corruption, so a busy or locked file keeps its
+  history, and the periodic WAL checkpoint runs `PASSIVE` instead of `TRUNCATE`.
+- A machine-translation call that does not answer is abandoned after the attempt
+  timeout and retried inside the provider's request timeout, so one dead call costs
+  about two minutes instead of holding the job for the full 15 minutes. A single
+  deadline covers the retries and the waits between them. Translation settings
+  shows Attempt timeout, 120 seconds by default, with per-provider overrides.
+- A source subtitle that is a converted typesetting track is refused before
+  translation, and a translation that comes back unchanged on 40% or more of its
+  usable lines is not written. Both checks judge content rather than styling, so
+  dialogue that carries ASS overrides still translates, and sound cues are ignored.
+  Subtitle settings has a Source subtitle guard switch.
 - Quality scoring no longer reads subtitle markup as a placeholder, no longer
-  counts a blank line without translation as an integrity failure, and reports
-  repeated output only when different source lines collapsed onto the same text.
+  counts a blank source with a blank target as an integrity failure, reports
+  repeated output only when three or more distinct sources collapse onto one
+  target, and recognises indexed placeholders such as `{0:C}`. Assessment
+  ruleset 2.
+- Migration M0047 seeds the source guard on and the attempt timeout at 120
+  seconds; an install that never saved either key behaves the same way.
 
 ## [1.2.1] - 2026-10-23 — Closest Match
 
@@ -563,6 +575,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2
 [1.2.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1
 [1.2.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0
 [1.1.6]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.1.6
