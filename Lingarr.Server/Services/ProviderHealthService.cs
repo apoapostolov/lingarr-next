@@ -61,7 +61,7 @@ public sealed class ProviderHealthService : IProviderHealthService
         foreach (var plugin in TranslationProviders())
         {
             var configuration = await GetConfigurationStatus(plugin, cancellationToken);
-            var snapshot = await EvaluateAsync(
+            var snapshot = await ComputeAsync(
                 plugin.Manifest.Provider,
                 configuration.Configured,
                 cancellationToken);
@@ -113,7 +113,7 @@ public sealed class ProviderHealthService : IProviderHealthService
         CancellationToken cancellationToken = default)
     {
         var normalizedProvider = result.Provider.Trim().ToLowerInvariant();
-        _dbContext.ProviderOperationalEvents.Add(new ProviderOperationalEvent
+        var operationalEvent = new ProviderOperationalEvent
         {
             Provider = normalizedProvider,
             Model = result.Model,
@@ -129,8 +129,20 @@ public sealed class ProviderHealthService : IProviderHealthService
             EstimatedCostUsd = result.EstimatedCostUsd,
             OccurredAt = DateTime.UtcNow,
             PolicyVersion = PolicyVersion
-        });
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        };
+        _dbContext.ProviderOperationalEvents.Add(operationalEvent);
+
+        // A translation is already on its way out at this point. Losing the record of it is
+        // better than failing the request that produced it, and the next event re-evaluates.
+        if (!await SqliteWriteRetry.TrySaveAsync(
+                _dbContext,
+                _logger,
+                $"the {operationalEvent.Operation} outcome for {normalizedProvider}",
+                cancellationToken))
+        {
+            _dbContext.Entry(operationalEvent).State = EntityState.Detached;
+            return;
+        }
 
         var plugin = _registry.Find(normalizedProvider);
         if (plugin is not null)
@@ -283,9 +295,17 @@ public sealed class ProviderHealthService : IProviderHealthService
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
         var cutoff = DateTime.UtcNow - RetentionWindow;
-        await _dbContext.ProviderOperationalEvents
-            .Where(item => item.OccurredAt < cutoff)
-            .ExecuteDeleteAsync(cancellationToken);
+        var deleted = await SqliteWriteRetry.TryRunAsync(
+            token => _dbContext.ProviderOperationalEvents
+                .Where(item => item.OccurredAt < cutoff)
+                .ExecuteDeleteAsync(token),
+            _logger,
+            "the retention delete of old provider events",
+            cancellationToken);
+        if (!deleted)
+        {
+            return;
+        }
 
         foreach (var plugin in TranslationProviders())
         {
@@ -340,7 +360,47 @@ public sealed class ProviderHealthService : IProviderHealthService
             : ("unknown", false);
     }
 
+    /// <summary>
+    /// Evaluates a provider and stores the reading, so a stored snapshot only moves when an event
+    /// or the hourly reconciliation changes it.
+    /// </summary>
     private async Task<ProviderHealthSnapshot> EvaluateAsync(
+        string provider,
+        bool configured,
+        CancellationToken cancellationToken)
+    {
+        var computed = await ComputeAsync(provider, configured, cancellationToken);
+        var snapshot = await _dbContext.ProviderHealthSnapshots
+            .SingleOrDefaultAsync(item => item.Provider == computed.Provider, cancellationToken);
+
+        if (snapshot is null)
+        {
+            snapshot = computed;
+            _dbContext.ProviderHealthSnapshots.Add(snapshot);
+        }
+        else
+        {
+            CopyReading(computed, snapshot);
+        }
+
+        if (await SqliteWriteRetry.TrySaveAsync(
+                _dbContext,
+                _logger,
+                $"the health reading for {computed.Provider}",
+                cancellationToken))
+        {
+            return snapshot;
+        }
+
+        _dbContext.Entry(snapshot).State = EntityState.Detached;
+        return computed;
+    }
+
+    /// <summary>
+    /// Reads a provider's recent events and returns its state without writing anything. The
+    /// dashboard polls this, and a read must not queue behind a library sync holding the writer.
+    /// </summary>
+    private async Task<ProviderHealthSnapshot> ComputeAsync(
         string provider,
         bool configured,
         CancellationToken cancellationToken)
@@ -349,6 +409,7 @@ public sealed class ProviderHealthService : IProviderHealthService
         var now = DateTime.UtcNow;
         var observationStart = now - ObservationWindow;
         var events = await _dbContext.ProviderOperationalEvents
+            .AsNoTracking()
             .Where(item =>
                 item.Provider == normalizedProvider
                 && item.OccurredAt >= now - TimeSpan.FromDays(7))
@@ -374,32 +435,36 @@ public sealed class ProviderHealthService : IProviderHealthService
             consecutiveFailures,
             now);
 
-        var snapshot = await _dbContext.ProviderHealthSnapshots
-            .SingleOrDefaultAsync(item => item.Provider == normalizedProvider, cancellationToken);
-        if (snapshot is null)
+        return new ProviderHealthSnapshot
         {
-            snapshot = new ProviderHealthSnapshot
-            {
-                Provider = normalizedProvider,
-                State = state,
-                Reason = reason
-            };
-            _dbContext.ProviderHealthSnapshots.Add(snapshot);
-        }
+            Provider = normalizedProvider,
+            State = state,
+            Reason = reason,
+            LastSuccessAt = events.LastOrDefault(item => item.Outcome == "success")?.OccurredAt,
+            LastFailureAt = events.LastOrDefault(item => item.Outcome == "failure")?.OccurredAt,
+            LastWarningAt = events.LastOrDefault(item => item.Outcome == "warning")?.OccurredAt,
+            ConsecutiveFailures = consecutiveFailures,
+            SuccessCount = successes.Count,
+            FailureCount = failures.Count,
+            MedianDurationMs = Median(observed.Select(item => item.DurationMs)),
+            EvaluatedAt = now,
+            PolicyVersion = PolicyVersion
+        };
+    }
 
-        snapshot.State = state;
-        snapshot.Reason = reason;
-        snapshot.LastSuccessAt = events.LastOrDefault(item => item.Outcome == "success")?.OccurredAt;
-        snapshot.LastFailureAt = events.LastOrDefault(item => item.Outcome == "failure")?.OccurredAt;
-        snapshot.LastWarningAt = events.LastOrDefault(item => item.Outcome == "warning")?.OccurredAt;
-        snapshot.ConsecutiveFailures = consecutiveFailures;
-        snapshot.SuccessCount = successes.Count;
-        snapshot.FailureCount = failures.Count;
-        snapshot.MedianDurationMs = Median(observed.Select(item => item.DurationMs));
-        snapshot.EvaluatedAt = now;
-        snapshot.PolicyVersion = PolicyVersion;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return snapshot;
+    private static void CopyReading(ProviderHealthSnapshot source, ProviderHealthSnapshot target)
+    {
+        target.State = source.State;
+        target.Reason = source.Reason;
+        target.LastSuccessAt = source.LastSuccessAt;
+        target.LastFailureAt = source.LastFailureAt;
+        target.LastWarningAt = source.LastWarningAt;
+        target.ConsecutiveFailures = source.ConsecutiveFailures;
+        target.SuccessCount = source.SuccessCount;
+        target.FailureCount = source.FailureCount;
+        target.MedianDurationMs = source.MedianDurationMs;
+        target.EvaluatedAt = source.EvaluatedAt;
+        target.PolicyVersion = source.PolicyVersion;
     }
 
     private static (string State, string Reason) EvaluateState(

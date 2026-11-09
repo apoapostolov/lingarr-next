@@ -111,6 +111,32 @@ public class ProviderHealthServiceTests
                 HttpStatusCode.TooManyRequests)));
     }
 
+    [Fact]
+    public async Task GetAllAsync_ReadsTheStateWithoutStoringASnapshot()
+    {
+        await using var database = CreateDatabase();
+        var service = CreateService(database);
+
+        var health = Assert.Single(await service.GetAllAsync());
+
+        Assert.Equal(ProviderHealthStates.NotChecked, health.State);
+        Assert.Empty(database.ProviderHealthSnapshots);
+        Assert.False(database.ChangeTracker.HasChanges());
+    }
+
+    [Fact]
+    public async Task RecordAsync_StoresTheReading()
+    {
+        await using var database = CreateDatabase();
+        var service = CreateService(database);
+
+        await service.RecordAsync(Result("success"));
+
+        var snapshot = Assert.Single(database.ProviderHealthSnapshots);
+        Assert.Equal(ProviderHealthStates.Healthy, snapshot.State);
+        Assert.NotEqual(default, snapshot.EvaluatedAt);
+    }
+
     private static ProviderOperationalResult Result(
         string outcome,
         string? errorFamily = null,

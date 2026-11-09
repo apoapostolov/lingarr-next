@@ -7,6 +7,14 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+- The provider health panel no longer writes while it reads. A dashboard poll computes the state
+  from the recorded events and leaves the stored reading to the event that changes it or the
+  hourly reconciliation, so a library sync holding the database writer cannot stall the panel.
+- Provider health writes survive a busy database. A save that meets the lock is retried with
+  backoff, and one that still cannot land is logged rather than thrown: a translation outcome is
+  dropped from the history instead of the request failing, and a dashboard poll no longer answers
+  500 while the library syncs.
+
 ## [1.2.2] - 2026-11-03 — Clean Source
 
 Damaged job history is repaired instead of discarded, a stalled provider call stops
