@@ -27,21 +27,56 @@ internal static class SqliteWriteRetry
     ];
 
     /// <summary>
+    /// One retry for a write a caller is waiting on, such as recording a translation outcome.
+    /// </summary>
+    internal static readonly TimeSpan[] BriefDelays =
+    [
+        TimeSpan.FromMilliseconds(250)
+    ];
+
+    /// <summary>
+    /// How long one attempt may wait for the lock. The connection's own busy timeout is two
+    /// minutes, which would spend a translation's time on telemetry; bounding the attempt keeps a
+    /// locked database to a few seconds per try and lets the retry policy decide what follows.
+    /// </summary>
+    internal static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
     /// Saves the context, retrying while the database is locked. Returns false when the lock
     /// outlives the retries; the caller decides whether the loss matters.
     /// </summary>
-    internal static Task<bool> TrySaveAsync(
+    internal static async Task<bool> TrySaveAsync(
         DbContext context,
         ILogger logger,
         string operation,
         CancellationToken cancellationToken,
-        IReadOnlyList<TimeSpan>? delays = null) =>
-        TryRunAsync(
-            token => context.SaveChangesAsync(token),
-            logger,
-            operation,
-            cancellationToken,
-            delays);
+        IReadOnlyList<TimeSpan>? delays = null)
+    {
+        // The InMemory provider has no command timeout, and a test double does not need one.
+        var relational = context.Database.IsRelational();
+        var previous = relational ? context.Database.GetCommandTimeout() : null;
+        if (relational)
+        {
+            context.Database.SetCommandTimeout(AttemptTimeout);
+        }
+
+        try
+        {
+            return await TryRunAsync(
+                token => context.SaveChangesAsync(token),
+                logger,
+                operation,
+                cancellationToken,
+                delays);
+        }
+        finally
+        {
+            if (relational)
+            {
+                context.Database.SetCommandTimeout(previous);
+            }
+        }
+    }
 
     /// <summary>
     /// Runs a write that does not go through SaveChanges, such as a bulk delete, under the same

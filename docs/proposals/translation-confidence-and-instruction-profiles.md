@@ -243,7 +243,9 @@ State evaluation runs when a new event is recorded and in a small scheduled reco
 **Implementation status (2026-07-28):** Implemented in the Bedroom fork. Structured
 translation, batch, and probe outcomes now feed persisted snapshots; hourly reconciliation
 applies time-based transitions and 30-day event retention. The shared, text-labelled panel is
-available on the Dashboard and Translation Setup.
+available on the Dashboard and Translation Setup. The panel computes its reading from the events
+on each poll, so a read never waits on the database writer; the stored snapshot follows recorded
+outcomes and the hourly reconciliation.
 
 ---
 

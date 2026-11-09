@@ -138,7 +138,8 @@ public sealed class ProviderHealthService : IProviderHealthService
                 _dbContext,
                 _logger,
                 $"the {operationalEvent.Operation} outcome for {normalizedProvider}",
-                cancellationToken))
+                cancellationToken,
+                SqliteWriteRetry.BriefDelays))
         {
             _dbContext.Entry(operationalEvent).State = EntityState.Detached;
             return;
