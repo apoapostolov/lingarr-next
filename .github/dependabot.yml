@@ -7,11 +7,16 @@ updates:
       interval: "monthly"
     open-pull-requests-limit: 5
     ignore:
-      # vue-tsc 3.3.x resolves typescript/lib/tsc, which 7.0 no longer exports,
-      # so the Test Frontend type-check dies before it starts. Re-enable once
-      # vue-tsc supports the 7.1 plugin interface.
+      # vue-tsc 3.3.x resolves typescript/lib/tsc, a subpath TypeScript 7 no
+      # longer exports, so the Test Frontend type-check dies before it starts.
+      # 7.1 is not the way out either: 7.1.0-beta still has no lib/tsc export,
+      # vue-tsc 3.3.14 crashes on it the same way, and its `typescript >=5.0.0`
+      # peer already rejects the prerelease. The TypeScript 7 path is
+      # @vue/language-core 4.0.0-alpha.3, which peer-deps typescript
+      # >=7.1.0-beta and has no vue-tsc release yet. Re-enable once a stable
+      # vue-tsc type-checks TypeScript 7.
       - dependency-name: "typescript"
-        versions: ["7.0.x"]
+        versions: ["7.x"]
       # vue-tsc 3.3.12 and later report template-closure errors that 3.3.11 accepts:
       # imported const members gain a bogus .value, handler params lose their type.
       # Upstream vuejs/language-tools#6237. Re-enable once that is fixed.
