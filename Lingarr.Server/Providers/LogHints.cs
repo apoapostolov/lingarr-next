@@ -21,9 +21,14 @@ public static class LogHints
             return "Check that the media drive is connected and readable inside Lingarr, then verify the folder mapping under Settings → Connections → Path mapping.";
         }
 
+        if (text.Contains("was dropped", StringComparison.Ordinal))
+        {
+            return "The database stayed locked, so this record was dropped. A provider reading is recomputed from the events that were saved, but a dropped outcome is missing from the history, along with its token and cost totals.";
+        }
+
         if (text.Contains("stayed locked", StringComparison.Ordinal))
         {
-            return "The database stayed locked, so this write was dropped. Nothing needs doing: a provider reading is recomputed from the events that were recorded, and a dropped outcome is simply missing from the history.";
+            return "The database stayed locked, so this write was skipped. Nothing needs doing: the next outcome or the hourly reconciliation writes it again.";
         }
 
         if (text.Contains("database was locked", StringComparison.Ordinal))

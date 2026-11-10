@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using Lingarr.Contracts.Interfaces.Plugins;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
+using Lingarr.Core.Entities;
 using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Interfaces.Services.Translation;
 using Lingarr.Server.Models.ProviderHealth;
@@ -15,6 +17,7 @@ using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Plugins.Manifests;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -168,6 +171,45 @@ public class ProviderHealthServiceTests
         }
     }
 
+    [Fact]
+    public async Task ReconcileAsync_RefreshesReadingsWhenRetentionCannotRun()
+    {
+        // InMemory cannot run ExecuteDelete, which stands in for any provider-specific failure of
+        // the retention delete: the readings must still be refreshed.
+        await using var database = CreateDatabase();
+        var logger = new RecordingLogger();
+        var service = CreateService(database, logger);
+
+        await service.ReconcileAsync();
+
+        var snapshot = Assert.Single(database.ProviderHealthSnapshots.Where(item => item.Provider == "microsoft"));
+        Assert.Equal(ProviderHealthStates.NotChecked, snapshot.State);
+        Assert.Contains(logger.Messages, message => message.Contains("Skipped the retention delete"));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_DoesNotOverwriteANewerReading()
+    {
+        await using var database = CreateDatabase();
+        var service = CreateService(database);
+        var newer = DateTime.UtcNow.AddMinutes(5);
+        database.ProviderHealthSnapshots.Add(new ProviderHealthSnapshot
+        {
+            Provider = "microsoft",
+            State = ProviderHealthStates.Unavailable,
+            Reason = "recorded after this reconciliation started",
+            EvaluatedAt = newer
+        });
+        await database.SaveChangesAsync();
+        database.ChangeTracker.Clear();
+
+        await service.ReconcileAsync();
+
+        var snapshot = Assert.Single(database.ProviderHealthSnapshots.Where(item => item.Provider == "microsoft"));
+        Assert.Equal("recorded after this reconciliation started", snapshot.Reason);
+        Assert.Equal(newer, snapshot.EvaluatedAt, TimeSpan.FromMilliseconds(1));
+    }
+
     private static ProviderOperationalResult Result(
         string outcome,
         string? errorFamily = null,
@@ -192,7 +234,9 @@ public class ProviderHealthServiceTests
         return new LingarrDbContext(options);
     }
 
-    private static ProviderHealthService CreateService(LingarrDbContext database)
+    private static ProviderHealthService CreateService(
+        LingarrDbContext database,
+        ILogger<ProviderHealthService>? logger = null)
     {
         var pluginLoader = new PluginLoader(NullLogger<PluginLoader>.Instance);
         IPluginManifest[] manifests = [new MicrosoftTranslatePluginManifest()];
@@ -211,6 +255,23 @@ public class ProviderHealthServiceTests
             settings.Object,
             Mock.Of<ITranslationServiceFactory>(),
             pluginLoader,
-            NullLogger<ProviderHealthService>.Instance);
+            logger ?? NullLogger<ProviderHealthService>.Instance);
+    }
+
+    private sealed class RecordingLogger : ILogger<ProviderHealthService>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
     }
 }

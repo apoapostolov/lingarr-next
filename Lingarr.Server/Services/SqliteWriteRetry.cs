@@ -106,7 +106,7 @@ internal static class SqliteWriteRetry
                 {
                     logger.LogWarning(
                         exception,
-                        "Gave up on {Operation} after {Attempts} attempts because the database stayed locked, so it was dropped.",
+                        "Gave up on {Operation} after {Attempts} attempts because the database stayed locked.",
                         operation,
                         attempt + 1);
                     return false;
