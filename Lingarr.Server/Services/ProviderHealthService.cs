@@ -142,6 +142,10 @@ public sealed class ProviderHealthService : IProviderHealthService
                 SqliteWriteRetry.BriefDelays))
         {
             _dbContext.Entry(operationalEvent).State = EntityState.Detached;
+            _logger.LogWarning(
+                "The {Operation} outcome for {Provider} was dropped because the database stayed locked.",
+                operationalEvent.Operation,
+                normalizedProvider);
             return;
         }
 
@@ -295,19 +299,6 @@ public sealed class ProviderHealthService : IProviderHealthService
 
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
-        var cutoff = DateTime.UtcNow - RetentionWindow;
-        var deleted = await SqliteWriteRetry.TryRunAsync(
-            token => _dbContext.ProviderOperationalEvents
-                .Where(item => item.OccurredAt < cutoff)
-                .ExecuteDeleteAsync(token),
-            _logger,
-            "the retention delete of old provider events",
-            cancellationToken);
-        if (!deleted)
-        {
-            return;
-        }
-
         foreach (var plugin in TranslationProviders())
         {
             var configuration = await GetConfigurationStatus(plugin, cancellationToken);
@@ -315,6 +306,23 @@ public sealed class ProviderHealthService : IProviderHealthService
                 plugin.Manifest.Provider,
                 configuration.Configured,
                 cancellationToken);
+        }
+
+        // Retention is housekeeping: it runs after the readings, it is attempted once, and any
+        // failure is a log line rather than a failed reconciliation. A locked or timed-out delete
+        // costs nothing but the next hour's attempt.
+        var cutoff = DateTime.UtcNow - RetentionWindow;
+        try
+        {
+            await _dbContext.ProviderOperationalEvents
+                .Where(item => item.OccurredAt < cutoff)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Skipped the retention delete of old provider events; it runs again on the next reconciliation.");
         }
     }
 
@@ -381,6 +389,13 @@ public sealed class ProviderHealthService : IProviderHealthService
         }
         else
         {
+            // A recorded outcome can land a newer reading while this one is being computed. The
+            // newer one wins; a reconciliation must not write an older view over it.
+            if (snapshot.EvaluatedAt > computed.EvaluatedAt)
+            {
+                return snapshot;
+            }
+
             CopyReading(computed, snapshot);
         }
 

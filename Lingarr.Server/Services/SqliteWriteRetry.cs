@@ -52,10 +52,12 @@ internal static class SqliteWriteRetry
         CancellationToken cancellationToken,
         IReadOnlyList<TimeSpan>? delays = null)
     {
-        // The InMemory provider has no command timeout, and a test double does not need one.
-        var relational = context.Database.IsRelational();
-        var previous = relational ? context.Database.GetCommandTimeout() : null;
-        if (relational)
+        // Only SQLite has the single-writer problem this exists for, and only SQLite reports it as
+        // a busy error. A server database keeps its own command timeout: a large batch on a slow
+        // MySQL or PostgreSQL host legitimately takes longer than two seconds.
+        var sqlite = context.Database.IsSqlite();
+        var previous = sqlite ? context.Database.GetCommandTimeout() : null;
+        if (sqlite)
         {
             context.Database.SetCommandTimeout(AttemptTimeout);
         }
@@ -71,7 +73,7 @@ internal static class SqliteWriteRetry
         }
         finally
         {
-            if (relational)
+            if (sqlite)
             {
                 context.Database.SetCommandTimeout(previous);
             }
