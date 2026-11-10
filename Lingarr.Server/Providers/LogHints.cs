@@ -21,10 +21,14 @@ public static class LogHints
             return "Check that the media drive is connected and readable inside Lingarr, then verify the folder mapping under Settings → Connections → Path mapping.";
         }
 
-        if (text.Contains("database was locked", StringComparison.Ordinal)
-            || text.Contains("database stayed locked", StringComparison.Ordinal))
+        if (text.Contains("stayed locked", StringComparison.Ordinal))
         {
-            return "Another Lingarr task held the database, usually a library sync. Nothing needs doing: the reading is retried, and the next outcome or the hourly reconciliation records it.";
+            return "The database stayed locked, so this write was dropped. Nothing needs doing: a provider reading is recomputed from the events that were recorded, and a dropped outcome is simply missing from the history.";
+        }
+
+        if (text.Contains("database was locked", StringComparison.Ordinal))
+        {
+            return "Another Lingarr task held the database, usually a library sync. Nothing needs doing: the write is retried.";
         }
 
         if (text.Contains("directory not found", StringComparison.Ordinal))

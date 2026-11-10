@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -12,6 +13,7 @@ using Lingarr.Server.Models.ProviderHealth;
 using Lingarr.Server.Services;
 using Lingarr.Server.Services.Plugins;
 using Lingarr.Server.Services.Plugins.Manifests;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -135,6 +137,35 @@ public class ProviderHealthServiceTests
         var snapshot = Assert.Single(database.ProviderHealthSnapshots);
         Assert.Equal(ProviderHealthStates.Healthy, snapshot.State);
         Assert.NotEqual(default, snapshot.EvaluatedAt);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_RefreshesReadingsAfterHousekeeping()
+    {
+        // The InMemory provider has no ExecuteDelete, so retention needs a real database.
+        var path = Path.Combine(Path.GetTempPath(), $"lingarr-health-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<LingarrDbContext>()
+            .UseSqlite($"Data Source={path}")
+            .Options;
+        var database = new LingarrDbContext(options);
+        await database.Database.EnsureCreatedAsync();
+        try
+        {
+            var service = CreateService(database);
+            await service.RecordAsync(Result("success"));
+            database.ChangeTracker.Clear();
+
+            await service.ReconcileAsync();
+
+            var snapshot = Assert.Single(database.ProviderHealthSnapshots);
+            Assert.Equal(ProviderHealthStates.Healthy, snapshot.State);
+        }
+        finally
+        {
+            await database.DisposeAsync();
+            SqliteConnection.ClearAllPools();
+            File.Delete(path);
+        }
     }
 
     private static ProviderOperationalResult Result(

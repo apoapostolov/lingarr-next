@@ -296,17 +296,16 @@ public sealed class ProviderHealthService : IProviderHealthService
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
         var cutoff = DateTime.UtcNow - RetentionWindow;
-        var deleted = await SqliteWriteRetry.TryRunAsync(
+        await SqliteWriteRetry.TryRunAsync(
             token => _dbContext.ProviderOperationalEvents
                 .Where(item => item.OccurredAt < cutoff)
                 .ExecuteDeleteAsync(token),
             _logger,
             "the retention delete of old provider events",
             cancellationToken);
-        if (!deleted)
-        {
-            return;
-        }
+
+        // Retention is housekeeping: a locked delete is retried next hour, and it must not stop the
+        // readings from being refreshed now.
 
         foreach (var plugin in TranslationProviders())
         {
