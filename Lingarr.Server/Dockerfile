@@ -29,10 +29,19 @@ RUN apt-get update \
 # Picture subtitles and captions are converted by tools shipped in the image.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS tools
 ARG TARGETARCH
+# SubtitleEdit is pinned: cloning its default branch means an upstream commit can break this image
+# with no change of ours, which is exactly what happened on 2026-11-20 (seconv moved the Spectre
+# overrides back to protected, and the sed below then made them public overrides). This commit is
+# the last one verified to compile with the toolchain and the rewrite in this stage.
+ARG SUBTITLEEDIT_SHA=6f5642783205b646c7215bc2ec78375907ed7826
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
-    && git clone --depth 1 https://github.com/SubtitleEdit/subtitleedit.git /src/subtitleedit
+    && git init -q /src/subtitleedit \
+    && cd /src/subtitleedit \
+    && git remote add origin https://github.com/SubtitleEdit/subtitleedit.git \
+    && git fetch -q --depth 1 origin "$SUBTITLEEDIT_SHA" \
+    && git checkout -q FETCH_HEAD
 WORKDIR /src/subtitleedit
 # seconv on main overrides Spectre commands as protected; this SDK requires public.
 RUN find src/seconv -name '*.cs' -print0 | xargs -0 sed -i 's/protected override/public override/g'
