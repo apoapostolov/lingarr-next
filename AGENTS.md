@@ -13,8 +13,9 @@ cherry-pick and diff against that upstream, and ship only on this repository.
 | **Official upstream (import only)** | https://github.com/lingarr-translate/lingarr (`upstream`, branch `main`) |
 | **Upstream snapshot** | Commit `5eadc933` (#502). It is not the tip of `main`. |
 | **Active line** | `main` only. Do not recreate `next`. |
-| **Local clone** | `/mnt/c/git-public/lingarr` |
-| **Ops skill** | Hermes `lingarr-local` (`references/bedroom-fork-build.md`) |
+| **Local product clone** | `C:/git-public/lingarr-next` (Bedroom: `/mnt/c/git-public/lingarr-next`) |
+| **Older fork (not a source)** | `C:/git-public/lingarr`, `apoapostolov/lingarr`, branch `next` |
+| **Ops skill** | Hermes `lingarr-next` (`references/sqlite-writer-contention.md`) |
 | **Product proposals** | `docs/` (keep in sync when behaviour changes) |
 | **Current development plan** | `DEVELOPMENT_PLAN.md` (execution state, not product rationale) |
 
@@ -201,6 +202,48 @@ add rules that forbid future providers or capabilities just because Next
 already has a lot of them.
 
 Do not deploy a cherry-pick until its tests have been run.
+
+### Alignment contract
+
+Lingarr Next and upstream Lingarr share history but not a product line. The rule is one-way: upstream is a source of reviewed imports, never a target. A change lands on `main` only when it improves Next without removing a capability Next already ships.
+
+Version numbers are local. Next 1.2.3 is not older than upstream 1.5.0; the two lines are independent. Never move an upstream tag, branch, release number or version string into this repository.
+
+Every upstream commit in a release gets a written verdict before any code is touched. Record it in `DEVELOPMENT_PLAN.md` under the upstream release heading as three columns: upstream PR or SHA, verdict, and reason. The verdict is one of:
+
+- **Take**: the behaviour is missing here and the patch applies without touching a protected file. Cherry-pick with `-x`.
+- **Adapt**: the behaviour is worth having but the patch collides with a Next implementation. Port the server contract into Next's own classes, settings and UI, and keep the upstream SHA in the commit message.
+- **Decline**: Next already has a stronger version, the change is a dependency major Next has not adopted, or it belongs to upstream's product decisions (telemetry, path mapping removal, issue workflows, Pages publishing).
+
+A clean `merge-tree` result is permission to inspect, not permission to merge. Read the diff against current `main` before deciding. One import per coherent behaviour; do not bring a companion UI, migration or dependency change along without its own verdict.
+
+### Protected capabilities
+
+An upstream import must not remove, rename, weaken or replace these with an upstream copy. The canonical file is the one to check before and after the port.
+
+| Capability | Canonical files | Rule |
+|------------|-----------------|------|
+| Translation chain with per-chain model and repeated providers | `Lingarr.Server/Services/Translation/TranslationChain.cs`, `TranslationFactory.cs`, `docs/ai-providers-model-fallback-chain.md` | Keep rich JSON `service_type`, legacy parsing and `IModelOverridable`. Named instances may be added only as an additive layer. |
+| Next-only providers | `Lingarr.Server/Services/Translation/` (`OpenRouterService`, `ZaiService`, `OpenCodeGoService`, `QwenService`, `QwenMtService`, `XaiOAuthTranslationService`, `MistralService`, `DeepSeekService`) | Upstream factory or registry changes must not delete these ids or their registration. `openrouter/free` stays first in the model dropdown. |
+| Provider timeouts and cancellation | `RequestBudget.cs`, `GTranslatorService.cs`, `ProviderCancelRetry.cs`, `docs/provider-timeouts.md` | An upstream retry must fit inside the existing attempt and whole-request budgets. |
+| Source subtitle guard and quality rules | `SourceSubtitleGuard.cs`, `TranslationQualityService.cs` | Structure-based refusal and ruleset 2 stay; no markup-share or plain repetition threshold. |
+| Cancelled progress continuation | `CancelledProgressCache.cs`, `M0033_CacheCancelledProgress.cs` | Keep continuation on cancel, the partial score gate and the ungated Resume button. |
+| Provider health and SQLite contention | `ProviderHealthService.cs`, `SqliteWriteRetry.cs`, `LogHints.cs` | Reads must not write; retries stay SQLite-only; retention stays housekeeping after the readings. |
+| Next subtitle sources | `Lingarr.Server/Services/SubtitleDownload/` (`SubtitleDownloadCatalog.cs` and the SubSource/SubDL flow) | Upstream source selection must not replace the paced provider flow or refusal reporting. |
+| Embedded subtitle extraction | `Lingarr.Server/Services/Subtitle/EmbeddedSubtitleExtractor.cs`, `NonTextSubtitlePolicy.cs`, `SsaParser.cs` | An upstream ffmpeg extractor may complement, never overwrite, the existing parser and naming rules. |
+| Prompt and instruction profiles | `TranslationPromptProfileService.cs`, `PromptProfileEditor.vue`, `ProofreadPrompts.cs` | Per-request templates and profiles outrank an upstream global prompt setting. |
+| Toolchain pins | `Lingarr.Client/package.json`, `.github/dependabot.yml`, `Directory.Packages.props` | `vue-tsc` stays exactly `3.3.11`; TypeScript 7.x stays ignored until a stable checker exists. No GitHub Pages workflow. |
+
+When an import touches a protected file, the PR must name the capability and show a test that still passes. When upstream and Next solve the same problem differently, Next's behaviour wins unless a product decision says otherwise.
+
+### Validation for an import
+
+1. Narrow tests for the ported behaviour, with real output pasted into the handoff.
+2. Full server suite, compared with the documented baseline in `DEVELOPMENT_PLAN.md`. Known Windows-only `PluginToolTests` failures are not a regression; any other failure is.
+3. Client type-check and build with the pinned checker. Migration tests need Docker and otherwise fail with `DockerUnavailableException`.
+4. New migrations number above the highest existing migration and never reuse upstream numbers. New setting keys are seeded without overwriting a value a user already set.
+5. `CHANGELOG.md`, `DEVELOPMENT_PLAN.md` (including the upstream verdict table) and any affected `docs/` proposal change in the same PR.
+6. Wait for CodeRabbit, Greptile and Sourcery after CI goes green, and read comments created after the last push, before merging. Deploy to Bedroom only after the merge.
 
 ## User-facing response strings
 

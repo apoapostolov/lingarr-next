@@ -16,6 +16,7 @@ public class M0006_AddTranslationRequestMediaId : Migration
 
     public override void Down()
     {
-        Delete.Column("media_id").FromTable("translation_requests");
+        // media_id is part of the request identity: dropping it on rollback would orphan
+        // translation history. Upstream 1.5.0 keeps the column for the same reason.
     }
 }

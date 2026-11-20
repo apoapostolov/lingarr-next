@@ -146,6 +146,18 @@ public interface ITranslationRequestService
         string? jobId = null);
 
     /// <summary>
+    /// Marks a translation request as Failed, stores the error and logs a Failed event.
+    /// </summary>
+    /// <param name="translationRequest">The request that failed</param>
+    /// <param name="exception">The cause, stored as error message and stack trace</param>
+    /// <param name="jobId">The ID of the associated Hangfire job, if any</param>
+    /// <returns>The updated translation request</returns>
+    Task<TranslationRequest> FailTranslationRequest(
+        TranslationRequest translationRequest,
+        Exception exception,
+        string? jobId = null);
+
+    /// <summary>
     /// Translate subtitle content without using jobs, Used for other Apps API Intergration (ex. Bazarr).
     /// </summary>
     /// <param name="translateAbleContent">The translation to translate</param>
