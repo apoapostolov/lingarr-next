@@ -9,8 +9,12 @@ on:
   workflow_dispatch:
 
 concurrency:
+  # A release can reach this workflow twice, once from the tag push and once from
+  # release: published, and both carry the tag as their ref. Cancelling the older run
+  # keeps one build per tag instead of two that queue behind each other and push the
+  # same image name twice.
   group: ghcr-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-push:
