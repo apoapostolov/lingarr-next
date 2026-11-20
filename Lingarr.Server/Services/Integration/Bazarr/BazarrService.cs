@@ -124,7 +124,7 @@ public class BazarrService : IBazarrService
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(PollDelay, cancellationToken);
             var found = await _shelf.FilterCaptionsAsync(await _subtitles.GetSubtitles(media.Path, media.FileName));
-            if (_subtitles.SelectSourceSubtitle(found, sourceLanguages.ToHashSet(), "false") != null)
+            if (_subtitles.SelectSourceSubtitle(found, sourceLanguages.ToList(), "false") != null)
             {
                 _logger.LogInformation("Bazarr saved a source subtitle for {File}.", media.FileName);
                 return true;

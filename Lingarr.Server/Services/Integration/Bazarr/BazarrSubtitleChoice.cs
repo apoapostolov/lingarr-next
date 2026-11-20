@@ -27,9 +27,9 @@ public static class BazarrSubtitleChoice
             .FirstOrDefault();
     }
 
-    public static bool LanguageMatches(string? language, IReadOnlySet<string> sourceLanguages)
+    public static bool LanguageMatches(string? language, IEnumerable<string> sourceLanguages)
     {
-        if (string.IsNullOrWhiteSpace(language) || sourceLanguages.Count == 0)
+        if (string.IsNullOrWhiteSpace(language) || !sourceLanguages.Any())
         {
             return false;
         }

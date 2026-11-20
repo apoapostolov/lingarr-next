@@ -5,7 +5,7 @@ public static class BazarrSourceOrder
     public static bool ExtractFirst(string? value) =>
         !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
 
-    public static bool SourceIncludesEnglish(IReadOnlySet<string> sourceLanguages) =>
+    public static bool SourceIncludesEnglish(IEnumerable<string> sourceLanguages) =>
         sourceLanguages.Any(code =>
         {
             var token = code.Trim().ToLowerInvariant();

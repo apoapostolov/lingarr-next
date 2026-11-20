@@ -62,9 +62,9 @@ public abstract class MediaSubtitleProcessorTestBase : IDisposable
         SubtitleServiceMock
             .Setup(s => s.SelectSourceSubtitle(
                 It.IsAny<List<Subtitles>>(),
-                It.IsAny<HashSet<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<string>()))
-            .Returns((List<Subtitles> subs, HashSet<string> sources, string ignoreCaptions) =>
+            .Returns((List<Subtitles> subs, IReadOnlyList<string> sources, string ignoreCaptions) =>
             {
                 var candidates = subs.Where(s => sources.Contains(s.Language)).ToList();
                 if (!candidates.Any()) return null;
@@ -87,6 +87,18 @@ public abstract class MediaSubtitleProcessorTestBase : IDisposable
                     AvailableLanguages = subs.Select(s => s.Language).ToHashSet()
                 };
             });
+
+        SubtitleServiceMock
+            .Setup(s => s.TargetSubtitleExists(
+                It.IsAny<List<Subtitles>>(),
+                It.IsAny<string>(),
+                It.IsAny<Subtitles>(),
+                It.IsAny<bool>()))
+            .Returns((List<Subtitles> all, string language, Subtitles source, bool ignoreCaptions) =>
+                all.Any(s => s.Language.Equals(language, StringComparison.OrdinalIgnoreCase)
+                    && Lingarr.Server.Services.SubtitleDownload.SubtitleBytes.IsUsableSidecar(s.Path, s.Language)
+                    && (ignoreCaptions
+                        || string.Equals(s.Caption, source.Caption, StringComparison.OrdinalIgnoreCase))));
 
         var bazarr = new Mock<IBazarrService>();
         bazarr

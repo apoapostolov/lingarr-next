@@ -84,7 +84,7 @@ upstream reference only. The alignment contract in `AGENTS.md` owns the rule.
 | `b096c199` | Declined | Re-pins that image to `latest`, undoing the pin. |
 | #598 `ad376e53` | Declined | NuGet versions already superseded by fork bump #6. |
 | #595 `869de884` | Deferred | Claude 5.5 batch and structured output need an adapted port; raw patch conflicts and its test needs fork settings. |
-| #602 `2199288f` | Deferred | Split port. Ordering and first-target-only conflict with the fork's tier-first selector and SubSource/SubDL download flow. |
+| #602 `2199288f` | Taken, adapted | Ordered language lists, order as a tier tiebreak, draggable chips and a first-target gate that also limits the downloader. Tier-first selection and usable-sidecar checks stay. |
 | #601 `2f3efbc1` | Deferred | Follows #595; parse-retry must fit the fork's provider budgets. |
 | #603 `c5e3206b` | Split | Encryption, queue errors, parser selection and small UI fixes evaluated; AI half deferred with the other batch changes. |
 | #604 `4879125f` | Split / declined wholesale | Fork extractor is a superset. Stream-language aliases, dispositions and a failure cap are worth grafting; ffmpeg download, SharpCompress, duplicate toggle and UI are not. |
@@ -93,7 +93,7 @@ upstream reference only. The alignment contract in `AGENTS.md` owns the rule.
 | `8f49d5f4` | Declined | Fork commit 68f6d07 already ignores TypeScript 7.x and vue-tsc 3.3.x. |
 | #613 `849198fc` | Declined | Requires the deleted `docs.yml` and a released `openapi.json` asset; this fork publishes no Pages. |
 | #612 `b5eb56d1` | Declined wholesale | 36 conflicting paths, deletes `service_type` and startup hooks, reuses migration 26 and would overwrite per-entry prompt profiles. `ClearMediaHash` taken as a standalone fix. |
-| #614 `6070b62f` | Deferred | Only meaningful after #602's chip markup; drag outline is a pure UI port. |
+| #614 `6070b62f` | Taken, adapted | Drag handlers and drop outline applied to the fork's chip markup. |
 | #615 `fa277b61` | Deferred | Missing-position retry changes the fork's source-line fallback; needs a budget decision. |
 | #616 `1d451c69` | Deferred | Test-only companion to #615. |
 

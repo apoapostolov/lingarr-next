@@ -52,10 +52,18 @@ public class TranslationRequestServiceBulkTests : IDisposable
         _subtitleServiceMock
             .Setup(s => s.SelectSourceSubtitle(
                 It.IsAny<List<Subtitles>>(),
-                It.IsAny<HashSet<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<string>()))
-            .Returns((List<Subtitles> subs, HashSet<string> sources, string ignoreCaptions) =>
+            .Returns((List<Subtitles> subs, IReadOnlyList<string> sources, string ignoreCaptions) =>
                 subtitleService.SelectSourceSubtitle(subs, sources, ignoreCaptions));
+        _subtitleServiceMock
+            .Setup(s => s.TargetSubtitleExists(
+                It.IsAny<List<Subtitles>>(),
+                It.IsAny<string>(),
+                It.IsAny<Subtitles>(),
+                It.IsAny<bool>()))
+            .Returns((List<Subtitles> subs, string language, Subtitles source, bool ignoreCaptions) =>
+                subtitleService.TargetSubtitleExists(subs, language, source, ignoreCaptions));
 
         _translationRequestService = new TranslationRequestService(
             _dbContext,

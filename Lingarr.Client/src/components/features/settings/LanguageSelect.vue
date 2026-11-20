@@ -10,10 +10,22 @@
                     v-for="(item, index) in selectedItems"
                     :key="`${item.code}-${index}`"
                     :data-key="`${item.code}-${index}`"
-                    class="flex cursor-pointer items-center rounded-md bg-accent px-3 py-1 text-sm font-medium text-secondary-content"
-                    @click.stop="removeItem(item)">
-                    <span class="mr-2 text-accent-content">{{ item.name }}</span>
-                    <TimesIcon class="mt-0.5 h-4 w-4" />
+                    draggable="true"
+                    class="flex cursor-grab items-center rounded-md bg-accent px-3 py-1 text-sm font-medium text-secondary-content transition-all duration-150 active:cursor-grabbing"
+                    :class="{
+                        'opacity-50': draggedIndex === index,
+                        'ring-2 ring-accent ring-offset-2 ring-offset-primary':
+                            dropTargetIndex === index && draggedIndex !== index
+                    }"
+                    @click.stop="removeItem(item)"
+                    @dragstart="startDrag($event, index)"
+                    @dragover.prevent="dropTargetIndex = index"
+                    @dragleave="leaveDropTarget(index)"
+                    @drop.prevent.stop="dropItem(index)"
+                    @dragend="endDrag">
+                    <span class="pointer-events-none mr-2 text-accent-content">{{ index + 1 }}.</span>
+                    <span class="pointer-events-none mr-2 text-accent-content">{{ item.name }}</span>
+                    <TimesIcon class="pointer-events-none mt-0.5 h-4 w-4" />
                 </span>
             </div>
             <CaretRightIcon
@@ -79,6 +91,8 @@ const selectedItems: Ref<ILanguage[]> = ref(selected)
 const clickOutside: Ref<HTMLElement | undefined> = ref()
 const excludeClickOutside: Ref<HTMLElement | undefined> = ref()
 const searchTerm: Ref<string> = ref('')
+const draggedIndex: Ref<number | null> = ref(null)
+const dropTargetIndex: Ref<number | null> = ref(null)
 
 const filteredLanguages = computed(() => {
     return options
@@ -124,6 +138,38 @@ const removeItem = (item: ILanguage) => {
         selectedItems.value.splice(index, 1)
         emit('update:selected', selectedItems.value)
     }
+}
+
+const startDrag = (event: DragEvent, index: number) => {
+    draggedIndex.value = index
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', selectedItems.value[index].code)
+    }
+}
+
+const leaveDropTarget = (index: number) => {
+    if (dropTargetIndex.value === index) {
+        dropTargetIndex.value = null
+    }
+}
+
+const endDrag = () => {
+    draggedIndex.value = null
+    dropTargetIndex.value = null
+}
+
+const dropItem = (targetIndex: number) => {
+    const sourceIndex = draggedIndex.value
+    endDrag()
+    if (sourceIndex === null || sourceIndex === targetIndex) {
+        return
+    }
+    const reorderedItems = [...selectedItems.value]
+    const [movedLanguage] = reorderedItems.splice(sourceIndex, 1)
+    reorderedItems.splice(targetIndex, 0, movedLanguage)
+    selectedItems.value = reorderedItems
+    emit('update:selected', reorderedItems)
 }
 
 const isSelected = (item: ILanguage) => {

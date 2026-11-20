@@ -660,7 +660,7 @@ public class SubtitleService : ISubtitleService
     /// <inheritdoc />
     public SelectedSourceSubtitle? SelectSourceSubtitle(
         List<Subtitles> matchingSubtitles,
-        HashSet<string> sourceCodes,
+        IReadOnlyList<string> sourceCodes,
         string ignoreCaptions)
     {
         var usable = matchingSubtitles
@@ -671,12 +671,18 @@ public class SubtitleService : ISubtitleService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         LanguageMatch? bestMatch = null;
-        foreach (var sourceCode in sourceCodes)
+        var bestPosition = int.MaxValue;
+        for (var position = 0; position < sourceCodes.Count; position++)
         {
-            var match = _languageCodeService.GetBestMatch(sourceCode, availableLanguages);
-            if (match != null && (bestMatch == null || match.Tier < bestMatch.Tier))
+            var match = _languageCodeService.GetBestMatch(sourceCodes[position], availableLanguages);
+            // Match quality outranks list order. Order only breaks a tie, so a configured
+            // preference never turns an exact match into a script-equivalent or OCR source.
+            if (match != null && (bestMatch == null
+                || match.Tier < bestMatch.Tier
+                || (match.Tier == bestMatch.Tier && position < bestPosition)))
             {
                 bestMatch = match;
+                bestPosition = position;
             }
         }
 
@@ -707,6 +713,20 @@ public class SubtitleService : ISubtitleService
             SourceLanguage = sourceLanguage,
             AvailableLanguages = availableLanguages
         };
+    }
+
+    /// <inheritdoc />
+    public bool TargetSubtitleExists(
+        List<Subtitles> subtitles,
+        string targetLanguage,
+        Subtitles sourceSubtitle,
+        bool ignoreCaptions)
+    {
+        return subtitles.Any(subtitle =>
+            subtitle.Language.Equals(targetLanguage, StringComparison.OrdinalIgnoreCase)
+            && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language)
+            && (ignoreCaptions
+                || string.Equals(subtitle.Caption, sourceSubtitle.Caption, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
