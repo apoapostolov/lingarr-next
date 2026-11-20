@@ -19,6 +19,7 @@ public static class SettingKeys
         Translation.XaiOAuth.AccessToken,
         Translation.XaiOAuth.RefreshToken,
         Translation.DeepL.DeeplApiKey,
+        Translation.Mistral.ApiKey,
         Translation.LibreTranslate.ApiKey,
         Translation.LocalAi.ApiKey,
         MediaServers.PlexToken,

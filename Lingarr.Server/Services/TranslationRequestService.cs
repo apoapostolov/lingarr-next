@@ -626,7 +626,7 @@ public class TranslationRequestService : ITranslationRequestService
             return null;
         }
 
-        await ClearMediaHash(translationRequest);
+        await ClearMediaHash(translationRequest, save: false);
         _dbContext.TranslationRequests.Remove(translationRequest);
         await _dbContext.SaveChangesAsync();
         
@@ -725,7 +725,17 @@ public class TranslationRequestService : ITranslationRequestService
         Exception exception,
         string? jobId = null)
     {
-        var request = await UpdateTranslationRequest(translationRequest, TranslationStatus.Failed, jobId);
+        var request = await _dbContext.TranslationRequests.FindAsync(translationRequest.Id);
+        if (request == null)
+        {
+            throw new NotFoundException($"TranslationRequest with ID {translationRequest.Id} not found.");
+        }
+
+        if (jobId != null)
+        {
+            request.JobId = jobId;
+        }
+        request.Status = TranslationStatus.Failed;
         request.ErrorMessage = exception.Message;
         request.StackTrace = exception.ToString();
         await _dbContext.SaveChangesAsync();
@@ -742,12 +752,22 @@ public class TranslationRequestService : ITranslationRequestService
         try
         {
             var jobId = _backgroundJobClient.Enqueue(job);
-            await UpdateTranslationRequest(request, TranslationStatus.Pending, jobId);
+
+            // The worker can start before this write lands. Store the id but never move a
+            // request that has already progressed back to Pending.
+            var stored = await _dbContext.TranslationRequests.FindAsync(request.Id);
+            if (stored == null)
+            {
+                throw new NotFoundException($"TranslationRequest with ID {request.Id} not found.");
+            }
+            stored.JobId = jobId;
+            await _dbContext.SaveChangesAsync();
             return jobId;
         }
         catch (BackgroundJobClientException ex)
         {
             await FailTranslationRequest(request, ex.GetBaseException());
+            await UpdateActiveCount();
             throw;
         }
     }
@@ -912,7 +932,7 @@ public class TranslationRequestService : ITranslationRequestService
     }
 
     /// <inheritdoc />
-    public async Task ClearMediaHash(TranslationRequest translationRequest)
+    public async Task ClearMediaHash(TranslationRequest translationRequest, bool save = true)
     {
         if (translationRequest.MediaId.HasValue)
         {
@@ -934,7 +954,10 @@ public class TranslationRequestService : ITranslationRequestService
                     }
                     break;
             }
-            await _dbContext.SaveChangesAsync();
+            if (save)
+            {
+                await _dbContext.SaveChangesAsync();
+            }
         }
     }
 

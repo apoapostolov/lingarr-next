@@ -130,7 +130,7 @@ public interface ITranslationRequestService
     /// </summary>
     /// <param name="translationRequest">The translation request containing media information</param>
     /// <returns>A task representing the asynchronous operation</returns>
-    Task ClearMediaHash(TranslationRequest translationRequest);
+    Task ClearMediaHash(TranslationRequest translationRequest, bool save = true);
 
     /// <summary>
     /// Updates the status and job ID of an existing translation request.
