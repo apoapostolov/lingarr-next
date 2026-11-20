@@ -43,7 +43,7 @@
             <div class="pointer-events-none h-64 w-full">
                 <img
                     v-if="instanceStore.getPoster"
-                    :src="`/api/image/${instanceStore.getPoster}`"
+                    :src="resolveUrl(`/api/image/${instanceStore.getPoster}`)"
                     class="mask-gradient h-full w-full object-cover"
                     alt="poster" />
                 <div
@@ -82,6 +82,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useInstanceStore } from '@/store/instance'
 import { useTranslationRequestStore } from '@/store/translationRequest'
 import { MenuItem } from '@/ts'
+import { resolveUrl } from '@/utils/baseUrl'
 import HomeIcon from '@/components/icons/HomeIcon.vue'
 import MovieIcon from '@/components/icons/MovieIcon.vue'
 import ShowIcon from '@/components/icons/ShowIcon.vue'

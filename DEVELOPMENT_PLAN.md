@@ -72,6 +72,35 @@ transcript. Completed work belongs in the changelog or a dated development log.
 - Resolve or close the remaining old PR anchors before deleting their branches:
   content API paths and the obsolete request-timeout PR.
 
+## Upstream 1.5.0 import decisions
+
+Every commit in upstream `1.4.1..1.5.0` (16 commits, 143 files, release published
+20 Nov 2026) has a verdict. Next keeps its own release line; these numbers are
+upstream reference only. The alignment contract in `AGENTS.md` owns the rule.
+
+| Upstream PR / SHA | Verdict | Reason and handling |
+|-------------------|---------|---------------------|
+| #589 `57a6d9c4` | Taken | Cherry-picked. phpMyAdmin dev image 5.0.1 to 5.2.3; dev-only. |
+| `b096c199` | Declined | Re-pins that image to `latest`, undoing the pin. |
+| #598 `ad376e53` | Declined | NuGet versions already superseded by fork bump #6. |
+| #595 `869de884` | Deferred | Claude 5.5 batch and structured output need an adapted port; raw patch conflicts and its test needs fork settings. |
+| #602 `2199288f` | Deferred | Split port. Ordering and first-target-only conflict with the fork's tier-first selector and SubSource/SubDL download flow. |
+| #601 `2f3efbc1` | Deferred | Follows #595; parse-retry must fit the fork's provider budgets. |
+| #603 `c5e3206b` | Split | Encryption, queue errors, parser selection and small UI fixes evaluated; AI half deferred with the other batch changes. |
+| #604 `4879125f` | Split / declined wholesale | Fork extractor is a superset. Stream-language aliases, dispositions and a failure cap are worth grafting; ffmpeg download, SharpCompress, duplicate toggle and UI are not. |
+| #605 `18f41f9f` | Taken, adapted | `follow-redirects` moved to 1.16.2 in `package-lock.json` for credential-header redirect advisories. |
+| #606 `a75a199b` | Taken, adapted | `FailTranslationRequest` and `EnqueueJob`; a failed enqueue no longer leaves a request Pending with no job. |
+| `8f49d5f4` | Declined | Fork commit 68f6d07 already ignores TypeScript 7.x and vue-tsc 3.3.x. |
+| #613 `849198fc` | Declined | Requires the deleted `docs.yml` and a released `openapi.json` asset; this fork publishes no Pages. |
+| #612 `b5eb56d1` | Declined wholesale | 36 conflicting paths, deletes `service_type` and startup hooks, reuses migration 26 and would overwrite per-entry prompt profiles. `ClearMediaHash` taken as a standalone fix. |
+| #614 `6070b62f` | Deferred | Only meaningful after #602's chip markup; drag outline is a pure UI port. |
+| #615 `fa277b61` | Deferred | Missing-position retry changes the fork's source-line fallback; needs a budget decision. |
+| #616 `1d451c69` | Deferred | Test-only companion to #615. |
+
+Deferred means the behaviour is wanted but needs its own reviewed change with the
+fork's protected capabilities intact. No upstream tag, version number or Pages
+workflow moves into this repository.
+
 ## Definition of done
 
 - The requested behavior exists in its canonical owner.

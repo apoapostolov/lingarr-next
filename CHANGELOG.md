@@ -7,6 +7,18 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+- API keys and Plex tokens written from environment variables are now encrypted before they are
+  stored, and the cached setting is cleared so the encrypted value is used immediately. An
+  existing plaintext key is migrated on startup instead of being left in clear text (upstream
+  #603, adapted).
+- A failed job enqueue now marks the translation request Failed with the cause instead of leaving
+  it Pending with no job, and both job paths share one failure recorder (upstream #606, adapted).
+- `follow-redirects` is updated to 1.16.2 so credential headers do not survive cross-origin
+  redirects (upstream #605).
+- Dev compose uses the official phpMyAdmin 5.2.3 image. Store filters reset their page number
+  correctly, side-navigation posters respect a configured base path, and deleting a request clears
+  its media hash (upstream #589, #603 and #612).
+
 ## [1.2.3] - 2026-11-20 — Gentle Sources
 
 Subtitle acquisition can now fetch from SubSource and SubDL, and both providers keep to the

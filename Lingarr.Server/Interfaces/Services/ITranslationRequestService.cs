@@ -130,7 +130,7 @@ public interface ITranslationRequestService
     /// </summary>
     /// <param name="translationRequest">The translation request containing media information</param>
     /// <returns>A task representing the asynchronous operation</returns>
-    Task ClearMediaHash(TranslationRequest translationRequest);
+    Task ClearMediaHash(TranslationRequest translationRequest, bool save = true);
 
     /// <summary>
     /// Updates the status and job ID of an existing translation request.
@@ -143,6 +143,18 @@ public interface ITranslationRequestService
     Task<TranslationRequest> UpdateTranslationRequest(
         TranslationRequest translationRequest,
         TranslationStatus status,
+        string? jobId = null);
+
+    /// <summary>
+    /// Marks a translation request as Failed, stores the error and logs a Failed event.
+    /// </summary>
+    /// <param name="translationRequest">The request that failed</param>
+    /// <param name="exception">The cause, stored as error message and stack trace</param>
+    /// <param name="jobId">The ID of the associated Hangfire job, if any</param>
+    /// <returns>The updated translation request</returns>
+    Task<TranslationRequest> FailTranslationRequest(
+        TranslationRequest translationRequest,
+        Exception exception,
         string? jobId = null);
 
     /// <summary>

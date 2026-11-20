@@ -21,6 +21,7 @@ using Lingarr.Server.Services.Subtitle;
 using Lingarr.Server.Services.SubtitleDownload;
 using Lingarr.Server.Services.Translation;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -204,10 +205,8 @@ public class TranslationRequestService : ITranslationRequestService
         await _dbContext.SaveChangesAsync();
         await _eventService.LogEvent(translationRequestCopy.Id, TranslationStatus.Pending);
 
-        var jobId = _backgroundJobClient.Enqueue<TranslationJob>(job =>
-            job.Execute(translationRequestCopy, CancellationToken.None)
-        );
-        await UpdateTranslationRequest(translationRequestCopy, TranslationStatus.Pending, jobId);
+        await EnqueueJob<TranslationJob>(translationRequestCopy, job =>
+            job.Execute(translationRequestCopy, CancellationToken.None));
 
         await UpdateActiveCount();
 
@@ -626,7 +625,8 @@ public class TranslationRequestService : ITranslationRequestService
         {
             return null;
         }
-        
+
+        await ClearMediaHash(translationRequest, save: false);
         _dbContext.TranslationRequests.Remove(translationRequest);
         await _dbContext.SaveChangesAsync();
         
@@ -679,9 +679,8 @@ public class TranslationRequestService : ITranslationRequestService
         await _dbContext.SaveChangesAsync();
         await _eventService.LogEvent(translationRequest.Id, TranslationStatus.Pending, "Resumed");
 
-        var jobId = _backgroundJobClient.Enqueue<TranslationJob>(job =>
+        var jobId = await EnqueueJob<TranslationJob>(translationRequest, job =>
             job.Execute(translationRequest, CancellationToken.None));
-        await UpdateTranslationRequest(translationRequest, TranslationStatus.Pending, jobId);
         await UpdateActiveCount();
 
         return $"Translation request with id {resumeRequest.Id} has been resumed, new job id {jobId}";
@@ -713,14 +712,66 @@ public class TranslationRequestService : ITranslationRequestService
         await _dbContext.SaveChangesAsync();
         await _eventService.LogEvent(translationRequest.Id, TranslationStatus.Pending, "AI revision queued");
 
-        var jobId = _backgroundJobClient.Enqueue<ProofreadJob>(job =>
+        await EnqueueJob<ProofreadJob>(translationRequest, job =>
             job.Execute(translationRequest, CancellationToken.None));
-        await UpdateTranslationRequest(translationRequest, TranslationStatus.Pending, jobId);
         await UpdateActiveCount();
 
         return $"AI revision queued for request {translationRequest.Id}";
     }
     
+    /// <inheritdoc />
+    public async Task<TranslationRequest> FailTranslationRequest(
+        TranslationRequest translationRequest,
+        Exception exception,
+        string? jobId = null)
+    {
+        var request = await _dbContext.TranslationRequests.FindAsync(translationRequest.Id);
+        if (request == null)
+        {
+            throw new NotFoundException($"TranslationRequest with ID {translationRequest.Id} not found.");
+        }
+
+        if (jobId != null)
+        {
+            request.JobId = jobId;
+        }
+        request.Status = TranslationStatus.Failed;
+        request.ErrorMessage = exception.Message;
+        request.StackTrace = exception.ToString();
+        await _dbContext.SaveChangesAsync();
+        await _eventService.LogEvent(request.Id, TranslationStatus.Failed, exception.Message);
+        return request;
+    }
+
+    /// <summary>
+    /// Enqueues a job for a request and stores its id. When Hangfire cannot create the job the
+    /// request is marked Failed with the cause, so it never stays Pending without a job.
+    /// </summary>
+    private async Task<string> EnqueueJob<TJob>(TranslationRequest request, Expression<Func<TJob, Task>> job)
+    {
+        try
+        {
+            var jobId = _backgroundJobClient.Enqueue(job);
+
+            // The worker can start before this write lands. Store the id but never move a
+            // request that has already progressed back to Pending.
+            var stored = await _dbContext.TranslationRequests.FindAsync(request.Id);
+            if (stored == null)
+            {
+                throw new NotFoundException($"TranslationRequest with ID {request.Id} not found.");
+            }
+            stored.JobId = jobId;
+            await _dbContext.SaveChangesAsync();
+            return jobId;
+        }
+        catch (BackgroundJobClientException ex)
+        {
+            await FailTranslationRequest(request, ex.GetBaseException());
+            await UpdateActiveCount();
+            throw;
+        }
+    }
+
     /// <inheritdoc />
     public async Task<TranslationRequest> UpdateTranslationRequest(TranslationRequest translationRequest,
         TranslationStatus status, string? jobId = null)
@@ -778,10 +829,8 @@ public class TranslationRequestService : ITranslationRequestService
                     queuedJobId, request.Id);
             }
 
-            var jobId = _backgroundJobClient.Enqueue<TranslationJob>(job =>
-                job.Execute(request, CancellationToken.None)
-            );
-            await UpdateTranslationRequest(request, TranslationStatus.Pending, jobId);
+            await EnqueueJob<TranslationJob>(request, job =>
+                job.Execute(request, CancellationToken.None));
         }
     }
     
@@ -883,7 +932,7 @@ public class TranslationRequestService : ITranslationRequestService
     }
 
     /// <inheritdoc />
-    public async Task ClearMediaHash(TranslationRequest translationRequest)
+    public async Task ClearMediaHash(TranslationRequest translationRequest, bool save = true)
     {
         if (translationRequest.MediaId.HasValue)
         {
@@ -905,7 +954,10 @@ public class TranslationRequestService : ITranslationRequestService
                     }
                     break;
             }
-            await _dbContext.SaveChangesAsync();
+            if (save)
+            {
+                await _dbContext.SaveChangesAsync();
+            }
         }
     }
 

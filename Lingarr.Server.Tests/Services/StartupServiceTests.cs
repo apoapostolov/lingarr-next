@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 using Lingarr.Core.Configuration;
 using Lingarr.Core.Data;
 using Lingarr.Core.Entities;
+using Lingarr.Server.Interfaces.Services;
 using Lingarr.Server.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -189,12 +191,40 @@ public class StartupServiceTests : IDisposable
         }
     }
 
-    private static IServiceProvider BuildProvider()
+    [Fact]
+    public async Task ApplySettingsFromEnvironment_EncryptsApiKeysFromEnvironment()
+    {
+        Environment.SetEnvironmentVariable("OPENAI_API_KEY", "plain-key");
+
+        var serviceProvider = BuildProvider(new PrefixEncryptionService());
+        var startupService = new StartupService(serviceProvider, NullLogger<StartupService>.Instance);
+        await startupService.StartAsync(CancellationToken.None);
+
+        Assert.Equal("enc:plain-key", await GetSettingValue(serviceProvider, SettingKeys.Translation.OpenAi.ApiKey));
+    }
+
+    private sealed class PassthroughEncryptionService : IEncryptionService
+    {
+        public string Encrypt(string value) => value;
+        public string Decrypt(string value) => value;
+        public bool IsEncrypted(string value) => false;
+    }
+
+    private sealed class PrefixEncryptionService : IEncryptionService
+    {
+        public string Encrypt(string value) => $"enc:{value}";
+        public string Decrypt(string value) => value.StartsWith("enc:") ? value[4..] : value;
+        public bool IsEncrypted(string value) => value.StartsWith("enc:");
+    }
+
+    private static IServiceProvider BuildProvider(IEncryptionService? encryptionService = null)
     {
         var databaseName = Guid.NewGuid().ToString();
         var services = new ServiceCollection();
         services.AddDbContext<LingarrDbContext>(options =>
             options.UseInMemoryDatabase(databaseName));
+        services.AddSingleton(encryptionService ?? new PassthroughEncryptionService());
+        services.AddMemoryCache();
 
         var serviceProvider = services.BuildServiceProvider();
 

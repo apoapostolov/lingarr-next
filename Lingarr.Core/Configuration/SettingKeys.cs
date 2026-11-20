@@ -2,6 +2,29 @@
 
 public static class SettingKeys
 {
+    public static readonly string[] EncryptedKeys =
+    [
+        Authentication.ApiKey,
+        Integration.RadarrApiKey,
+        Integration.SonarrApiKey,
+        Translation.OpenAi.ApiKey,
+        Translation.Anthropic.ApiKey,
+        Translation.Gemini.ApiKey,
+        Translation.DeepSeek.ApiKey,
+        Translation.OpenRouter.ApiKey,
+        Translation.Zai.ApiKey,
+        Translation.OpenCodeGo.ApiKey,
+        Translation.Qwen.ApiKey,
+        Translation.Xai.ApiKey,
+        Translation.XaiOAuth.AccessToken,
+        Translation.XaiOAuth.RefreshToken,
+        Translation.DeepL.DeeplApiKey,
+        Translation.Mistral.ApiKey,
+        Translation.LibreTranslate.ApiKey,
+        Translation.LocalAi.ApiKey,
+        MediaServers.PlexToken,
+    ];
+
     public static class Dashboard
     {
         public const string ActivityWindowHours = "dashboard_activity_window_hours";
