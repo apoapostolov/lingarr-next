@@ -5,7 +5,11 @@ All notable changes to Lingarr Next are documented here.
 Lingarr Next uses an independent version line. Its versions are not intended
 to sort before or after versions published by upstream Lingarr.
 
-## [Unreleased]
+## [1.2.4] - 2026-11-20 — Language Priority
+
+Language order is now respected, environment-provided credentials are encrypted, and a failed job
+enqueue no longer leaves a request stuck. These are selective imports from upstream 1.5.0, adapted
+to keep Lingarr Next’s broader provider and subtitle-source work intact.
 
 - Source and target languages now keep their configured order on the server. The order breaks ties
   between equally good language matches; a better match still wins. Dragging a language in Settings
@@ -634,6 +638,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.4
 [1.2.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.3
 [1.2.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2
 [1.2.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1

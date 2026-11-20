@@ -35,7 +35,7 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.2.2](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2).
+Current release: [1.2.4](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.4).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
 
 ### 1.2.2 — Clean Source (2026-11-03)
