@@ -7,6 +7,30 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-20 — Gentle Sources
+
+Subtitle acquisition can now fetch from SubSource and SubDL, and both providers keep to the
+rates the services publish instead of spending a day's allowance in a minute.
+
+- SubSource downloads work again. The provider was asked with a title instead of the numeric
+  movie id, the language as `en` instead of `english`, the key in the query string instead of
+  the `X-API-Key` header, and the code then looked for a download URL in a listing row that
+  carries none. It now resolves the title to an id, lists the subtitles, and downloads the
+  chosen one, unpacking the zip it returns.
+- SubDL downloads the episode that was asked for. The search requests unpacked files and
+  selects the entry whose own season and episode match, where it used to take the first URL,
+  which is a whole-season archive.
+- A subtitle is never placed for the wrong episode. A SubSource listing row is accepted only
+  when one of its release names parses to the wanted `SxxExx`, and a row naming a different
+  episode is dropped rather than scored.
+- Both providers are paced. A shared pacer holds a minimum interval with jitter, daily request
+  and download budgets, the SubSource rate-limit remainders, `Retry-After` on 429 and doubling
+  cooldowns on 5xx. A provider that is finished for the day or cooling down is skipped with one
+  log line, so the chain moves to the next provider instead of failing the sweep.
+- A refused subtitle provider now shows up. A 429, 401, 403 or 5xx records a provider
+  operational event with its family and whether it is worth retrying, where a rate limit used to
+  be invisible on the providers page.
+
 - The provider health panel no longer writes while it reads. A dashboard poll computes the state
   from the recorded events and leaves the stored reading to the event that changes it or the
   hourly reconciliation, so a library sync holding the database writer cannot stall the panel.
@@ -591,6 +615,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.3
 [1.2.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2
 [1.2.1]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.1
 [1.2.0]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.0

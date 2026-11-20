@@ -22,8 +22,8 @@ transcript. Completed work belongs in the changelog or a dated development log.
 
 ## Current state
 
-- **Released:** Lingarr Next 1.2.2, “Clean Source”.
-- **main:** the only long-lived branch, and the Lingarr Next 1.2.2 product
+- **Released:** Lingarr Next 1.2.3, “Gentle Sources”.
+- **main:** the only long-lived branch, and the Lingarr Next 1.2.3 product
   line. Do not recreate `next`. Do not merge `upstream/main` into `main`.
   Upstream #502 (`5eadc933`) is an old snapshot and is not the branch tip.
   The daily check uses Plex, Radarr, and Sonarr and does not walk every
@@ -42,14 +42,18 @@ transcript. Completed work belongs in the changelog or a dated development log.
   workflow deletion, and the Dependabot trains. Remaining 1.3.0 majors
   (Pinia 4, Node 26 types, Tailwind range, oxlint/oxfmt) are still skipped.
 - **Protected line:** `main`.
-- **Validation baseline:** 637 server tests, of which 635 pass on Windows. The
+- **Validation baseline:** 679 server tests, of which 677 pass on Windows. The
   two `PluginToolTests.Command_*` failures start `/usr/bin/printf` and `/bin/cp`,
   which only exist on the Linux CI runner. Bedroom was rebuilt from this working
-  tree as `lingarr-next:latest` after the Hangfire, provider-timeout, source-guard
-  and quality-rule fixes, and those fixes were then verified against the live
-  library. 19 API smoke checks passed for subtitle downloader reliability on
-  the previous image; see
-  [validation](docs/validation/subtitle-downloader-reliability.md).
+  tree as `lingarr-next:latest` after the Hangfire, provider-timeout, source-guard,
+  quality-rule and subtitle-acquisition fixes, and those fixes were then verified
+  against the live library. 19 API smoke checks passed for subtitle downloader
+  reliability on the previous image; see
+  [validation](docs/validation/subtitle-downloader-reliability.md). The
+  SubSource and SubDL providers were also round-tripped against the live services
+  with the account keys before the release: SubDL returned the pilot of the
+  requested season as `01 Pilot.en.srt`, and SubSource returned an unpacked ASS
+  from its zip.
 
 ## Next decisions
 
