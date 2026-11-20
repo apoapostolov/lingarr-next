@@ -270,6 +270,7 @@ public class StartupService : IHostedService
             { "SONARR_API_KEY", SettingKeys.Integration.SonarrApiKey },
             { "SOURCE_LANGUAGES", SettingKeys.Translation.SourceLanguages },
             { "TARGET_LANGUAGES", SettingKeys.Translation.TargetLanguages },
+            { "FIRST_TARGET_ONLY", SettingKeys.Translation.FirstTargetOnly },
 
             { "SERVICE_TYPE", SettingKeys.Translation.ServiceType },
             { "USE_BATCH_TRANSLATION", SettingKeys.Translation.UseBatchTranslation },

@@ -210,8 +210,8 @@ public class SettingChangedListener
             switch (actionName)
             {
                 case "ClearHash":
-                    dbContext.Database.ExecuteSqlRaw("UPDATE movies SET media_hash = ''");
-                    dbContext.Database.ExecuteSqlRaw("UPDATE episodes SET media_hash = ''");
+                    dbContext.Database.ExecuteSqlRaw("UPDATE movies SET media_hash = '', disk_stamp = NULL");
+                    dbContext.Database.ExecuteSqlRaw("UPDATE episodes SET media_hash = '', disk_stamp = NULL");
                     break;
 
                 case "SubtitleMaintenance":

@@ -70,7 +70,9 @@ public sealed class ForceTranslationService : IForceTranslationService
             };
         }
 
-        var remaining = targetLanguages
+        var firstTargetOnly = await _settings.GetSetting(SettingKeys.Translation.FirstTargetOnly) == "true";
+        var candidates = firstTargetOnly ? targetLanguages.Take(1) : targetLanguages;
+        var remaining = candidates
             .Where(language => overwrite || !SubtitleDownloadService.HasLanguage(subtitles, language))
             .ToList();
 
@@ -148,10 +150,12 @@ public sealed class ForceTranslationService : IForceTranslationService
             }
         }
 
+        var firstTargetOnly = await _settings.GetSetting(SettingKeys.Translation.FirstTargetOnly) == "true";
+        var targetsToDownload = firstTargetOnly ? targetLanguages.Take(1).ToList() : targetLanguages;
         var targetHits = (await _downloads.DownloadLanguagesAsync(
             media,
             mediaType,
-            targetLanguages,
+            targetsToDownload,
             subtitles,
             overwrite: false,
             cancellationToken)).ToList();
@@ -161,7 +165,8 @@ public sealed class ForceTranslationService : IForceTranslationService
         }
 
         var hasSource = HasAnyLanguage(subtitles, sourceLanguages);
-        var remaining = targetLanguages
+        var candidates = firstTargetOnly ? targetLanguages.Take(1) : targetLanguages;
+        var remaining = candidates
             .Where(language => !SubtitleDownloadService.HasLanguage(subtitles, language))
             .ToList();
 

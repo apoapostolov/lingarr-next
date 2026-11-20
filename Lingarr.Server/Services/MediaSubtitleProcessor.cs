@@ -513,18 +513,33 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             TranslationStatus.InProgress,
             TranslationStatus.Completed
         };
-        var existingTranslationRequests = await _dbContext.TranslationRequests
+        var requests = await _dbContext.TranslationRequests
             .Where(translationRequest => translationRequest.MediaId == _media.Id
                                          && translationRequest.MediaType == _mediaType
                                          && activeStatuses.Contains(translationRequest.Status))
-            .Select(translationRequest => translationRequest.TargetLanguage)
-            .Distinct()
+            .Select(translationRequest => new
+            {
+                translationRequest.TargetLanguage,
+                translationRequest.Status
+            })
             .ToListAsync();
+        var existingTranslationRequests = requests
+            .Select(request => request.TargetLanguage)
+            .Distinct()
+            .ToList();
+
+        List<string> activeTargets = requests
+            .Where(request => request.Status is TranslationStatus.Pending or TranslationStatus.InProgress)
+            .Select(request => request.TargetLanguage)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         if (firstTargetOnly == "true")
         {
+            // A Completed request does not prove a usable subtitle exists. Only a job that is
+            // still pending or running can block the first target; otherwise translate it.
             var requestedTargets = targetLanguages
-                .Intersect(existingTranslationRequests, StringComparer.OrdinalIgnoreCase)
+                .Intersect(activeTargets, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (requestedTargets.Any())
             {
@@ -536,8 +551,9 @@ public class MediaSubtitleProcessor : IMediaSubtitleProcessor
             }
         }
 
+        var requestsToExclude = firstTargetOnly == "true" ? activeTargets : existingTranslationRequests;
         languagesToTranslate = languagesToTranslate
-            .Except(existingTranslationRequests, StringComparer.OrdinalIgnoreCase)
+            .Except(requestsToExclude, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (!languagesToTranslate.Any())
         {
