@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Lingarr.Core.Enum;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Models.ProviderHealth;
 using Lingarr.Server.Services.SubtitleDownload;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -449,12 +450,61 @@ public class SubtitleDownloadProviderTests
         Assert.False(SubtitleDownloadGateway.ReleaseEpisodeMatches("Breaking Bad Complete Season 3", 3, 1));
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, "rate_limit", true)]
+    [InlineData(HttpStatusCode.Unauthorized, "authentication", false)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "provider_unavailable", true)]
+    public async Task Subsource_RecordsARefusalAsAHealthEvent(
+        HttpStatusCode status,
+        string family,
+        bool transient)
+    {
+        var provider = SubtitleDownloadCatalog.Find("subsource")!;
+        var settings = new Mock<ISettingService>();
+        settings.Setup(s => s.GetEncryptedSetting(provider.SettingKey("apikey"))).ReturnsAsync("fixture-key");
+        var recorded = new List<ProviderOperationalResult>();
+        var health = new Mock<IProviderHealthService>();
+        health
+            .Setup(h => h.RecordAsync(It.IsAny<ProviderOperationalResult>(), It.IsAny<CancellationToken>()))
+            .Callback<ProviderOperationalResult, CancellationToken>((result, _) => recorded.Add(result))
+            .Returns(Task.CompletedTask);
+        using var handler = new Handler(_ => new HttpResponseMessage(status));
+
+        var hit = await Gateway(handler, settings, health: health.Object)
+            .DownloadAsync(provider, EpisodeQuery, CancellationToken.None);
+
+        Assert.Null(hit);
+        var single = Assert.Single(recorded);
+        Assert.Equal("subsource", single.Provider);
+        Assert.Equal("subtitle-download", single.Operation);
+        Assert.Equal("failure", single.Outcome);
+        Assert.Equal(family, single.ErrorFamily);
+        Assert.Equal(transient, single.IsTransient);
+    }
+
+    [Fact]
+    public async Task Subsource_RecordsNothingForAMiss()
+    {
+        var provider = SubtitleDownloadCatalog.Find("subsource")!;
+        var settings = new Mock<ISettingService>();
+        settings.Setup(s => s.GetEncryptedSetting(provider.SettingKey("apikey"))).ReturnsAsync("fixture-key");
+        var health = new Mock<IProviderHealthService>(MockBehavior.Strict);
+        using var handler = new Handler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var hit = await Gateway(handler, settings, health: health.Object)
+            .DownloadAsync(provider, EpisodeQuery, CancellationToken.None);
+
+        Assert.Null(hit);
+        Assert.Empty(health.Invocations);
+    }
+
     private static SubtitleDownloadGateway Gateway(
         HttpMessageHandler handler,
         Mock<ISettingService> settings,
-        SubtitleProviderPacer? pacer = null) =>
+        SubtitleProviderPacer? pacer = null,
+        IProviderHealthService? health = null) =>
         new(Factory(handler), settings.Object, NullLogger<SubtitleDownloadGateway>.Instance,
-            pacer ?? new SubtitleProviderPacer(new InstantClock()));
+            pacer ?? new SubtitleProviderPacer(new InstantClock()), health);
 
     private static IHttpClientFactory Factory(HttpMessageHandler handler)
     {

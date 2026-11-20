@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Lingarr.Contracts.Plugins;
 using Lingarr.Core.Enum;
 using Lingarr.Server.Interfaces.Services;
+using Lingarr.Server.Models.ProviderHealth;
 
 namespace Lingarr.Server.Services.SubtitleDownload;
 
@@ -144,12 +145,14 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
     private readonly ISettingService _settings;
     private readonly ILogger<SubtitleDownloadGateway> _logger;
     private readonly SubtitleProviderPacer _pacer;
+    private readonly IProviderHealthService? _health;
 
     public SubtitleDownloadGateway(
         IHttpClientFactory http,
         ISettingService settings,
         ILogger<SubtitleDownloadGateway> logger,
-        SubtitleProviderPacer? pacer = null)
+        SubtitleProviderPacer? pacer = null,
+        IProviderHealthService? health = null)
     {
         _http = http;
         _settings = settings;
@@ -157,6 +160,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         // The container supplies the singleton. A gateway built by hand (a test, a console probe)
         // gets its own pacer, so one caller's cooldown never leaks into another's.
         _pacer = pacer ?? new SubtitleProviderPacer();
+        _health = health;
     }
 
     public async Task<SubtitleDownloadHit?> DownloadAsync(
@@ -1624,7 +1628,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         ApplyHeaders(request, headers);
         using var response = await client.SendAsync(request, cancellationToken);
-        ObserveResponse(pacerId, response);
+        await ObserveResponseAsync(pacerId, response, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("Subtitle provider {Provider} search failed on {Host}: HTTP {Status}.",
@@ -1659,7 +1663,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         }
 
         using var response = await client.SendAsync(request, cancellationToken);
-        ObserveResponse(pacerId, response);
+        await ObserveResponseAsync(pacerId, response, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("Subtitle provider {Provider} download failed on {Host}: HTTP {Status}.",
@@ -1708,13 +1712,62 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         }
     }
 
-    private void ObserveResponse(string pacerId, HttpResponseMessage response) =>
+    private async Task ObserveResponseAsync(
+        string pacerId,
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var status = (int)response.StatusCode;
         _pacer.Observe(
             pacerId,
-            (int)response.StatusCode,
+            status,
             RetryAfter(response),
             Remaining(response, "X-RateLimit-Remaining-Hour"),
             Remaining(response, "X-RateLimit-Remaining-Day"));
+
+        if (_health is null)
+        {
+            return;
+        }
+
+        // Only the answers a person needs to see on the providers page: a refusal, a broken
+        // provider, or a key that is not accepted. A 404 is a miss, not an incident.
+        var family = status switch
+        {
+            429 => "rate_limit",
+            401 => "authentication",
+            403 => "authorization",
+            >= 500 => "provider_unavailable",
+            _ => null
+        };
+        if (family is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _health.RecordAsync(
+                new ProviderOperationalResult
+                {
+                    Provider = pacerId,
+                    // Subtitle sources are not translation plugins, so this writes the event stream
+                    // without inventing a health snapshot for a provider the registry does not know.
+                    Operation = "subtitle-download",
+                    Outcome = "failure",
+                    ErrorFamily = family,
+                    IsTransient = status is 429 or >= 500,
+                    DurationMs = 0,
+                    RetryCount = 0
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // A subtitle download must never fail because its health note could not be written.
+            _logger.LogDebug(exception, "Could not record the {Provider} health event.", pacerId);
+        }
+    }
 
     private static TimeSpan? RetryAfter(HttpResponseMessage response)
     {
