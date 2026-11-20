@@ -438,7 +438,8 @@ public class TranslationRequestService : ITranslationRequestService
             SettingKeys.Translation.SourceLanguages
             );
         var sourceCodes = sourceLanguages.Select(sourceLanguage => sourceLanguage.Code)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var ignoreCaptions = await _settingService.GetSetting(SettingKeys.Translation.IgnoreCaptions) ?? "false";
 
         switch (request.MediaType)
@@ -511,8 +512,8 @@ public class TranslationRequestService : ITranslationRequestService
         string? fileName, 
         int mediaId, 
         MediaType mediaType,
-        string targetLanguage, 
-        HashSet<string> sourceCodes, 
+        string targetLanguage,
+        IReadOnlyList<string> sourceCodes,
         string ignoreCaptions)
     {
         if (string.IsNullOrEmpty(fileName))
@@ -531,11 +532,8 @@ public class TranslationRequestService : ITranslationRequestService
             return;
         }
 
-        var targetExists = subtitles.Any(subtitle =>
-            subtitle.Language.Equals(targetLanguage, StringComparison.OrdinalIgnoreCase)
-            && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language)
-            && (ignoreCaptions == "true"
-                || string.Equals(subtitle.Caption, selected.Subtitle.Caption, StringComparison.OrdinalIgnoreCase)));
+        var targetExists = _subtitleService.TargetSubtitleExists(
+            subtitles, targetLanguage, selected.Subtitle, ignoreCaptions == "true");
 
         if (targetExists)
         {

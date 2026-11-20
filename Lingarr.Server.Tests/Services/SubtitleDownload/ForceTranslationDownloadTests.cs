@@ -338,9 +338,9 @@ public class ForceTranslationDownloadTests
         subtitles
             .Setup(service => service.SelectSourceSubtitle(
                 It.IsAny<List<Subtitles>>(),
-                It.IsAny<HashSet<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<string>()))
-            .Returns((List<Subtitles> found, HashSet<string> sources, string _) =>
+            .Returns((List<Subtitles> found, IReadOnlyList<string> sources, string _) =>
             {
                 var selected = found.FirstOrDefault(item => sources.Contains(item.Language));
                 return selected == null

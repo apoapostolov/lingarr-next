@@ -155,7 +155,7 @@ public class SubtitleServiceEnumerationTests
             var service = new SubtitleService(
                 NullLogger<SubtitleService>.Instance,
                 new LanguageCodeService());
-            var sources = new HashSet<string> { "en" };
+            var sources = new List<string> { "en" };
 
             Assert.Null(service.SelectSourceSubtitle(
                 [
@@ -239,7 +239,7 @@ public class SubtitleServiceEnumerationTests
                     Format = ".srt"
                 }
             ],
-            new HashSet<string> { "EN" },
+            new List<string> { "EN" },
             "true");
 
         Assert.NotNull(selected);
@@ -265,7 +265,7 @@ public class SubtitleServiceEnumerationTests
                     Format = ".srt"
                 }
             ],
-            new HashSet<string> { "en-US" },
+            new List<string> { "en-US" },
             "true");
 
         Assert.NotNull(selected);
@@ -299,11 +299,77 @@ public class SubtitleServiceEnumerationTests
                     Format = ".srt"
                 }
             ],
-            new HashSet<string> { "pt-BR" },
+            new List<string> { "pt-BR" },
             "true");
 
         Assert.NotNull(selected);
         Assert.Equal("pt-br", selected.SourceLanguage);
         Assert.Equal("/movies/test/test.pt-BR.srt", selected.Subtitle.Path);
+    }
+
+    [Fact]
+    public void SelectSourceSubtitle_UsesConfiguredOrderToBreakATie()
+    {
+        var service = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+
+        var selected = service.SelectSourceSubtitle(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.en.srt",
+                    FileName = "test.en",
+                    Language = "en",
+                    Caption = "",
+                    Format = ".srt"
+                },
+                new Subtitles
+                {
+                    Path = "/movies/test/test.pt.srt",
+                    FileName = "test.pt",
+                    Language = "pt",
+                    Caption = "",
+                    Format = ".srt"
+                }
+            ],
+            new List<string> { "en-US", "pt-BR" },
+            "true");
+
+        Assert.NotNull(selected);
+        Assert.Equal("en", selected.SourceLanguage);
+    }
+
+    [Fact]
+    public void SelectSourceSubtitle_NeverTradesABetterTierForAnEarlierCode()
+    {
+        var service = new SubtitleService(
+            NullLogger<SubtitleService>.Instance,
+            new LanguageCodeService());
+
+        var selected = service.SelectSourceSubtitle(
+            [
+                new Subtitles
+                {
+                    Path = "/movies/test/test.en.srt",
+                    FileName = "test.en",
+                    Language = "en",
+                    Caption = "",
+                    Format = ".srt"
+                },
+                new Subtitles
+                {
+                    Path = "/movies/test/test.pt.srt",
+                    FileName = "test.pt",
+                    Language = "pt",
+                    Caption = "",
+                    Format = ".srt"
+                }
+            ],
+            new List<string> { "pt-BR", "en" },
+            "true");
+
+        Assert.NotNull(selected);
+        Assert.Equal("en", selected.SourceLanguage);
     }
 }

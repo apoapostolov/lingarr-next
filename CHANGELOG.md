@@ -7,6 +7,13 @@ to sort before or after versions published by upstream Lingarr.
 
 ## [Unreleased]
 
+- Source and target languages now keep their configured order on the server. The order breaks ties
+  between equally good language matches; a better match still wins. Dragging a language in Settings
+  changes which source is used (upstream #602 and #614, adapted).
+- `FIRST_TARGET_ONLY` translates to the first configured target. The downloader also limits itself
+  to that target, so placing a later subtitle on disk cannot silently cancel translation (upstream
+  #602, adapted).
+
 - API keys and Plex tokens written from environment variables are now encrypted before they are
   stored, and the cached setting is cleared so the encrypted value is used immediately. An
   existing plaintext key is migrated on startup instead of being left in clear text (upstream

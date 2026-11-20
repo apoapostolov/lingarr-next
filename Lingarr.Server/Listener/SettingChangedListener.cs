@@ -55,7 +55,9 @@ public class SettingChangedListener
             },
             {
                 "clearHash", ("Action", "ClearHash", [
-                    SettingKeys.Translation.SourceLanguages
+                    SettingKeys.Translation.SourceLanguages,
+                    SettingKeys.Translation.TargetLanguages,
+                    SettingKeys.Translation.FirstTargetOnly
                 ])
             },
             {

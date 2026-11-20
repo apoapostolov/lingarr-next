@@ -189,6 +189,7 @@ public static class SettingKeys
 
         public const string SourceLanguages = "source_languages";
         public const string TargetLanguages = "target_languages";
+        public const string FirstTargetOnly = "first_target_only";
         public const string AiPrompt = "ai_prompt";
         public const string AiContextPromptEnabled = "ai_context_prompt_enabled";
         public const string AiContextPrompt = "ai_context_prompt";

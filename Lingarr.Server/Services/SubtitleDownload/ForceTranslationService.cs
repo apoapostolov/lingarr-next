@@ -194,7 +194,7 @@ public sealed class ForceTranslationService : IForceTranslationService
         IMedia media,
         MediaType mediaType,
         List<Subtitles> subtitles,
-        HashSet<string> sourceLanguages,
+        IReadOnlyList<string> sourceLanguages,
         IReadOnlyList<string> remaining)
     {
         var requestIds = new List<int>();
@@ -230,8 +230,8 @@ public sealed class ForceTranslationService : IForceTranslationService
     private async Task<List<Subtitles>> ExtractConfiguredText(
         IMedia media,
         List<Subtitles> subtitles,
-        HashSet<string> sourceLanguages,
-        HashSet<string> targetLanguages)
+        IReadOnlyList<string> sourceLanguages,
+        IReadOnlyList<string> targetLanguages)
     {
         var wanted = sourceLanguages.Concat(targetLanguages)
             .Where(code => !string.IsNullOrWhiteSpace(code))
@@ -276,13 +276,15 @@ public sealed class ForceTranslationService : IForceTranslationService
         };
     }
 
-    private async Task<HashSet<string>> LanguageCodes<T>(string key) where T : class, ILanguage
+    private async Task<List<string>> LanguageCodes<T>(string key) where T : class, ILanguage
     {
         var languages = await _settings.GetSettingAsJson<T>(key);
-        return languages.Select(language => language.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return languages.Select(language => language.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static bool HasAnyLanguage(IEnumerable<Subtitles> subtitles, IReadOnlySet<string> languages) =>
+    private static bool HasAnyLanguage(IEnumerable<Subtitles> subtitles, IEnumerable<string> languages) =>
         subtitles.Any(subtitle =>
             BazarrSubtitleChoice.LanguageMatches(subtitle.Language, languages)
             && SubtitleBytes.IsUsableSidecar(subtitle.Path, subtitle.Language ?? ""));

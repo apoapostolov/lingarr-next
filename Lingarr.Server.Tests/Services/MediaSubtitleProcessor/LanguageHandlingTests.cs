@@ -75,6 +75,68 @@ public class LanguageHandlingTests : MediaSubtitleProcessorTestBase
     }
 
     [Fact]
+    public async Task ProcessMedia_FirstTargetOnly_SkipsWhenALaterTargetExists()
+    {
+        var movie = await CreateTestMovie();
+        var subtitles = new List<Subtitles>
+        {
+            new()
+            {
+                Path = "/movies/test/test.movie.en.srt",
+                FileName = "test.movie.en",
+                Language = "en",
+                Caption = "",
+                Format = ".srt"
+            },
+            new()
+            {
+                Path = "/movies/test/test.movie.nl.srt",
+                FileName = "test.movie.nl",
+                Language = "nl",
+                Caption = "",
+                Format = ".srt"
+            }
+        };
+
+        SubtitleServiceMock
+            .Setup(s => s.GetSubtitles(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(subtitles);
+        SetupStandardSettings();
+        SettingServiceMock
+            .Setup(s => s.GetSettingAsJson<TargetLanguage>(SettingKeys.Translation.TargetLanguages))
+            .ReturnsAsync(new List<TargetLanguage>
+            {
+                new() { Code = "ro", Name = "Romanian" },
+                new() { Code = "nl", Name = "Dutch" }
+            });
+        SettingServiceMock
+            .Setup(s => s.GetSetting(SettingKeys.Translation.FirstTargetOnly))
+            .ReturnsAsync("true");
+        SubtitleServiceMock
+            .Setup(s => s.TargetSubtitleExists(
+                It.IsAny<List<Subtitles>>(),
+                It.IsAny<string>(),
+                It.IsAny<Subtitles>(),
+                It.IsAny<bool>()))
+            .Returns((List<Subtitles> _, string language, Subtitles __, bool ___) => language == "nl");
+
+        var result = await Processor.ProcessMedia(movie, MediaType.Movie);
+
+        Assert.False(result);
+        TranslationRequestServiceMock.Verify(
+            s => s.CreateRequest(It.IsAny<TranslateAbleSubtitle>()), Times.Never);
+        SubtitleDownloadServiceMock.Verify(
+            s => s.DownloadLanguagesAsync(
+                It.IsAny<IMedia>(),
+                It.IsAny<MediaType>(),
+                It.Is<IReadOnlyCollection<string>>(languages => !languages.Contains("nl")),
+                It.IsAny<IReadOnlyList<Subtitles>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
     public async Task ProcessMedia_WithHindiLanguage_ShouldProcessCorrectly()
     {
         // Arrange - Hindi language subtitle (special case where "hi" could be confused with hearing impaired)
@@ -283,9 +345,9 @@ public class LanguageHandlingTests : MediaSubtitleProcessorTestBase
         SubtitleServiceMock
             .Setup(s => s.SelectSourceSubtitle(
                 It.IsAny<List<Subtitles>>(),
-                It.IsAny<HashSet<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<string>()))
-            .Returns((List<Subtitles> subs, HashSet<string> sources, string ignoreCaptions) =>
+            .Returns((List<Subtitles> subs, IReadOnlyList<string> sources, string ignoreCaptions) =>
                 real.SelectSourceSubtitle(subs, sources, ignoreCaptions));
     }
 }

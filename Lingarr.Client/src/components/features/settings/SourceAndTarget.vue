@@ -38,6 +38,10 @@
         </div>
 
         <div v-else class="grid grid-cols-1 gap-4">
+            <p class="text-sm text-secondary-content">
+                The order is the priority: drag a language to reorder it. Match quality still wins,
+                so an exact match is preferred over a regional or script variant.
+            </p>
             <div class="min-w-0">
                 <span>Source languages:</span>
                 <LanguageSelect
@@ -52,6 +56,17 @@
                     class="w-full"
                     :options="languages" />
             </div>
+            <div class="flex flex-col gap-2">
+                <ToggleButton v-model="firstTargetOnly">
+                    <span class="text-sm font-medium text-primary-content">
+                        Only translate to the first target language
+                    </span>
+                </ToggleButton>
+                <p class="text-sm text-secondary-content">
+                    A usable subtitle in any configured target language counts as translated.
+                    Otherwise Lingarr translates to the first target only.
+                </p>
+            </div>
         </div>
         <p class="text-sm text-secondary-content">
             If a provider lacks a language code, Lingarr uses its closest supported variant.
@@ -62,6 +77,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import LanguageSelect from '@/components/features/settings/LanguageSelect.vue'
+import ToggleButton from '@/components/common/ToggleButton.vue'
 import { ILanguage, SETTINGS } from '@/ts'
 import { useTranslateStore } from '@/store/translate'
 import { useSettingStore } from '@/store/setting'
@@ -84,6 +100,14 @@ const targetLanguages = computed({
     get: (): ILanguage[] => settingsStore.getSetting(SETTINGS.TARGET_LANGUAGES) as ILanguage[],
     set: (newValue: string): void => {
         settingsStore.updateSetting(SETTINGS.TARGET_LANGUAGES, newValue, true, true)
+        emit('save')
+    }
+})
+
+const firstTargetOnly = computed({
+    get: (): string => settingsStore.getSetting(SETTINGS.FIRST_TARGET_ONLY) as string,
+    set: (newValue: string): void => {
+        settingsStore.updateSetting(SETTINGS.FIRST_TARGET_ONLY, newValue, true)
         emit('save')
     }
 })
