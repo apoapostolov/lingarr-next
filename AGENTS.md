@@ -242,7 +242,7 @@ When an import touches a protected file, the PR must name the capability and sho
 2. Full server suite, compared with the documented baseline in `DEVELOPMENT_PLAN.md`. Known Windows-only `PluginToolTests` failures are not a regression; any other failure is.
 3. Client type-check and build with the pinned checker. Migration tests need Docker and otherwise fail with `DockerUnavailableException`.
 4. New migrations number above the highest existing migration and never reuse upstream numbers. New setting keys are seeded without overwriting a value a user already set.
-5. `CHANGELOG.md`, `DEVELOPMENT_PLAN.md` (including the upstream verdict table) and any affected `docs/` proposal change in the same PR.
+5. `CHANGELOG.md`, `DEVELOPMENT_PLAN.md` (including the upstream verdict table), `Readme.MD` **What's new** as required in **Release and branch hygiene**, and any affected `docs/` proposal change in the same PR.
 6. Wait for CodeRabbit, Greptile and Sourcery after CI goes green, and read comments created after the last push, before merging. Deploy to Bedroom only after the merge.
 
 ## User-facing response strings
@@ -293,8 +293,10 @@ Use the same authentication as the rest of the API. `X-Api-Key` works on the JSO
   are reference material, not release targets. Compare new upstream commits
   with the procedure in **Managed upstream**.
 - A release commit must include the changelog, version metadata, migration
-  notes, and validation result. Pushes and remote branch deletion require an
-  explicit user request.
+  notes, validation result, and a plain-language entry for that version in
+  `Readme.MD` under **What's new**. A release is not complete until the README
+  names the version just released; do not leave the section on an older one.
+- Pushes and remote branch deletion require an explicit user request.
 
 ## Documentation
 

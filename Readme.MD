@@ -38,6 +38,34 @@ Each one is still reviewed and tested before it ships.
 Current release: [1.2.4](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.4).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
 
+### 1.2.4 — Language Priority (2026-11-20)
+
+- The order you set for source and target languages is now kept. When two
+  sources are equally good matches, the one higher in your list is used.
+  Drag a language in Settings to move it up or down.
+- With First target only turned on, a job translates to the first target on
+  your list and stops there. A subtitle you add later for another target no
+  longer makes the job skip translation.
+- API keys and Plex tokens supplied through environment variables are encrypted
+  before they are saved. Keys already stored in plain text are converted on
+  startup.
+- A translation job that cannot be queued now shows as Failed with the reason,
+  instead of sitting as Pending with nothing running.
+- A subtitle provider security update and small settings and navigation fixes
+  are included.
+
+### 1.2.3 — Gentle Sources (2026-11-20)
+
+- SubSource and SubDL downloads work again. They fetch the subtitle for the
+  exact movie or episode you asked for, rather than a season archive or the
+  wrong release.
+- Both providers keep to their published request and download limits. One that
+  is finished for the day or cooling down is skipped so the next provider is
+  tried.
+- Rate limits and provider errors now appear on the Providers page.
+- The provider health panel no longer stalls during a library sync or answers
+  with an error when the database is busy.
+
 ### 1.2.2 — Clean Source (2026-11-03)
 
 - A translation that stalls no longer holds everything up for fifteen minutes.
