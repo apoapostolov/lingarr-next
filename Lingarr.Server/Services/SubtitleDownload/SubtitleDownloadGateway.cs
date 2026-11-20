@@ -16,7 +16,19 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         @"href\s*=\s*[""']([^""']+)[""']",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex YearRegex = new(@"\((19|20)\d{2}\)|[.\s]((19|20)\d{2})[.\s]", RegexOptions.Compiled);
-    private static readonly Regex EpisodeTokenRegex = new(@"s(?<season>\d{1,2})e(?<episode>\d{1,3})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex EpisodeTokenRegex = new(@"(?<![0-9a-z])s(?<season>\d{1,2})[ ._-]?e(?<episode>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex AlternateEpisodeRegex = new(@"(?<![0-9a-z])(?<season>\d{1,2})x(?<episode>\d{1,3})(?![0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ImdbRegex = new(@"tt\d{7,8}", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Release names carry the episode in several shapes: <c>S03E01</c>, <c>S03.E01</c> and
+    /// <c>3x01</c>. Matching them in place avoids splitting a dotted name, which would fuse
+    /// <c>S03E01</c> with the following <c>1080p</c> and read the episode as 011.
+    /// </summary>
+    private static readonly Regex[] EpisodeRegexes = [EpisodeTokenRegex, AlternateEpisodeRegex];
+
+    /// <summary>SubSource pages are 100 rows; a season rarely needs more than two of them.</summary>
+    private const int SubsourceMaxPages = 3;
 
     private static readonly string[] LanguageMarkerCodes =
     [
@@ -83,18 +95,68 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         ["wizdom"] = "https://wizdom.xyz/search?q={query}"
     };
 
+    /// <summary>
+    /// SubSource matches a language by its full word, not a code: <c>language=en</c> answers 200
+    /// with zero rows. A code that is not in this map is a language the provider cannot serve.
+    /// </summary>
+    private static readonly Dictionary<string, string> SubsourceLanguageWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["en"] = "english", ["eng"] = "english",
+        ["bg"] = "bulgarian", ["bul"] = "bulgarian",
+        ["fr"] = "french", ["fra"] = "french", ["fre"] = "french",
+        ["de"] = "german", ["deu"] = "german", ["ger"] = "german",
+        ["es"] = "spanish", ["spa"] = "spanish",
+        ["pt"] = "portuguese", ["por"] = "portuguese",
+        ["it"] = "italian", ["ita"] = "italian",
+        ["nl"] = "dutch", ["nld"] = "dutch",
+        ["pl"] = "polish", ["pol"] = "polish",
+        ["ru"] = "russian", ["rus"] = "russian",
+        ["tr"] = "turkish", ["tur"] = "turkish",
+        ["ar"] = "arabic", ["ara"] = "arabic",
+        ["he"] = "hebrew", ["heb"] = "hebrew",
+        ["el"] = "greek", ["ell"] = "greek", ["gre"] = "greek",
+        ["hu"] = "hungarian", ["hun"] = "hungarian",
+        ["cs"] = "czech", ["ces"] = "czech", ["cze"] = "czech",
+        ["sk"] = "slovak", ["slk"] = "slovak",
+        ["sl"] = "slovenian", ["slv"] = "slovenian",
+        ["ro"] = "romanian", ["ron"] = "romanian", ["rum"] = "romanian",
+        ["uk"] = "ukrainian", ["ukr"] = "ukrainian",
+        ["sr"] = "serbian", ["srp"] = "serbian",
+        ["hr"] = "croatian", ["hrv"] = "croatian",
+        ["bs"] = "bosnian", ["bos"] = "bosnian",
+        ["zh"] = "chinese", ["zho"] = "chinese", ["chi"] = "chinese",
+        ["ja"] = "japanese", ["jpn"] = "japanese",
+        ["ko"] = "korean", ["kor"] = "korean",
+        ["sv"] = "swedish", ["swe"] = "swedish",
+        ["fi"] = "finnish", ["fin"] = "finnish",
+        ["da"] = "danish", ["dan"] = "danish",
+        ["no"] = "norwegian", ["nor"] = "norwegian",
+        ["fa"] = "persian", ["fas"] = "persian", ["per"] = "persian",
+        ["id"] = "indonesian", ["ind"] = "indonesian",
+        ["vi"] = "vietnamese", ["vie"] = "vietnamese",
+        ["th"] = "thai", ["tha"] = "thai",
+        ["et"] = "estonian", ["est"] = "estonian",
+        ["lv"] = "latvian", ["lav"] = "latvian",
+        ["lt"] = "lithuanian", ["lit"] = "lithuanian"
+    };
+
     private readonly IHttpClientFactory _http;
     private readonly ISettingService _settings;
     private readonly ILogger<SubtitleDownloadGateway> _logger;
+    private readonly SubtitleProviderPacer _pacer;
 
     public SubtitleDownloadGateway(
         IHttpClientFactory http,
         ISettingService settings,
-        ILogger<SubtitleDownloadGateway> logger)
+        ILogger<SubtitleDownloadGateway> logger,
+        SubtitleProviderPacer? pacer = null)
     {
         _http = http;
         _settings = settings;
         _logger = logger;
+        // The container supplies the singleton. A gateway built by hand (a test, a console probe)
+        // gets its own pacer, so one caller's cooldown never leaks into another's.
+        _pacer = pacer ?? new SubtitleProviderPacer();
     }
 
     public async Task<SubtitleDownloadHit?> DownloadAsync(
@@ -121,8 +183,7 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
                 SubtitleDownloadKind.Gestdown => GestdownAsync(query, cancellationToken),
                 SubtitleDownloadKind.Assrt => AssrtAsync(provider, query, cancellationToken),
                 SubtitleDownloadKind.BetaSeries => BetaSeriesAsync(provider, query, cancellationToken),
-                SubtitleDownloadKind.Subsource => JsonSearchAsync(
-                    provider, query, "https://api.subsource.net/api/v1/subtitles", "apikey", cancellationToken),
+                SubtitleDownloadKind.Subsource => SubsourceAsync(provider, query, cancellationToken),
                 SubtitleDownloadKind.SubsRo => JsonSearchAsync(
                     provider, query, "https://api.subs.ro/v1.0/search", "api_key", cancellationToken),
                 SubtitleDownloadKind.SubX => JsonSearchAsync(
@@ -1008,6 +1069,303 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
         return null;
     }
 
+    private async Task<SubtitleDownloadHit?> SubsourceAsync(
+        SubtitleProviderDefinition provider,
+        SubtitleDownloadQuery query,
+        CancellationToken cancellationToken)
+    {
+        var apiKey = await Field(provider, "apikey", true);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return null;
+        }
+
+        // /subtitles wants a full language word and answers 200 with zero rows for a bare code,
+        // which reads exactly like "nothing exists". An unmapped code means this provider cannot
+        // serve the request, so say so instead of searching with a word it will ignore.
+        var language = SubsourceLanguage(query.Language);
+        if (language == null)
+        {
+            _logger.LogInformation(
+                "SubSource does not serve {Language}; {Title} was not searched there.",
+                query.Language,
+                query.Title);
+            return null;
+        }
+
+        if (!PacerAllows(provider, query))
+        {
+            return null;
+        }
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["X-API-Key"] = apiKey,
+            ["Accept"] = "application/json"
+        };
+
+        var movieId = await SubsourceMovieId(headers, query, cancellationToken);
+        if (movieId == null)
+        {
+            return null;
+        }
+
+        var candidates = await SubsourceCandidates(headers, movieId.Value, language, query, cancellationToken);
+        foreach (var candidate in candidates)
+        {
+            var download = new Uri($"https://api.subsource.net/api/v1/subtitles/{candidate.Id}/download");
+            var hit = await FetchPacedBytes(
+                provider.Id, download, "https://subsource.net", headers, cancellationToken, query.Language);
+            if (KeepHit(hit, provider, query))
+            {
+                return hit;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The numeric id the listing endpoint needs, from an IMDb id when one is known.</summary>
+    private async Task<int?> SubsourceMovieId(
+        Dictionary<string, string> headers,
+        SubtitleDownloadQuery query,
+        CancellationToken cancellationToken)
+    {
+        var imdb = ImdbId(query);
+        if (imdb != null)
+        {
+            var imdbUrl =
+                "https://api.subsource.net/api/v1/movies/search?searchType=imdb&imdb=" + Uri.EscapeDataString(imdb);
+            var imdbBody = await PacedGetAsync(
+                SubtitleProviderPacer.Subsource, new Uri(imdbUrl), headers, cancellationToken);
+            var found = imdbBody == null ? [] : SubsourceMovieIds(imdbBody, query);
+            if (found.Count > 0)
+            {
+                return found[0];
+            }
+        }
+
+        var title = query.MediaType == MediaType.Episode ? query.SeriesTitle ?? query.Title : query.Title;
+        var textUrl =
+            "https://api.subsource.net/api/v1/movies/search?searchType=text&q=" +
+            Uri.EscapeDataString(SearchTitle(title));
+        var body = await PacedGetAsync(
+            SubtitleProviderPacer.Subsource, new Uri(textUrl), headers, cancellationToken);
+        if (body == null)
+        {
+            return null;
+        }
+
+        var ids = SubsourceMovieIds(body, query);
+        return ids.Count == 0 ? null : ids[0];
+    }
+
+    internal static List<int> SubsourceMovieIds(string json, SubtitleDownloadQuery query)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var wanted = YearOf(query);
+        var found = new List<(bool YearMatches, int Id)>();
+        foreach (var row in PayloadRows(doc.RootElement, "movies", "results"))
+        {
+            // The proposal records movieId; the other spellings are accepted so a renamed field
+            // degrades into a miss on one row instead of a silent "nothing found" for the provider.
+            if (!TryInt(row, "movieId", out var id)
+                && !TryInt(row, "movie_id", out id)
+                && !TryInt(row, "id", out id))
+            {
+                continue;
+            }
+
+            TryInt(row, "year", out var year);
+            found.Add((wanted != null && year == wanted, id));
+        }
+
+        return found
+            .OrderByDescending(entry => entry.YearMatches)
+            .Select(entry => entry.Id)
+            .ToList();
+    }
+
+    private async Task<List<SubsourceRow>> SubsourceCandidates(
+        Dictionary<string, string> headers,
+        int movieId,
+        string language,
+        SubtitleDownloadQuery query,
+        CancellationToken cancellationToken)
+    {
+        const int pageSize = 100;
+        var accepted = new List<SubsourceRow>();
+        for (var page = 1; page <= SubsourceMaxPages; page++)
+        {
+            var url =
+                $"https://api.subsource.net/api/v1/subtitles?movieId={movieId}" +
+                $"&language={Uri.EscapeDataString(language)}&limit={pageSize}&page={page}&sort=popular";
+            var body = await PacedGetAsync(
+                SubtitleProviderPacer.Subsource, new Uri(url), headers, cancellationToken);
+            if (body == null)
+            {
+                break;
+            }
+
+            using var doc = JsonDocument.Parse(body);
+            var rows = ParseSubsourceRows(doc.RootElement);
+            accepted.AddRange(rows.Where(row => AcceptsSubsourceRow(row, query)));
+            if (accepted.Count > 0 || rows.Count < pageSize)
+            {
+                break;
+            }
+        }
+
+        return accepted
+            .OrderByDescending(row => ScoreSubsourceRow(row, query))
+            .ThenByDescending(row => row.Downloads)
+            .ToList();
+    }
+
+    internal static List<SubsourceRow> ParseSubsourceRows(JsonElement root)
+    {
+        var rows = new List<SubsourceRow>();
+        foreach (var row in PayloadRows(root, "subtitles", "results"))
+        {
+            if (!TryInt(row, "subtitleId", out var id)
+                && !TryInt(row, "subtitle_id", out id)
+                && !TryInt(row, "id", out id))
+            {
+                continue;
+            }
+
+            var releaseInfo = new List<string>();
+            if (row.TryGetProperty("releaseInfo", out var releases))
+            {
+                if (releases.ValueKind == JsonValueKind.Array)
+                {
+                    releaseInfo.AddRange(releases
+                        .EnumerateArray()
+                        .Where(entry => entry.ValueKind == JsonValueKind.String)
+                        .Select(entry => entry.GetString()!)
+                        .Where(entry => !string.IsNullOrWhiteSpace(entry)));
+                }
+                else if (releases.ValueKind == JsonValueKind.String && releases.GetString() is { } single)
+                {
+                    releaseInfo.Add(single);
+                }
+            }
+
+            TryInt(row, "downloads", out var downloads);
+            var good = 0;
+            var bad = 0;
+            if (row.TryGetProperty("rating", out var rating) && rating.ValueKind == JsonValueKind.Object)
+            {
+                TryInt(rating, "good", out good);
+                TryInt(rating, "bad", out bad);
+            }
+
+            rows.Add(new SubsourceRow(
+                id,
+                releaseInfo,
+                downloads,
+                good,
+                bad,
+                row.TryGetProperty("hearingImpaired", out var impaired)
+                && impaired.ValueKind == JsonValueKind.True));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// A SubSource listing row carries no season or episode field; the episode lives inside the
+    /// release names. A row for a series is accepted only when one of those names states the
+    /// episode asked for, so a season-only or wrong-episode row is refused instead of guessed at.
+    /// </summary>
+    internal static bool AcceptsSubsourceRow(SubsourceRow row, SubtitleDownloadQuery query)
+    {
+        if (query.MediaType != MediaType.Episode
+            || query.SeasonNumber is not { } season
+            || query.EpisodeNumber is not { } episode)
+        {
+            return true;
+        }
+
+        return row.ReleaseInfo.Any(entry => ReleaseEpisodeMatches(entry, season, episode));
+    }
+
+    internal static int ScoreSubsourceRow(SubsourceRow row, SubtitleDownloadQuery query)
+    {
+        var score = 0;
+        if (query.MediaType == MediaType.Episode
+            && query.SeasonNumber is { } season
+            && query.EpisodeNumber is { } episode
+            && row.ReleaseInfo.Any(entry => ReleaseEpisodeMatches(entry, season, episode)))
+        {
+            score += 20;
+        }
+
+        var tokens = SearchTitle(query.FileName ?? query.VideoPath ?? query.Title)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > 0)
+        {
+            var release = FoldSearchText(string.Join(' ', row.ReleaseInfo));
+            var shared = tokens.Count(token => token.Length > 2 && release.Contains(token, StringComparison.Ordinal));
+            score += Math.Min(12, shared);
+        }
+
+        score += Math.Clamp(row.RatingGood - row.RatingBad, -5, 5);
+        score += (int)Math.Min(6, Math.Log10(1 + row.Downloads) * 2);
+        if (row.HearingImpaired)
+        {
+            score -= 8;
+        }
+
+        return score;
+    }
+
+    internal static bool ReleaseEpisodeMatches(string entry, int season, int episode)
+    {
+        if (string.IsNullOrWhiteSpace(entry))
+        {
+            return false;
+        }
+
+        foreach (var regex in EpisodeRegexes)
+        {
+            foreach (Match match in regex.Matches(entry))
+            {
+                if (int.TryParse(match.Groups["season"].Value, out var foundSeason)
+                    && int.TryParse(match.Groups["episode"].Value, out var foundEpisode)
+                    && foundSeason == season
+                    && foundEpisode == episode)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    internal static string? SubsourceLanguage(string language) =>
+        language == null ? null : SubsourceLanguageWords.GetValueOrDefault(language.Trim());
+
+    private static string? ImdbId(SubtitleDownloadQuery query)
+    {
+        foreach (var text in new[] { query.FileName, query.Directory, query.VideoPath })
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            var match = ImdbRegex.Match(text);
+            if (match.Success)
+            {
+                return match.Value;
+            }
+        }
+
+        return null;
+    }
+
     private async Task<SubtitleDownloadHit?> SubdlAsync(
         SubtitleProviderDefinition provider,
         SubtitleDownloadQuery query,
@@ -1019,11 +1377,17 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
             return null;
         }
 
+        if (!PacerAllows(provider, query))
+        {
+            return null;
+        }
+
         var type = query.MediaType == MediaType.Episode ? "tv" : "movie";
         var url =
             $"https://api.subdl.com/api/v1/subtitles?api_key={Uri.EscapeDataString(apiKey)}" +
             $"&film_name={Uri.EscapeDataString(query.SeriesTitle ?? query.Title)}" +
-            $"&type={type}&languages={Uri.EscapeDataString(query.Language.ToUpperInvariant())}";
+            $"&type={type}&languages={Uri.EscapeDataString(query.Language.ToUpperInvariant())}" +
+            "&unpack=1&subs_per_page=30&client=custom_integration";
         var year = YearOf(query);
         if (year != null)
         {
@@ -1040,36 +1404,354 @@ public sealed class SubtitleDownloadGateway : ISubtitleDownloadGateway
             url += $"&episode_number={query.EpisodeNumber}";
         }
 
-        var client = Client();
-        using var response = await client.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        if (!doc.RootElement.TryGetProperty("subtitles", out var subtitles) || subtitles.ValueKind != JsonValueKind.Array)
+        var body = await PacedGetAsync(
+            SubtitleProviderPacer.Subdl, new Uri(url), null, cancellationToken);
+        if (body == null)
         {
             return null;
         }
 
+        using var doc = JsonDocument.Parse(body);
+        if (!doc.RootElement.TryGetProperty("subtitles", out var subtitles)
+            || subtitles.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var selection = SelectSubdlFile(subtitles, query);
+        if (selection.FileUrl != null)
+        {
+            var file = await FetchPacedBytes(
+                provider.Id, new Uri(selection.FileUrl), "https://subdl.com", null, cancellationToken, query.Language);
+            if (file != null)
+            {
+                return file;
+            }
+        }
+
+        // The pack zip is the fallback: it is only fetched when no unpacked file matched, because
+        // unpacking a whole season to keep one episode wastes a download from the daily budget.
+        return selection.PackUrl == null
+            ? null
+            : await FetchPacedBytes(
+                provider.Id, new Uri(selection.PackUrl), "https://subdl.com", null, cancellationToken, query.Language);
+    }
+
+    /// <summary>
+    /// Picks the entry inside <c>unpack_files[]</c> that is the episode and language asked for,
+    /// and reports the pack URL only as a fallback.
+    /// </summary>
+    internal static SubdlSelection SelectSubdlFile(JsonElement subtitles, SubtitleDownloadQuery query)
+    {
+        string? preferredPack = null;
+        string? impairedPack = null;
         foreach (var item in subtitles.EnumerateArray())
         {
-            var path = item.TryGetProperty("url", out var urlElement) ? urlElement.GetString() : null;
-            if (string.IsNullOrWhiteSpace(path))
+            var packUrl = SubdlUrl(item.TryGetProperty("url", out var urlElement) ? urlElement.GetString() : null);
+            var packImpaired = item.TryGetProperty("hi", out var hiElement) && hiElement.ValueKind == JsonValueKind.True;
+
+            if (item.TryGetProperty("unpack_files", out var files) && files.ValueKind == JsonValueKind.Array)
+            {
+                var matches = new List<(bool Impaired, int Order, string Url)>();
+                var order = 0;
+                foreach (var file in files.EnumerateArray())
+                {
+                    order++;
+                    var fileUrl = SubdlUrl(file.TryGetProperty("url", out var fileUrlElement)
+                        ? fileUrlElement.GetString()
+                        : null);
+                    if (fileUrl == null || !SubdlFileMatches(file, query))
+                    {
+                        continue;
+                    }
+
+                    matches.Add((file.TryGetProperty("hi", out var fileHi) && fileHi.ValueKind == JsonValueKind.True,
+                        order, fileUrl));
+                }
+
+                if (matches.Count > 0)
+                {
+                    var chosen = matches
+                        .OrderBy(match => match.Impaired)
+                        .ThenBy(match => match.Order)
+                        .First();
+                    return new SubdlSelection(chosen.Url, null);
+                }
+            }
+
+            if (packUrl == null)
             {
                 continue;
             }
 
-            var absolute = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                ? path
-                : "https://dl.subdl.com" + path;
-            var hit = await FetchBytes(provider.Id, new Uri(absolute), "https://subdl.com", cancellationToken, query.Language);
-            if (hit != null)
+            if (packImpaired)
             {
-                return hit;
+                impairedPack ??= packUrl;
+            }
+            else
+            {
+                preferredPack ??= packUrl;
             }
         }
 
-        return null;
+        return new SubdlSelection(null, preferredPack ?? impairedPack);
     }
+
+    private static bool SubdlFileMatches(JsonElement file, SubtitleDownloadQuery query)
+    {
+        var language = file.TryGetProperty("language", out var languageElement)
+            ? languageElement.GetString()
+            : null;
+        if (!string.IsNullOrWhiteSpace(language) && Lang3(language) != Lang3(query.Language))
+        {
+            return false;
+        }
+
+        if (query.MediaType != MediaType.Episode
+            || query.SeasonNumber is not { } season
+            || query.EpisodeNumber is not { } episode)
+        {
+            return true;
+        }
+
+        // An entry that states no episode cannot be the episode asked for.
+        if (!TryInt(file, "episode", out var fileEpisode) || fileEpisode != episode)
+        {
+            return false;
+        }
+
+        // SubDL reports season 0 for a file whose name carries no season marker, which is what a
+        // season-scoped search returns for every episode, so zero means "unstated", not "season 0".
+        return !TryInt(file, "season", out var fileSeason) || fileSeason == season || fileSeason <= 0;
+    }
+
+    private static string? SubdlUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        return "https://dl.subdl.com" + (path.StartsWith('/') ? path : "/" + path);
+    }
+
+    private static List<JsonElement> PayloadRows(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var named)
+                && named.ValueKind == JsonValueKind.Array)
+            {
+                return named.EnumerateArray().ToList();
+            }
+        }
+
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data))
+        {
+            if (data.ValueKind == JsonValueKind.Array)
+            {
+                return data.EnumerateArray().ToList();
+            }
+
+            // Some envelopes wrap the array one level deeper: {"data":{"subtitles":[...]}}.
+            if (data.ValueKind == JsonValueKind.Object)
+            {
+                return PayloadRows(data, names);
+            }
+        }
+
+        return root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().ToList() : [];
+    }
+
+    private static bool TryInt(JsonElement element, string name, out int value)
+    {
+        value = 0;
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(name, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out value))
+        {
+            return true;
+        }
+
+        return property.ValueKind == JsonValueKind.String
+               && int.TryParse(property.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    private bool PacerAllows(
+        SubtitleProviderDefinition provider,
+        SubtitleDownloadQuery query,
+        PacerCallKind call = PacerCallKind.Request)
+    {
+        var decision = _pacer.Check(provider.Id, call);
+        if (decision.Allowed)
+        {
+            return true;
+        }
+
+        // A finished provider is an expected outcome of a sweep, not a failure: one line at
+        // information level, no exception, and the chain moves on to the next provider.
+        _logger.LogInformation(
+            "Subtitle provider {Provider} skipped for {Title}: {Reason}.",
+            provider.DisplayName,
+            query.Title,
+            decision.Reason);
+        return false;
+    }
+
+    private async Task<string?> PacedGetAsync(
+        string pacerId,
+        Uri uri,
+        IReadOnlyDictionary<string, string>? headers,
+        CancellationToken cancellationToken)
+    {
+        var decision = await _pacer.AcquireAsync(pacerId, PacerCallKind.Request, cancellationToken);
+        if (!decision.Allowed)
+        {
+            _logger.LogDebug("Subtitle provider {Provider} request skipped: {Reason}.", pacerId, decision.Reason);
+            return null;
+        }
+
+        var client = Client();
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyHeaders(request, headers);
+        using var response = await client.SendAsync(request, cancellationToken);
+        ObserveResponse(pacerId, response);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Subtitle provider {Provider} search failed on {Host}: HTTP {Status}.",
+                pacerId, uri.Host, (int)response.StatusCode);
+            return null;
+        }
+
+        return await ReadTextAsync(response, cancellationToken);
+    }
+
+    private async Task<SubtitleDownloadHit?> FetchPacedBytes(
+        string pacerId,
+        Uri uri,
+        string? referer,
+        IReadOnlyDictionary<string, string>? headers,
+        CancellationToken cancellationToken,
+        string? language)
+    {
+        var decision = await _pacer.AcquireAsync(pacerId, PacerCallKind.Download, cancellationToken);
+        if (!decision.Allowed)
+        {
+            _logger.LogDebug("Subtitle provider {Provider} download skipped: {Reason}.", pacerId, decision.Reason);
+            return null;
+        }
+
+        var client = Client();
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        ApplyHeaders(request, headers);
+        if (!string.IsNullOrWhiteSpace(referer))
+        {
+            request.Headers.Referrer = new Uri(referer);
+        }
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        ObserveResponse(pacerId, response);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Subtitle provider {Provider} download failed on {Host}: HTTP {Status}.",
+                pacerId, uri.Host, (int)response.StatusCode);
+            return null;
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length < 32
+            || response.Content.Headers.ContentType?.MediaType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return null;
+        }
+
+        var name = response.Content.Headers.ContentDisposition?.FileNameStar
+                   ?? response.Content.Headers.ContentDisposition?.FileName
+                   ?? Path.GetFileName(uri.AbsolutePath);
+        var unpacked = SubtitleArchive.Unpack(bytes, name, out var extension, language);
+        if (SubtitleBytes.IsHtml(unpacked))
+        {
+            return null;
+        }
+
+        var trimmed = name?.Trim('"');
+        return new SubtitleDownloadHit
+        {
+            Provider = pacerId,
+            Content = unpacked,
+            FileName = string.IsNullOrWhiteSpace(trimmed) || !Path.HasExtension(trimmed)
+                ? $"{pacerId}{extension}"
+                : trimmed,
+            Extension = extension
+        };
+    }
+
+    private static void ApplyHeaders(HttpRequestMessage request, IReadOnlyDictionary<string, string>? headers)
+    {
+        if (headers == null)
+        {
+            return;
+        }
+
+        foreach (var (key, value) in headers)
+        {
+            request.Headers.TryAddWithoutValidation(key, value);
+        }
+    }
+
+    private void ObserveResponse(string pacerId, HttpResponseMessage response) =>
+        _pacer.Observe(
+            pacerId,
+            (int)response.StatusCode,
+            RetryAfter(response),
+            Remaining(response, "X-RateLimit-Remaining-Hour"),
+            Remaining(response, "X-RateLimit-Remaining-Day"));
+
+    private static TimeSpan? RetryAfter(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter is { } retry)
+        {
+            if (retry.Delta is { } delta)
+            {
+                return delta;
+            }
+
+            if (retry.Date is { } date)
+            {
+                var wait = date - DateTimeOffset.UtcNow;
+                return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
+            }
+        }
+
+        return int.TryParse(Header(response, "Retry-After"), out var seconds)
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
+    }
+
+    private static int? Remaining(HttpResponseMessage response, string name) =>
+        int.TryParse(Header(response, name), out var value) ? value : null;
+
+    private static string? Header(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
+
+    internal sealed record SubsourceRow(
+        int Id,
+        List<string> ReleaseInfo,
+        int Downloads,
+        int RatingGood,
+        int RatingBad,
+        bool HearingImpaired);
+
+    internal readonly record struct SubdlSelection(string? FileUrl, string? PackUrl);
 
     private async Task<SubtitleDownloadHit?> GestdownAsync(SubtitleDownloadQuery query, CancellationToken cancellationToken)
     {

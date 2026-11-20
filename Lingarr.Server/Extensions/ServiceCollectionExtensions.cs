@@ -75,6 +75,7 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(60);
         });
+        builder.Services.AddSingleton<SubtitleProviderPacer>();
         builder.Services.AddHttpClient("plex", client =>
         {
             client.Timeout = TimeSpan.FromMinutes(10);
