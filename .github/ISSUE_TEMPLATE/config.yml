@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Feature Requests
-    url: https://github.com/apoapostolov/lingarr/discussions
-    about: Suggest features and improvements for Lingarr Next.
+  - name: Security report
+    url: https://github.com/apoapostolov/lingarr-next/security/policy
+    about: Report a vulnerability privately instead of opening an issue.

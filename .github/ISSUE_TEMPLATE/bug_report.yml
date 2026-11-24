@@ -1,36 +1,70 @@
-name: Bug Report
-description: Create a report to help us improve Lingarr Next
-title: '[BUG] Provide a descriptive title'
-labels: 
+name: Bug report
+description: Something in Lingarr Next does not work as it should
+title: '[Bug] '
+labels:
   - bug
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug! Please provide detailed information below.
+        A short report with the exact version and how you run it is worth more than a long one.
+        For a security problem, stop here and use the Security tab instead.
 
   - type: input
     id: version
     attributes:
-      label: Lingarr version
-      description: Which version are you running? Check the footer of the Lingarr Next UI or your Docker image tag. Use a released Lingarr Next version.
-      placeholder: 1.0.0
+      label: Lingarr Next version
+      description: The footer of the UI, or the image tag you run. Use a released version.
+      placeholder: 1.2.5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How it runs
+      options:
+        - Docker with SQLite
+        - Docker with MySQL
+        - Docker with PostgreSQL
+        - From source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      description: Whether AUTH_ENABLED is turned on.
+      options:
+        - On
+        - Off
     validations:
       required: true
 
   - type: textarea
-    id: description
+    id: what-happened
     attributes:
-      label: Describe the problem
-      description: "Provide a detailed description of the issue, steps to reproduce, and expected vs actual behavior"
-      placeholder: "Describe the issue here..."
+      label: What happened
+      description: What you did, what you expected, and what appeared instead. Paste the failing request or log line when you have it.
     validations:
       required: true
-      
+
   - type: textarea
-    id: context
+    id: logs
     attributes:
-      label: Screenshots or Additional Context
-      description: Provide any additional context and screenshots, docker compose configurations here to help us solve this issue.
+      label: Logs or errors
+      description: Remove media paths, provider keys and Plex tokens before pasting.
+      render: shell
     validations:
       required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem
+          required: true
+        - label: I removed API keys, tokens and private media paths from anything I pasted
+          required: true
