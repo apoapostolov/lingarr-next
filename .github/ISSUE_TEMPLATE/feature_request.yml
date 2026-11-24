@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest a capability or an improvement for Lingarr Next
+title: '[Feature] '
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first, then the change you want. A request that names the
+        workflow it unblocks is easier to act on than a list of settings.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: The workflow that hurts today, and who runs into it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried instead
+      description: Existing settings, a workaround, or another tool.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Translation workflow
+        - Providers and models
+        - Subtitle sources and downloads
+        - Media servers and connections
+        - Dashboard and quality
+        - Settings and interface
+        - API, MCP, or plugins
+        - Documentation
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this request
+          required: true
