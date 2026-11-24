@@ -1,20 +1,20 @@
 <div align="center">
 
-<img src="docs/images/mark.png" alt="" width="256" />
+<img src="docs/images/mark.png" alt="Lingarr Next" width="192" />
 
 # Lingarr Next
 
 Translate the subtitles you already have. Keep the drive quiet.
 
-[![Version](https://img.shields.io/github/v/release/apoapostolov/lingarr-next?label=release)](https://github.com/apoapostolov/lingarr-next/releases)
+[![Release](https://img.shields.io/github/v/release/apoapostolov/lingarr-next?label=release)](https://github.com/apoapostolov/lingarr-next/releases)
 [![Container](https://img.shields.io/badge/container-ghcr.io%2Fapoapostolov%2Flingarr--next-2496ED?logo=docker&logoColor=white)](https://github.com/apoapostolov/lingarr-next/pkgs/container/lingarr-next)
 [![CI](https://github.com/apoapostolov/lingarr-next/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/apoapostolov/lingarr-next/actions/workflows/ci.yml)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 
-</div>
+<a href="#quick-start">Quick start</a> &nbsp;•&nbsp; <a href="docs/README.md">Docs</a> &nbsp;•&nbsp; <a href="https://github.com/apoapostolov/lingarr-next/releases">Releases</a> &nbsp;•&nbsp; <a href="https://github.com/apoapostolov/lingarr-next/issues">Issues</a>
 
----
+</div>
 
 Lingarr Next is a self-hosted subtitle manager for movies and TV. It watches
 Sonarr, Radarr, and Plex for new files, translates a subtitle that is already
@@ -33,295 +33,68 @@ Lingarr Next started from
 project, maintained by Apostol Apostolov. AI-assisted changes are welcome.
 Each one is still reviewed and tested before it ships.
 
-## What's new
+## What is different from Lingarr
 
-Current release: [1.2.5](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.5).
-The full history is in [CHANGELOG.md](CHANGELOG.md).
+The fork keeps Lingarr's shape, so an existing install can move across. These
+are the parts that changed.
 
-### 1.2.5 — Clean Manifests (2026-11-24)
+- **No telemetry.** The anonymous usage reporting and its onboarding step are
+  gone. Update checks point at this repository.
+- **A translation chain you can shape.** Every row in the chain carries its own
+  provider and model, and the same provider can appear twice with different
+  models. Older plain-string and string-array settings are normalized into the
+  chain format.
+- **A wider provider line.** OpenRouter, Z.ai Coding Plan, OpenCode Go, Qwen
+  (general and Qwen-MT), xAI (API key and device login), Mistral, and DeepSeek
+  sit beside the original free and hosted translators.
+- **Instruction profiles.** A library of system and context prompts you can
+  version, activate, and assign per provider row.
+- **Plugins.** A `PLUGINS_PATH` folder loads each plugin as its own settings
+  card, and a plugin can register its own tab.
+- **Quality scoring.** Finished subtitles get a 0 to 100 score with findings
+  for damaged markup, missing content, and script mismatch. Scoring observes
+  only and never deletes a file.
 
-- All eight open dependency advisories are closed. Each one was a transitive dependency of the
-  documentation site's builder, and the fix stays on the versions that site already builds with. The
-  application itself is unchanged, so an existing install behaves the same after upgrading.
-
-### 1.2.4 — Language Priority (2026-11-20)
-
-- The order you set for source and target languages is now kept. When two
-  sources are equally good matches, the one higher in your list is used.
-  Drag a language in Settings to move it up or down.
-- With First target only turned on, a job translates to the first target on
-  your list and stops there. A subtitle you add later for another target no
-  longer makes the job skip translation.
-- API keys and Plex tokens supplied through environment variables are encrypted
-  before they are saved. Keys already stored in plain text are converted on
-  startup.
-- A translation job that cannot be queued now shows as Failed with the reason,
-  instead of sitting as Pending with nothing running.
-- A subtitle provider security update and small settings and navigation fixes
-  are included.
-
-### 1.2.3 — Gentle Sources (2026-11-20)
-
-- SubSource and SubDL downloads work again. They fetch the subtitle for the
-  exact movie or episode you asked for, rather than a season archive or the
-  wrong release.
-- Both providers keep to their published request and download limits. One that
-  is finished for the day or cooling down is skipped so the next provider is
-  tried.
-- Rate limits and provider errors now appear on the Providers page.
-- The provider health panel no longer stalls during a library sync or answers
-  with an error when the database is busy.
-
-### 1.2.2 — Clean Source (2026-11-03)
-
-- A translation that stalls no longer holds everything up for fifteen minutes.
-  A request that stops answering is dropped after about two minutes and retried,
-  and when the provider never answers the job ends with a clear timeout instead
-  of hanging.
-- Subtitle files that carry only signs, song lyrics or on-screen text are refused
-  before translation, so a file with no dialogue no longer turns into a broken
-  translation. Ordinary subtitles still go through, including styled ones and
-  lines two characters speak at once.
-- A translation that comes back unchanged is not written over your file.
-- Quality scores stopped reporting things that are not problems, so a good
-  translation is no longer scored as failed.
-- Job history survives. A damaged job list is repaired instead of being thrown
-  away with every job in it.
-- Both new checks have a switch in Settings, and an existing install behaves the
-  same after upgrading.
-
-### 1.2.1 — Closest Match (2026-10-23)
-
-- Source matching uses the closest language code (`en-US` can use `en.srt`)
-  and ignores letter case. Forced and regular tracks can be translated
-  separately when Ignore captions is off.
-- Content translation keeps running if the HTTP client disconnects. An
-  active duplicate returns HTTP 409. A completed request with the same
-  source lines is reused.
-- Connections can skip unmonitored Radarr movies and Sonarr series or
-  episodes when scanning. The switches start off.
-- Expanding a season loads subtitles from that season's stored folder.
-- Movie, show, and translation toolbars wrap from the large breakpoint.
-- A quality replace clears coverage so daily discovery downloads for the new
-  file. A completed translation for an old filename does not skip the new one.
-  Daily discovery keeps the import cursor when the per-run cap leaves titles
-  unprocessed. Download queues translation when English is already on disk
-  and providers miss the target language.
-- An empty target sidecar does not count as a finished language pair.
-  Extract ignores that leftover, deletes a 0-byte extract, and waits up to
-  10 minutes so a large video can finish.
-
-### 1.2.0 — Download First (2026-10-16)
-
-- New movies and episodes extract embedded source and target text tracks
-  from the video before downloaders or translation.
-- Settings → Connections lists each Plex library with a refresh control and
-  a schedule switch. One cron runs enabled libraries in turn, waits 15
-  minutes between libraries, then selects the configured subtitle when that
-  sidecar is on the item.
-- Movies and TV episodes have Download, Translate, and Retranslate. Download
-  searches configured subtitle providers for a missing source and for target
-  languages. If only a source file is placed, Lingarr queues translation.
-  Translate and Retranslate queue from a source sidecar on disk.
-- Settings → Translation → Providers can download a subtitle before
-  translation. A matching target is placed and the media server is notified.
-  The tab switch is on by default.
-- Settings → Translation → Providers can download a missing English subtitle
-  for every movie and episode. The run does not translate.
-- A subtitle provider that sends an unknown character set is treated as a
-  miss, and Lingarr keeps walking the rest of the chain.
-- An empty sidecar, a web page saved as a subtitle, or a file in the wrong
-  language does not count as that language. Download searches providers for
-  it. Daily translation ignores a web page saved as a source subtitle and
-  searches providers for a real file.
-- A subtitle in Arabic or another non-Latin script does not count as English.
-  German, Spanish, Italian, or Portuguese labeled as English is skipped.
-  UTF-16 files are decoded before those checks.
-- Subtitle search uses the year from the file name and ignores punctuation
-  in a title. HTML providers follow a result page to a real subtitle file.
-  OpenSubtitles retries without a file hash when the hash search is empty.
-- A short title such as Box or 9 must stand as its own words next to the
-  year. The, A, or An in front of a short title still matches. Episode
-  search uses the series name and the SxxExx tag. A downloaded sidecar is
-  named from the video file.
-- A download link with no language tag is tried as the requested language.
-  A zip uses the file whose name matches the requested language. JSON
-  providers try later download URLs when the first file is a web page.
-- An English sidecar whose release name drifted, such as WEBRip next to a
-  WEBDL video, still counts as present.
-- Plex library refresh uses a 10-minute request timeout. A timed-out call
-  is a warning, and the job keeps going.
-
-### 1.1.6 — Infinitely Extendable (2026-10-05)
-
-- A plugin is a DLL. Set `PLUGINS_PATH` to its folder and restart. Every
-  plugin starts off.
-- Settings → Plugins shows each plugin as its own card. The switch is in the
-  upper right. An off card is dim, and each card keeps its own height.
-- A plugin can add a tab and several cards, change a finished subtitle, run
-  one external command, supply a source subtitle, accept a webhook, send a
-  notice when a translation ends, and run a scheduled task.
-- Plex, Jellyfin, and Emby stay built in. A plugin media server runs after
-  them.
-- The developer guide is
-  [Developer API documentation](Lingarr.Docs/developers/Plugins.md).
-  `samples/StyleSample` is a working set, all off until you enable one.
-- International quotes follows the target language. Its dropdown can
-  overwrite that country with another dialogue style.
-- A plugin's failure policy says whether Lingarr continues after an error,
-  stops that file, or fails the translation and keeps the old file.
-- Strip HTML is on. Tags such as font, bold, and italics are removed before
-  translation.
-- Translation services and Provider Health list only translators.
-- A provider cancel is tried again, 5 times by default, 2 hours apart. The
-  status reads Cancelled (1/5). Line retries stay inside the job and wait
-  seconds.
-- Settings → Translation → Setup has one Provider panel. Drag a row to
-  change the order. The selected row's address, key, and account are below.
-  Microsoft Translate has no fields of its own.
-- Open Translation Setup scrolls to that provider.
-- The main chart hover shows the day, that day's count, and the average.
-- Translation detail shows Revise with AI and Subtitle Quality side by side
-  on a wide screen. Settings and provider guidance was tightened.
-- Settings → Translation → Advanced can use TypeSafe Jev or OpenAI Luna
-  Decisions. Existing installs stay on Jev, and both checks stay off.
-- A subtitle with no language code is unknown. Signup stays closed once
-  authentication is on, and onboarding cannot be completed twice.
-
-### 1.1.5 — All The Subs (2026-10-05)
-
-- An English picture or caption track inside a video can become a text
-  subtitle. Picture conversion waits 72 hours and is the last resort.
-- Bazarr can supply a missing source subtitle. The switch starts off. A miss
-  is tried again for up to 7 days. A downloaded subtitle can replace one
-  Lingarr made by OCR.
-- Jellyfin and Emby can queue a new movie or episode.
-- System logs open on the newest lines, load older lines as you scroll up,
-  and give a next step for a warning or an error.
-
-### 1.1.4 — Resume and Classify (2026-10-05)
-
-- A cancelled translation can continue when the saved lines still score at
-  least 90.
-- Under Cancelled, the list shows progress and quality.
-- TypeSafe Jev can skip sound cues and credits, and it can drop a result that
-  is not a translation. Both uses start off.
-
-### 1.1.3 — Imports (2026-10-04)
-
-- The daily check asks Plex, Radarr, and Sonarr what was imported.
-- A title that already has the source language and every target language is
-  left alone. The folder is not opened.
-- A new import that is still missing a language is the only folder opened.
-- A full drive walk runs only when Plex, Radarr, and Sonarr are all missing
-  and **Scan all folders on a schedule** is on.
-- Translation automation runs once a day at 02:00 UTC, before Sunday
-  housekeeping and the daily statistics job.
-
-### 1.1.2 — Library (2026-10-04)
-
-- Plex `library.new` can start a translation for a movie or an episode.
-- Movies match by tmdb, imdb, or tvdb id. Episodes match by show, season, and
-  episode number, or by the show id when the Plex title differs.
-- Movies and episodes each have their own webhook switch. Both start on.
-- Scheduled translation, housekeeping, and statistics stay off the disk while
-  the library scan switch is paused. That switch starts paused.
-
-### 1.1.1 — Plex (2026-10-04)
-
-- Sign in from Settings with a Plex PIN, or with a server address and token.
-  The token stays encrypted. Sign-out stays signed out when a token is also
-  set in the environment.
-- After a translation, Lingarr can select that subtitle in Plex for one
-  language. Matching uses the file path, an external id, or the Plex title,
-  original title, and slug.
-- If a refresh misses a sidecar such as `name.bg.srt`, Lingarr uploads the
-  file and then selects it.
-- Batch translation can be set from the environment, and saving an AI service
-  no longer turns batch off for a provider that supports it.
-- `JOB_TIMEOUT_MINUTES` controls how long a silent SQLite Hangfire job waits.
-  The default is 30.
-
-### 1.1.0 — Keep House (2026-08-13)
-
-- The Dashboard opens from a local cache, then refreshes in the background.
-- A weekly job renames orphan sidecars so they match the video file, and can
-  extract one English text track when no sidecar exists. The server image
-  includes ffmpeg.
-- Completed translations can be sent back through **Revise with AI**.
-- Mistral joins the provider list, with model discovery and instruction
-  profiles.
-- Portable fixes from upstream 1.3.0: long Microsoft lines are split, webhook
-  URLs keep the base path, and the safe dependency updates are included.
-
-### 1.0.1 — Moar Providers (2026-07-29)
-
-- Qwen General AI and Qwen Translation (Qwen-MT) are separate providers.
-- xAI is available as an API-key provider and, experimentally, as SuperGrok /
-  Premium+ device login. Those tokens stay encrypted.
-- The fork name **Lingarr Next** is used across the app, docs, and provider
-  identity.
-
-### 1.0.0 (2026-07-29)
-
-The first Lingarr Next release. It is its own version line, not an upstream
-1.0.
-
-- Dashboard for language coverage, provider health, recent work, quality, and
-  metered model usage.
-- An ordered provider-and-model fallback chain.
-- OpenRouter, Z.ai Coding Plan, OpenCode Go, and a stronger DeepSeek path.
-- Observe-only quality scores, with findings you can inspect.
-- Versioned System and Context instruction profiles, assignable per provider.
-- Settings grouped into Connections, Translation, Automation, System, and
-  Plugins. Anonymous telemetry is gone. Update checks point at this fork.
-
-<p align="center">
-  <img src="docs/images/dashboard-overview.png" alt="Lingarr Next Dashboard showing language coverage, provider health, and recent translation activity" width="100%" />
-</p>
+The version line restarted at 1.0.0 and is independent of upstream tags.
+Lingarr Next 1.2.5 is not newer or older than an upstream 1.5.0; the two lines
+release separately.
 
 ## Features
 
-### Operational Dashboard
+### Dashboard
 
 - **Language coverage** shows the share of movies and TV episodes that already
   have subtitles in your chosen primary language. The selection is remembered.
 - **Provider Health** lists every translator as Healthy, Not checked, Needs
   attention, Recently unavailable, Unavailable, or Not configured, with
   expandable diagnostics and safe provider tests.
-- **Recent Activity** retains the readable historical graph while adding
-  completed-file counts, quality results, active work, fallback recoveries, and
-  a configurable time window.
-- **Human-readable progress** summarizes completed subtitle files and the
-  provider responsible for them without exposing subtitle text.
+- **Recent Activity** keeps the historical graph and adds completed-file
+  counts, quality results, active work, fallback recoveries, and a configurable
+  time window.
 - **Metered LLM usage** reports input tokens, output tokens, and an approximate
   cost when OpenRouter, OpenAI, DeepSeek, or Anthropic handled translations.
 
-### Translation workflow and quality
+<p align="center">
+  <img src="docs/images/dashboard-overview.png" alt="Dashboard with language coverage, provider health, recent activity, and metered LLM usage" width="100%" />
+</p>
+
+### Translation workflow
 
 - Automatic discovery and translation for connected Sonarr and Radarr
   libraries.
-- Manual and API-triggered subtitle translation with optional explicit subtitle
-  paths.
+- Manual and API-triggered translation, with an optional explicit subtitle path.
 - Ordered provider fallbacks keep work moving when an earlier translator fails.
-- Completed subtitles receive a deterministic score from 0 to 100.
-- Quality findings detect suspicious output, damaged markup, missing content,
-  script mismatches, poor readability, and other translation risks.
-- Quality is currently **observe-only**: it helps you review translations but
-  does not silently reject or delete a completed file.
-- The Translations list shows source, target, status, quality, progress, episode
-  details, and compact relative completion times. An enabled plugin can add a
-  short badge on a row, such as `ocr`.
+- Completed subtitles receive a deterministic score from 0 to 100, and the
+  Translations list shows source, target, status, quality, progress, and
+  compact relative completion times.
 - An English picture subtitle or closed caption inside a video can become a
   text file before translation. Picture conversion waits 72 hours and is the
   last resort. An OCR file keeps an `ocr` tag in the name.
 - When no source subtitle is on disk, Lingarr can ask Bazarr. That switch
-  starts off. A miss is tried again for up to 7 days, and a downloaded file
-  can replace one Lingarr made by OCR.
-- Settings → Translation → Providers can download a source or target subtitle
-  from configured sites before translation. A matching target is placed and
-  the media server is notified. Download, Translate, and Retranslate sit on
-  each movie and episode.
+  starts off, a miss is retried for up to 7 days, and a downloaded file can
+  replace one Lingarr made by OCR.
+- Providers can fetch a source or target subtitle from configured sites before
+  translation. A matching target is placed and the media server is notified.
 
 <p align="center">
   <img src="docs/images/movies-download.png" alt="Movies list with Download, Translate, and Retranslate, plus subtitle language badges" width="48%" />
@@ -332,55 +105,45 @@ The first Lingarr Next release. It is its own version line, not an upstream
 
 | Category | Providers |
 | --- | --- |
-| Free / web translators | Microsoft Translate, Google Translate, Bing Translate, Yandex Translate |
+| Free and web translators | Microsoft Translate, Google Translate, Bing Translate, Yandex Translate |
 | Hosted translation APIs | DeepL, LibreTranslate |
-| AI providers | OpenRouter, OpenAI, Anthropic, DeepSeek, Google Gemini, Qwen General AI, Qwen Translation, Z.ai Coding Plan, OpenCode Go, xAI API, xAI SuperGrok / Premium+ |
+| AI providers | OpenRouter, OpenAI, Anthropic, DeepSeek, Google Gemini, Qwen General AI, Qwen Translation, Z.ai Coding Plan, OpenCode Go, xAI API, xAI SuperGrok and Premium+ |
 | Self-hosted AI | LocalAI, Ollama, and compatible OpenAI-style endpoints |
 
-AI services expose model selectors where supported. A translation chain may use
-the same provider more than once with different models. OpenRouter keeps
-`openrouter/free` first as the Lingarr Next default for inexpensive bulk work, with
-`openrouter/auto` second and the remaining catalogue after it.
-
-Qwen is offered in two forms: general Qwen models support Lingarr instruction
-profiles, while Qwen Translation uses Qwen-MT's purpose-built language controls.
-xAI is likewise offered as the conventional developer API and as an experimental
-device-login connection for SuperGrok / Premium+ accounts.
+AI services expose model selectors where the provider supports them. OpenRouter
+keeps `openrouter/free` first for inexpensive bulk work, with `openrouter/auto`
+second and the rest of the catalogue after it. Qwen appears in two forms:
+general models support instruction profiles, while Qwen Translation uses
+Qwen-MT's purpose-built language controls. xAI appears as a conventional
+developer API and as an experimental device-login connection for SuperGrok and
+Premium+ accounts.
 
 ### Instruction profiles
 
 - Separate **System Prompt** and **Context Prompt** libraries.
 - Create, rename, duplicate, version, activate, and delete profiles.
 - Assign profiles to individual AI provider rows or inherit the active default.
-- Built-in examples include translation role, tone, profanity, names, glossary,
+- Built-in examples cover translation role, tone, profanity, names, glossary,
   captions, readability, ambiguity, and final-output rules.
-- Existing prompt placeholders remain available, including source/target
+- Existing prompt placeholders remain available, including source and target
   language and dialogue-context tags.
 
-### Settings and operator experience
+### Settings and plugins
 
 - Settings are grouped into **Connections**, **Translation**, **Automation**,
   **System**, and **Plugins**.
-- Plugins load from `PLUGINS_PATH`. Each plugin is its own card. The switch
-  in the upper right turns it on. An off card is dim. A plugin can register
-  its own tab and place more than one card on that tab.
+- Plugins load from `PLUGINS_PATH`. Each plugin is its own card, and the switch
+  in the upper right turns it on. An off card is dim.
 - Jellyfin Item Added and Emby library.new queue a new movie or episode the
   same way a Plex library.new event does. Radarr and Sonarr webhooks stay.
-- System logs open on the newest lines. Older lines load as you scroll up. A
-  warning or error includes a short next step.
+- System logs open on the newest lines. Older lines load as you scroll up, and
+  a warning or error includes a short next step.
 - Translation has local **Setup**, **Providers**, **Subtitles**, **Prompts**,
   and **Advanced** tabs.
-- Translation Services are placed before Languages and retain the familiar
-  Lingarr Next card and field vocabulary.
-- Save notifications use a visible theme-aligned toast with restrained spring
-  motion and rate limiting.
-- Anonymous telemetry and its onboarding step are completely removed.
-- Update checks use the Apostol Apostolov fork rather than the upstream
-  repository.
 
 <p align="center">
   <img src="docs/images/translation-settings.png" alt="Translation Setup with languages, a draggable provider chain, and provider health" width="48%" />
-  <img src="docs/images/subtitle-providers.png" alt="Settings → Translation → Providers with a download chain of subtitle sites" width="48%" />
+  <img src="docs/images/subtitle-providers.png" alt="Settings, Translation, Providers with a download chain of subtitle sites" width="48%" />
 </p>
 
 <p align="center">
@@ -390,7 +153,7 @@ device-login connection for SuperGrok / Premium+ accounts.
 
 <p align="center">
   <img src="docs/images/connections-media.png" alt="Connections with Radarr, Sonarr, Plex sign-in, and Bazarr source download" width="48%" />
-  <img src="docs/images/plugins.png" alt="Settings → Plugins with one card per plugin and an off switch in the upper right" width="48%" />
+  <img src="docs/images/plugins.png" alt="Settings, Plugins with one card per plugin and an off switch in the upper right" width="48%" />
 </p>
 
 <p align="center">
@@ -398,25 +161,19 @@ device-login connection for SuperGrok / Premium+ accounts.
   <img src="docs/images/system-logs.png" alt="System logs with newest lines, a Following switch, and a next step on warnings" width="48%" />
 </p>
 
-### Reliability
+### Operational notes
 
-- Subtitle discovery avoids unbounded recursive scans, ignores trailer folders,
-  and still finds conventional subtitle directories.
-- The daily translation check uses Plex, Radarr, and Sonarr. It does not walk
-  every folder. A full scan is the fallback when those three are missing and
-  the library scan switch is on.
-- Hangfire SQLite receives startup recovery and periodic WAL checkpoint
-  maintenance.
-- Microsoft/GTranslate requests use longer provider-specific timeouts and
-  transient retry with jitter.
-- Invalid Sonarr/Radarr identifiers are rejected early and routine skip messages
-  no longer dominate logs.
-- API keys remain encrypted settings; provider-health and usage records never
-  store subtitle text, prompts, credentials, or media paths.
+Discovery avoids unbounded recursive scans, skips trailer folders, and still
+finds conventional subtitle directories. The daily check uses Plex, Radarr, and
+Sonarr rather than walking every folder, with a full scan as the fallback when
+none of them is connected and the library scan switch is on. API keys stay
+encrypted, and health and usage records never store subtitle text, prompts,
+credentials, or media paths. Microsoft and Google requests use longer
+provider-specific timeouts with a transient retry.
 
-## Quick start with Docker Compose
+## Quick start
 
-The simplest installation uses SQLite and the published multi-architecture
+The shortest install uses SQLite and the published multi-architecture
 container:
 
 ```yaml
@@ -438,27 +195,42 @@ services:
       - /path/to/media/tv:/tv
 ```
 
-Start the service:
+Start it, then work through the app:
 
 ```bash
 docker compose up -d
+docker compose ps
 ```
 
-Open `http://localhost:9876`, connect Sonarr and/or Radarr under
-**Settings → Connections**, configure paths, then choose translation providers
-under **Settings → Translation → Setup**. To load plugins, set `PLUGINS_PATH`
-and restart. They stay off until you enable each card.
+1. Open `http://localhost:9876`.
+2. Connect Sonarr, Radarr, or Plex under **Settings, Connections**, and set the
+   media paths to match the container volumes.
+3. Choose providers under **Settings, Translation, Setup**. Drag the chain into
+   the order you want.
+4. Set `PLUGINS_PATH` before starting if you want plugins. They stay off until
+   you enable each card.
 
 MySQL and PostgreSQL remain supported for larger or existing installations.
-Docker secrets can be supplied by using the `_FILE` form of supported
-environment variables. `JOB_TIMEOUT_MINUTES` sets how long a silent SQLite
-Hangfire job waits before it is retried. The default is 30.
+Docker secrets can be supplied with the `_FILE` form of supported environment
+variables. `JOB_TIMEOUT_MINUTES` sets how long a silent SQLite Hangfire job
+waits before it is retried, and the default is 30.
+
+## Latest release
+
+**1.2.5, Clean Manifests.** All eight open dependency advisories are closed.
+Each one was a transitive dependency of the documentation site's builder, and
+the application itself is unchanged, so an existing install behaves the same
+after upgrading.
+
+**1.2.4, Language Priority.** The order you set for source and target languages
+is now kept, and the higher match wins. API keys and Plex tokens supplied
+through environment variables are encrypted before they are saved, with
+existing plain-text keys converted on startup. A job that cannot be queued now
+shows as Failed with the reason instead of sitting as Pending.
+
+Full history and per-release detail: [CHANGELOG.md](CHANGELOG.md).
 
 ## Updating and migration
-
-Lingarr Next begins its own version line at **1.0.0**. That number is
-independent from upstream Lingarr versions and should not be compared
-numerically with an upstream `1.x` tag.
 
 Before changing from upstream Lingarr or an older fork build:
 
@@ -469,9 +241,6 @@ Before changing from upstream Lingarr or an older fork build:
 4. Start the container and allow the automatic database migrations to finish.
 5. Confirm the translation chain, paths, prompt profiles, and provider health
    before starting a large automated run.
-
-Legacy plain-string and string-array `SERVICE_TYPE` values remain accepted and
-are normalized into the richer provider/model chain format.
 
 ## Configuration
 
@@ -484,7 +253,7 @@ Common environment variables:
 | `SQLITE_DB_PATH` | Optional application SQLite path |
 | `DB_HANGFIRE_SQLITE_PATH` | Optional Hangfire SQLite path |
 | `MAX_CONCURRENT_JOBS` | Number of translation workers |
-| `SERVICE_TYPE` | One provider or an ordered JSON provider/model chain |
+| `SERVICE_TYPE` | One provider or an ordered JSON provider and model chain |
 | `SOURCE_LANGUAGES` | Minified JSON list of allowed source languages |
 | `TARGET_LANGUAGES` | Minified JSON list of target languages |
 | `RADARR_URL` / `RADARR_API_KEY` | Radarr connection |
@@ -497,34 +266,32 @@ See [Settings.MD](Settings.MD) for the full environment-variable reference.
 
 ## Documentation
 
-- [Developer API documentation](Lingarr.Docs/developers/Plugins.md)
 - [Documentation index](docs/README.md)
 - [Architecture and request flows](docs/architecture.md)
 - [Testing and live smoke checks](docs/testing.md)
 - [AI providers, model selection, and fallback chains](docs/ai-providers-model-fallback-chain.md)
 - [Provider health, subtitle quality, Dashboard, and instruction profiles](docs/proposals/translation-confidence-and-instruction-profiles.md)
 - [Settings information architecture](docs/proposals/settings-page-ia-and-qol.md)
-- [Current AI-assisted development plan](DEVELOPMENT_PLAN.md)
+- [Developer API documentation](Lingarr.Docs/developers/Plugins.md)
 - [API documentation sources](Lingarr.Docs/)
+- [Development plan](DEVELOPMENT_PLAN.md)
 
 ## Development and contributing
 
 Contributions, bug reports, and carefully reviewed AI-assisted work are welcome.
-Contributors must understand and be able to explain submitted changes; low-effort
-generated output is not accepted merely because AI use is allowed.
+Contributors must understand and be able to explain submitted changes, and
+low-effort generated output is not accepted merely because AI use is allowed.
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and the
 [testing guide](docs/testing.md).
 
-## Upstream and credits
+## Credits and lineage
 
 Lingarr Next is built on the work of the
 [Lingarr project](https://github.com/lingarr-translate/lingarr) and its
-contributors. Upstream remains a source for selective, reviewed imports; this
+contributors. Upstream remains a source for selective, reviewed imports. This
 fork has its own roadmap, releases, container images, update checks, and support
 expectations.
-
-Additional project credits:
 
 - Icons: [Lucide](https://lucide.dev/icons)
 - Subtitle parsing: [SubtitlesParser](https://github.com/AlexPoint/SubtitlesParser)
