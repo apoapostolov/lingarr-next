@@ -59,6 +59,21 @@ The version line restarted at 1.0.0 and is independent of upstream tags.
 Lingarr Next 1.2.5 is not newer or older than an upstream 1.5.0; the two lines
 release separately.
 
+## Latest release
+
+**1.2.5, Clean Manifests.** All eight open dependency advisories are closed.
+Each one was a transitive dependency of the documentation site's builder, and
+the application itself is unchanged, so an existing install behaves the same
+after upgrading.
+
+**1.2.4, Language Priority.** The order you set for source and target languages
+is now kept, and the higher match wins. API keys and Plex tokens supplied
+through environment variables are encrypted before they are saved, with
+existing plain-text keys converted on startup. A job that cannot be queued now
+shows as Failed with the reason instead of sitting as Pending.
+
+Full history and per-release detail: [CHANGELOG.md](CHANGELOG.md).
+
 ## Features
 
 ### Dashboard
@@ -214,21 +229,6 @@ MySQL and PostgreSQL remain supported for larger or existing installations.
 Docker secrets can be supplied with the `_FILE` form of supported environment
 variables. `JOB_TIMEOUT_MINUTES` sets how long a silent SQLite Hangfire job
 waits before it is retried, and the default is 30.
-
-## Latest release
-
-**1.2.5, Clean Manifests.** All eight open dependency advisories are closed.
-Each one was a transitive dependency of the documentation site's builder, and
-the application itself is unchanged, so an existing install behaves the same
-after upgrading.
-
-**1.2.4, Language Priority.** The order you set for source and target languages
-is now kept, and the higher match wins. API keys and Plex tokens supplied
-through environment variables are encrypted before they are saved, with
-existing plain-text keys converted on startup. A job that cannot be queued now
-shows as Failed with the reason instead of sitting as Pending.
-
-Full history and per-release detail: [CHANGELOG.md](CHANGELOG.md).
 
 ## Updating and migration
 
