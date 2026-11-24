@@ -6,6 +6,7 @@ on:
 
 jobs:
   validate:
+    if: contains(github.event.issue.labels.*.name, 'bug')
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -24,7 +25,7 @@ jobs:
             });
             const allowedVersions = new Set(tags.map(t => t.name.replace(/^v/, '').toLowerCase()));
 
-            const versionMatch = body.match(/###\s*Lingarr version\s*\r?\n+([^\r\n]+)/i);
+            const versionMatch = body.match(/###\s*Lingarr(?: Next)? version\s*\r?\n+([^\r\n]+)/i);
             const versionValue = versionMatch ? versionMatch[1].trim().replace(/^v/, '').toLowerCase() : '';
             const hasVersion = allowedVersions.has(versionValue);
 
