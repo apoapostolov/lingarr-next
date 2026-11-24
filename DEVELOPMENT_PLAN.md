@@ -22,8 +22,8 @@ transcript. Completed work belongs in the changelog or a dated development log.
 
 ## Current state
 
-- **Released:** Lingarr Next 1.2.4, “Language Priority”.
-- **main:** the only long-lived branch, and the Lingarr Next 1.2.4 product
+- **Released:** Lingarr Next 1.2.5, “Clean Manifests”.
+- **main:** the only long-lived branch, and the Lingarr Next 1.2.5 product
   line. Do not recreate `next`. Do not merge `upstream/main` into `main`.
   Upstream #502 (`5eadc933`) is an old snapshot and is not the branch tip.
   The daily check uses Plex, Radarr, and Sonarr and does not walk every
@@ -54,6 +54,15 @@ transcript. Completed work belongs in the changelog or a dated development log.
   with the account keys before the release: SubDL returned the pilot of the
   requested season as `01 Pilot.en.srt`, and SubSource returned an unpacked ASS
   from its zip.
+
+  1.2.5 carries no migration and no server or client change: its diff is the
+  `Lingarr.Docs` lockfile, the two `Lingarr.Client` version fields and the
+  documentation. Its validation is `npm ci` and `npm run build` in
+  `Lingarr.Client` against the bumped lock (build clean in 2.18 s), the green CI
+  run on `a0d7128` for Test Backend, Test Frontend, Test Migrations and CodeQL,
+  and the published image, checked by pulling
+  `ghcr.io/apoapostolov/lingarr-next:1.2.5` on Bedroom and reading `/api/version`
+  for `currentVersion` 1.2.5.
 
 ## Next decisions
 

@@ -35,8 +35,14 @@ Each one is still reviewed and tested before it ships.
 
 ## What's new
 
-Current release: [1.2.4](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.4).
+Current release: [1.2.5](https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.5).
 The full history is in [CHANGELOG.md](CHANGELOG.md).
+
+### 1.2.5 — Clean Manifests (2026-11-24)
+
+- All eight open dependency advisories are closed. Each one was a transitive dependency of the
+  documentation site's builder, and the fix stays on the versions that site already builds with. The
+  application itself is unchanged, so an existing install behaves the same after upgrading.
 
 ### 1.2.4 — Language Priority (2026-11-20)
 

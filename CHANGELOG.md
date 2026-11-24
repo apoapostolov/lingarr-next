@@ -5,6 +5,22 @@ All notable changes to Lingarr Next are documented here.
 Lingarr Next uses an independent version line. Its versions are not intended
 to sort before or after versions published by upstream Lingarr.
 
+## [1.2.5] - 2026-11-24 — Clean Manifests
+
+Every open dependency advisory on this repository is closed, and the documentation site's dependency
+tree stays on the lines it already shipped with. All eight advisories sat in that tree, so no server
+or client code changed and a running install behaves exactly as it did on 1.2.4.
+
+- All eight Dependabot advisories are cleared from `Lingarr.Docs/package-lock.json`. The five `vite`
+  advisories close at 8.1.6, the first version Dependabot reports as patched, so the tree keeps the
+  `rolldown` and `lightningcss` lines the documentation site already built with instead of following
+  `vite` to its newest 8.x.
+- Nothing is added outside its previous major and no prerelease enters the tree. `npm audit` reports
+  no vulnerabilities there, the documentation site builds on the pinned versions, and
+  `Lingarr.Docs/package.json` is untouched, so no declared range was widened.
+- The readme's **What's new** section carries the release it names. A release is complete only when
+  that section names the version just published, not the one before it.
+
 ## [1.2.4] - 2026-11-20 — Language Priority
 
 Language order is now respected, environment-provided credentials are encrypted, and a failed job
@@ -638,6 +654,7 @@ maintained by Apostol Apostolov.
 - Back up the application config and database before switching from an upstream
   image or attempting a downgrade.
 
+[1.2.5]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.5
 [1.2.4]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.4
 [1.2.3]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.3
 [1.2.2]: https://github.com/apoapostolov/lingarr-next/releases/tag/1.2.2
